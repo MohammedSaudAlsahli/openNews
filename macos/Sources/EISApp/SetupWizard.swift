@@ -84,6 +84,7 @@ struct SetupWizard: View {
             }
             Divider()
             HStack {
+                if completed { Button(L("إغلاق")) { dismiss() }.disabled(saving) }
                 if step > 0 { Button(L("السابق")) { step -= 1 }.disabled(saving) }
                 Spacer()
                 if step == 1 { Button(L("سأربط مزودًا لاحقًا")) { step = 2 } }
@@ -93,7 +94,7 @@ struct SetupWizard: View {
                     else { step += 1 }
                 }.buttonStyle(.borderedProminent).disabled(saving || (step == 1 && !ready))
             }.padding(24)
-        }.frame(width: 680, height: 560).interactiveDismissDisabled()
+        }.frame(width: 680, height: 560).interactiveDismissDisabled(!completed)
             .editorialPresentation()
             .onAppear {
                 permission = savedPermission
