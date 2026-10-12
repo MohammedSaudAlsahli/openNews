@@ -1,0 +1,106 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "topic": {
+      "maxLength": 2000,
+      "minLength": 3,
+      "title": "Topic",
+      "type": "string"
+    },
+    "format": {
+      "enum": [
+        "x_post",
+        "x_thread",
+        "linkedin",
+        "youtube_long",
+        "shorts",
+        "reels",
+        "tiktok"
+      ],
+      "title": "Format",
+      "type": "string"
+    },
+    "language": {
+      "default": "ar",
+      "enum": [
+        "ar",
+        "en"
+      ],
+      "title": "Language",
+      "type": "string"
+    },
+    "profile_id": {
+      "format": "uuid",
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "dna_version_id": {
+      "format": "uuid",
+      "title": "Dna Version Id",
+      "type": "string"
+    },
+    "source_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 12,
+      "title": "Source Ids",
+      "type": "array"
+    },
+    "target_seconds": {
+      "anyOf": [
+        {
+          "maximum": 7200,
+          "minimum": 10,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Seconds"
+    },
+    "max_characters": {
+      "default": 280,
+      "maximum": 25000,
+      "minimum": 50,
+      "title": "Max Characters",
+      "type": "integer"
+    },
+    "model_id": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Id"
+    },
+    "consent": {
+      "default": false,
+      "title": "Consent",
+      "type": "boolean"
+    },
+    "idempotency_key": {
+      "format": "uuid",
+      "title": "Idempotency Key",
+      "type": "string"
+    }
+  },
+  "required": [
+    "topic",
+    "format",
+    "profile_id",
+    "dna_version_id",
+    "idempotency_key"
+  ],
+  "title": "Generate",
+  "type": "object"
+}

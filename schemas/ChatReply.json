@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "ChatDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 60000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "x_post",
+            "youtube_long",
+            "tiktok"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "article_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Article Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "text",
+        "format"
+      ],
+      "title": "ChatDraft",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "message": {
+      "maxLength": 18000,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    },
+    "article_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 12,
+      "title": "Article Ids",
+      "type": "array"
+    },
+    "drafts": {
+      "items": {
+        "$ref": "#/$defs/ChatDraft"
+      },
+      "maxItems": 12,
+      "title": "Drafts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "message"
+  ],
+  "title": "ChatReply",
+  "type": "object"
+}

@@ -1,0 +1,24 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Brand Gradient: Violet to Cyan -->
+    <!-- High contrast stops to ensure visibility on both dark and light tabs -->
+    <linearGradient id="favicon_gradient" x1="5" y1="15" x2="59" y2="49" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a78bfa" /> <!-- Violet-400 -->
+      <stop offset="100%" stop-color="#22d3ee" /> <!-- Cyan-400 -->
+    </linearGradient>
+  </defs>
+
+  <!-- 
+    Refined Infinity Symbol - "Fuller & Rounder"
+    Increased height and stroke width for better visibility on tabs
+  -->
+  <path d="M32 32 
+           C 23 15, 5 15, 5 32 
+           C 5 49, 23 49, 32 32 
+           C 41 15, 59 15, 59 32 
+           C 59 49, 41 49, 32 32 Z" 
+        stroke="url(#favicon_gradient)" 
+        stroke-width="8" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" />
+</svg>

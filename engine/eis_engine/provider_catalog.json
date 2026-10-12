@@ -1,0 +1,1270 @@
+{
+  "agno_version": "3.1.2",
+  "providers": [
+    {
+      "id": "aimlapi",
+      "name": "AIMLAPI",
+      "module": "agno.models.aimlapi",
+      "class_name": "AIMLAPI",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-5.6-luna",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.aimlapi.com/v1"
+    },
+    {
+      "id": "anthropic",
+      "name": "Claude",
+      "module": "agno.models.anthropic",
+      "class_name": "Claude",
+      "status": "ready",
+      "fields": [],
+      "default_model": "claude-sonnet-4-5-20250929",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "aws-bedrock",
+      "name": "AwsBedrock",
+      "module": "agno.models.aws",
+      "class_name": "AwsBedrock",
+      "status": "ready",
+      "fields": [
+        "aws_region"
+      ],
+      "default_model": "mistral.mistral-small-2402-v1:0",
+      "credential": "cloud_configuration",
+      "credential_fields": [
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "aws_session_token"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "aws-claude",
+      "name": "Claude",
+      "module": "agno.models.aws",
+      "class_name": "Claude",
+      "status": "ready",
+      "fields": [
+        "aws_region"
+      ],
+      "default_model": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "credential": "cloud_configuration",
+      "credential_fields": [
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "aws_session_token"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "azure-ai-foundry",
+      "name": "AzureAIFoundry",
+      "module": "agno.models.azure",
+      "class_name": "AzureAIFoundry",
+      "status": "ready",
+      "fields": [
+        "api_version",
+        "azure_endpoint",
+        "subscription_id",
+        "resource_group",
+        "account_name"
+      ],
+      "default_model": "gpt-4o",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key",
+        "azure_management_token"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "azure-foundry-claude",
+      "name": "AzureFoundryClaude",
+      "module": "agno.models.azure",
+      "class_name": "AzureFoundryClaude",
+      "status": "ready",
+      "fields": [
+        "base_url",
+        "resource"
+      ],
+      "default_model": "claude-sonnet-4-5",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "azure-openai",
+      "name": "AzureOpenAI",
+      "module": "agno.models.azure",
+      "class_name": "AzureOpenAI",
+      "status": "ready",
+      "fields": [
+        "api_version",
+        "azure_deployment",
+        "azure_endpoint",
+        "base_url",
+        "subscription_id",
+        "resource_group",
+        "account_name"
+      ],
+      "default_model": "not-provided",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key",
+        "azure_management_token"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "azure-openai-responses",
+      "name": "AzureOpenAIResponses",
+      "module": "agno.models.azure",
+      "class_name": "AzureOpenAIResponses",
+      "status": "ready",
+      "fields": [
+        "api_version",
+        "azure_endpoint",
+        "base_url",
+        "subscription_id",
+        "resource_group",
+        "account_name"
+      ],
+      "default_model": "not-provided",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key",
+        "azure_management_token"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "cerebras",
+      "name": "Cerebras",
+      "module": "agno.models.cerebras",
+      "class_name": "Cerebras",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-oss-120b",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "cerebras-openai",
+      "name": "CerebrasOpenAI",
+      "module": "agno.models.cerebras",
+      "class_name": "CerebrasOpenAI",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-oss-120b",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.cerebras.ai/v1"
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare",
+      "module": "agno.models.cloudflare",
+      "class_name": "Cloudflare",
+      "status": "ready",
+      "fields": [
+        "account_id",
+        "base_url",
+        "gateway_id"
+      ],
+      "default_model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "cohere",
+      "name": "Cohere",
+      "module": "agno.models.cohere",
+      "class_name": "Cohere",
+      "status": "ready",
+      "fields": [],
+      "default_model": "command-a-03-2025",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "cometapi",
+      "name": "CometAPI",
+      "module": "agno.models.cometapi",
+      "class_name": "CometAPI",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-5-mini",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.cometapi.com/v1"
+    },
+    {
+      "id": "dashscope",
+      "name": "DashScope",
+      "module": "agno.models.dashscope",
+      "class_name": "DashScope",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "qwen-plus",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    },
+    {
+      "id": "deepinfra",
+      "name": "DeepInfra",
+      "module": "agno.models.deepinfra",
+      "class_name": "DeepInfra",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "meta-llama/Llama-2-70b-chat-hf",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.deepinfra.com/v1/openai"
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "module": "agno.models.deepseek",
+      "class_name": "DeepSeek",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "deepseek-v4-flash",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.deepseek.com"
+    },
+    {
+      "id": "fireworks",
+      "name": "Fireworks",
+      "module": "agno.models.fireworks",
+      "class_name": "Fireworks",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "accounts/fireworks/models/gpt-oss-120b",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.fireworks.ai/inference/v1"
+    },
+    {
+      "id": "flexai",
+      "name": "FlexAI",
+      "module": "agno.models.flexai",
+      "class_name": "FlexAI",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "DeepSeek-V4-Flash-0731",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.flex.ai/v1"
+    },
+    {
+      "id": "google",
+      "name": "Gemini",
+      "module": "agno.models.google",
+      "class_name": "Gemini",
+      "status": "ready",
+      "fields": [
+        "location",
+        "project_id",
+        "vertexai"
+      ],
+      "default_model": "gemini-3.7-flash",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key",
+        "service_account_info"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "google-interactions",
+      "name": "GeminiInteractions",
+      "module": "agno.models.google",
+      "class_name": "GeminiInteractions",
+      "status": "ready",
+      "fields": [],
+      "default_model": "gemini-3.7-flash",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "groq",
+      "name": "Groq",
+      "module": "agno.models.groq",
+      "class_name": "Groq",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "openai/gpt-oss-120b",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "heabsy",
+      "name": "Heabsy",
+      "module": "agno.models.heabsy",
+      "class_name": "Heabsy",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "qwen38",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.heabsy.com/v1"
+    },
+    {
+      "id": "huggingface",
+      "name": "HuggingFace",
+      "module": "agno.models.huggingface",
+      "class_name": "HuggingFace",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "ibm",
+      "name": "WatsonX",
+      "module": "agno.models.ibm",
+      "class_name": "WatsonX",
+      "status": "ready",
+      "fields": [
+        "project_id",
+        "url"
+      ],
+      "default_model": "ibm/granite-20b-code-instruct",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "inception",
+      "name": "Inception",
+      "module": "agno.models.inception",
+      "class_name": "Inception",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "mercury-2",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.inceptionlabs.ai/v1"
+    },
+    {
+      "id": "internlm",
+      "name": "InternLM",
+      "module": "agno.models.internlm",
+      "class_name": "InternLM",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "internlm2.5-latest",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://internlm-chat.intern-ai.org.cn/puyu/api/v1/chat/completions"
+    },
+    {
+      "id": "langdb",
+      "name": "LangDB",
+      "module": "agno.models.langdb",
+      "class_name": "LangDB",
+      "status": "ready",
+      "fields": [
+        "base_host_url",
+        "base_url",
+        "project_id"
+      ],
+      "default_model": "gpt-4o",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "litellm",
+      "name": "LiteLLM",
+      "module": "agno.models.litellm",
+      "class_name": "LiteLLM",
+      "status": "ready",
+      "fields": [
+        "api_base"
+      ],
+      "default_model": "gpt-4o",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "litellm-openai",
+      "name": "LiteLLMOpenAI",
+      "module": "agno.models.litellm",
+      "class_name": "LiteLLMOpenAI",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-4o",
+      "credential": "local_server",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "http://0.0.0.0:4000"
+    },
+    {
+      "id": "llama-cpp",
+      "name": "LlamaCpp",
+      "module": "agno.models.llama_cpp",
+      "class_name": "LlamaCpp",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "ggml-org/gpt-oss-20b-GGUF",
+      "credential": "local_server",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "http://127.0.0.1:8080/v1"
+    },
+    {
+      "id": "llama-openai",
+      "name": "LlamaOpenAI",
+      "module": "agno.models.meta",
+      "class_name": "LlamaOpenAI",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.llama.com/compat/v1/"
+    },
+    {
+      "id": "llmman",
+      "name": "Llmman",
+      "module": "agno.models.llmman",
+      "class_name": "Llmman",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "qwen3:0.6b-q4_K_M",
+      "credential": "local_server",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "http://127.0.0.1:17434/v1"
+    },
+    {
+      "id": "lmstudio",
+      "name": "LMStudio",
+      "module": "agno.models.lmstudio",
+      "class_name": "LMStudio",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "qwen2.5-7b-instruct-1m",
+      "credential": "local_server",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "http://127.0.0.1:1234/v1"
+    },
+    {
+      "id": "meta",
+      "name": "Llama",
+      "module": "agno.models.meta",
+      "class_name": "Llama",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "module": "agno.models.minimax",
+      "class_name": "MiniMax",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "MiniMax-M3",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.minimax.io/v1"
+    },
+    {
+      "id": "mistral",
+      "name": "MistralChat",
+      "module": "agno.models.mistral",
+      "class_name": "MistralChat",
+      "status": "ready",
+      "fields": [],
+      "default_model": "mistral-large-latest",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "moonshot",
+      "name": "MoonShot",
+      "module": "agno.models.moonshot",
+      "class_name": "MoonShot",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "kimi-k3",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.moonshot.ai/v1"
+    },
+    {
+      "id": "n1n",
+      "name": "N1N",
+      "module": "agno.models.n1n",
+      "class_name": "N1N",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-4o",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.n1n.ai/v1"
+    },
+    {
+      "id": "nebius",
+      "name": "Nebius",
+      "module": "agno.models.nebius",
+      "class_name": "Nebius",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "openai/gpt-oss-20b",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.tokenfactory.nebius.com/v1/"
+    },
+    {
+      "id": "neosantara",
+      "name": "Neosantara",
+      "module": "agno.models.neosantara",
+      "class_name": "Neosantara",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "grok-4.1-fast-non-reasoning",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.neosantara.xyz/v1"
+    },
+    {
+      "id": "nexus",
+      "name": "Nexus",
+      "module": "agno.models.nexus",
+      "class_name": "Nexus",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "openai/gpt-4",
+      "credential": "local_server",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "http://localhost:8000/llm/v1/"
+    },
+    {
+      "id": "nvidia",
+      "name": "Nvidia",
+      "module": "agno.models.nvidia",
+      "class_name": "Nvidia",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "meta/llama-3.3-70b-instruct",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://integrate.api.nvidia.com/v1"
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "module": "agno.models.ollama",
+      "class_name": "Ollama",
+      "status": "ready",
+      "fields": [
+        "host"
+      ],
+      "default_model": "llama3.1",
+      "credential": "local_server",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "ollama-responses",
+      "name": "OllamaResponses",
+      "module": "agno.models.ollama",
+      "class_name": "OllamaResponses",
+      "status": "ready",
+      "fields": [
+        "base_url",
+        "host"
+      ],
+      "default_model": "gpt-oss:20b",
+      "credential": "local_server",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "open-responses",
+      "name": "OpenResponses",
+      "module": "agno.models.openai",
+      "class_name": "OpenResponses",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "not-provided",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "openai",
+      "name": "OpenAIResponses",
+      "module": "agno.models.openai",
+      "class_name": "OpenAIResponses",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-5.4-mini",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "openai-chat",
+      "name": "OpenAIChat",
+      "module": "agno.models.openai",
+      "class_name": "OpenAIChat",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-5.4-mini",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "openai-responses",
+      "name": "OpenAIResponses",
+      "module": "agno.models.openai",
+      "class_name": "OpenAIResponses",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-5.4-mini",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "module": "agno.models.openrouter",
+      "class_name": "OpenRouter",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-5.4-mini",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://openrouter.ai/api/v1"
+    },
+    {
+      "id": "openrouter-responses",
+      "name": "OpenRouterResponses",
+      "module": "agno.models.openrouter",
+      "class_name": "OpenRouterResponses",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "openai/gpt-oss-20b",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://openrouter.ai/api/v1"
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "module": "agno.models.perplexity",
+      "class_name": "Perplexity",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "sonar",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.perplexity.ai/"
+    },
+    {
+      "id": "portkey",
+      "name": "Portkey",
+      "module": "agno.models.portkey",
+      "class_name": "Portkey",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-4o-mini",
+      "credential": "api_key",
+      "credential_fields": [
+        "portkey_api_key",
+        "virtual_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.portkey.ai/v1"
+    },
+    {
+      "id": "ramp",
+      "name": "RampRouter",
+      "module": "agno.models.ramp",
+      "class_name": "RampRouter",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-5.6-luna",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.router.com/v1"
+    },
+    {
+      "id": "requesty",
+      "name": "Requesty",
+      "module": "agno.models.requesty",
+      "class_name": "Requesty",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "openai/gpt-4.1",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://router.requesty.ai/v1"
+    },
+    {
+      "id": "sambanova",
+      "name": "Sambanova",
+      "module": "agno.models.sambanova",
+      "class_name": "Sambanova",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "Meta-Llama-3.1-8B-Instruct",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.sambanova.ai/v1"
+    },
+    {
+      "id": "siliconflow",
+      "name": "Siliconflow",
+      "module": "agno.models.siliconflow",
+      "class_name": "Siliconflow",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "Qwen/QwQ-32B",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.siliconflow.cn/v1"
+    },
+    {
+      "id": "synthorai",
+      "name": "Synthorai",
+      "module": "agno.models.synthorai",
+      "class_name": "Synthorai",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "claude-opus-5",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://synthorai.io/v1"
+    },
+    {
+      "id": "together",
+      "name": "Together",
+      "module": "agno.models.together",
+      "class_name": "Together",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "MiniMaxAI/MiniMax-M2.7",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.together.xyz/v1"
+    },
+    {
+      "id": "tokenlab",
+      "name": "TokenLab",
+      "module": "agno.models.tokenlab",
+      "class_name": "TokenLab",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-5.4-mini",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.tokenlab.sh/v1"
+    },
+    {
+      "id": "trustedrouter",
+      "name": "TrustedRouter",
+      "module": "agno.models.trustedrouter",
+      "class_name": "TrustedRouter",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "trustedrouter/zdr",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.trustedrouter.com/v1"
+    },
+    {
+      "id": "tuning-engines",
+      "name": "TuningEngines",
+      "module": "agno.models.tuning_engines",
+      "class_name": "TuningEngines",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "gpt-4o",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "vercel",
+      "name": "V0",
+      "module": "agno.models.vercel",
+      "class_name": "V0",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "v0-1.0-md",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.v0.dev/v1/"
+    },
+    {
+      "id": "vertexai-claude",
+      "name": "Claude",
+      "module": "agno.models.vertexai.claude",
+      "class_name": "Claude",
+      "status": "ready",
+      "fields": [
+        "base_url",
+        "project_id",
+        "region"
+      ],
+      "default_model": "claude-sonnet-4@20250514",
+      "credential": "cloud_configuration",
+      "credential_fields": [
+        "service_account_info"
+      ],
+      "note": "المهايئ متاح؛ يتطلب بيانات الحساب والمنطقة أو المشروع قبل الاتصال.",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "vllm",
+      "name": "VLLM",
+      "module": "agno.models.vllm",
+      "class_name": "VLLM",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "not-set",
+      "credential": "local_server",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": ""
+    },
+    {
+      "id": "xai",
+      "name": "xAI",
+      "module": "agno.models.xai",
+      "class_name": "xAI",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "grok-4-1-fast-non-reasoning-latest",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.x.ai/v1"
+    },
+    {
+      "id": "xai-responses",
+      "name": "xAIResponses",
+      "module": "agno.models.xai",
+      "class_name": "xAIResponses",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "grok-4-1-fast-non-reasoning-latest",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.x.ai/v1"
+    },
+    {
+      "id": "xiaomi",
+      "name": "MiMo",
+      "module": "agno.models.xiaomi",
+      "class_name": "MiMo",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "mimo-v2.5-pro",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.xiaomimimo.com/v1"
+    },
+    {
+      "id": "yapi",
+      "name": "YAPI",
+      "module": "agno.models.yapi",
+      "class_name": "YAPI",
+      "status": "ready",
+      "fields": [
+        "base_url"
+      ],
+      "default_model": "deepseek/deepseek-v4-flash",
+      "credential": "api_key",
+      "credential_fields": [
+        "api_key"
+      ],
+      "note": "",
+      "live_validated": false,
+      "default_base_url": "https://api.y-api.bestvirtualgoods.com/v1"
+    },
+    {
+      "id": "openai-chatgpt",
+      "name": "ChatGPT",
+      "module": "eis_engine.chatgpt_auth",
+      "class_name": "ChatGPTResponses",
+      "status": "ready",
+      "fields": [],
+      "default_model": "",
+      "credential": "oauth",
+      "credential_fields": [],
+      "note": "تسجيل الدخول باشتراك ChatGPT عبر المتصفح.",
+      "live_validated": false,
+      "default_base_url": "https://api.openai.com/v1"
+    }
+  ]
+}

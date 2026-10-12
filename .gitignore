@@ -1,0 +1,24 @@
+.venv/
+.build/
+build/
+dist/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.sqlite*
+.DS_Store
+
+# Local provider credentials are never source or deliverables.
+.providers/
+credentials*.json
+
+# Private runtime state and local build evidence
+.chatgpt/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+.impeccable/
+docs/*results.txt

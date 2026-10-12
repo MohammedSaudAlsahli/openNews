@@ -1,0 +1,523 @@
+{
+  "aimlapi": {
+    "name": "AI/ML API",
+    "asset": "provider-aimlapi",
+    "source": "https://cdn.prod.website-files.com/65b8f36fa600366bc7cf9a67/68823171a2a0e523e03b0752_Logo%20Icon.png",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://aimlapi.com",
+    "sha256": "c0da7b3c5352e5bce4b55e9fbd982897bb5e172001d73f5ce6ce781da20da81f"
+  },
+  "anthropic": {
+    "name": "Anthropic",
+    "asset": "provider-anthropic",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/anthropic/logo.svg",
+    "license": "MIT",
+    "sha256": "c9f5ea612aed33f3227a4d2cd33aec0a9a58518356b8bbbc648175f221caece2"
+  },
+  "aws-bedrock": {
+    "name": "Amazon Bedrock",
+    "asset": "provider-amazon-bedrock",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/amazon-bedrock/logo.svg",
+    "license": "MIT",
+    "sha256": "2580010ee64735265a83643a0e876fb4daf46e12965f0c25663e973c26a46e02"
+  },
+  "aws-claude": {
+    "name": "Amazon Bedrock · Claude",
+    "asset": "provider-amazon-bedrock",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/amazon-bedrock/logo.svg",
+    "license": "MIT",
+    "sha256": "2580010ee64735265a83643a0e876fb4daf46e12965f0c25663e973c26a46e02"
+  },
+  "azure-ai-foundry": {
+    "name": "Azure AI Foundry",
+    "asset": "provider-azure-cognitive-services",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/azure-cognitive-services/logo.svg",
+    "license": "MIT",
+    "sha256": "8599113279668c73ef587349860725ac2e2a3927a290773e71f94c85139e8fa7"
+  },
+  "azure-foundry-claude": {
+    "name": "Azure AI Foundry · Claude",
+    "asset": "provider-azure-cognitive-services",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/azure-cognitive-services/logo.svg",
+    "license": "MIT",
+    "sha256": "8599113279668c73ef587349860725ac2e2a3927a290773e71f94c85139e8fa7"
+  },
+  "azure-openai": {
+    "name": "Azure OpenAI",
+    "asset": "provider-azure",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/azure/logo.svg",
+    "license": "MIT",
+    "sha256": "8599113279668c73ef587349860725ac2e2a3927a290773e71f94c85139e8fa7"
+  },
+  "azure-openai-responses": {
+    "name": "Azure OpenAI · Responses",
+    "asset": "provider-azure",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/azure/logo.svg",
+    "license": "MIT",
+    "sha256": "8599113279668c73ef587349860725ac2e2a3927a290773e71f94c85139e8fa7"
+  },
+  "cerebras": {
+    "name": "Cerebras",
+    "asset": "provider-cerebras",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/cerebras/logo.svg",
+    "license": "MIT",
+    "sha256": "83c030272b2dad90e555a015401d1ebc064e0a2658babac4c1092e30845fa058"
+  },
+  "cerebras-openai": {
+    "name": "Cerebras · OpenAI API",
+    "asset": "provider-cerebras",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/cerebras/logo.svg",
+    "license": "MIT",
+    "sha256": "83c030272b2dad90e555a015401d1ebc064e0a2658babac4c1092e30845fa058"
+  },
+  "cloudflare": {
+    "name": "Cloudflare Workers AI",
+    "asset": "provider-cloudflare-workers-ai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/cloudflare-workers-ai/logo.svg",
+    "license": "MIT",
+    "sha256": "5c7a195627c549d233bb5b464acb6b50b69fd0509cacf75419de269ade0849d7"
+  },
+  "cohere": {
+    "name": "Cohere",
+    "asset": "provider-cohere",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/cohere/logo.svg",
+    "license": "MIT",
+    "sha256": "d728ae546ca33920215e2b7ab9c88a6f2951afe93018b90514b986855b56ef15"
+  },
+  "cometapi": {
+    "name": "CometAPI",
+    "asset": "provider-cometapi",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/cometapi.svg",
+    "license": "MIT",
+    "sha256": "8fbf26712b5207d7be15611f0b781a1c71fb01908afd8039ed10c0e203c92aea"
+  },
+  "dashscope": {
+    "name": "Alibaba Cloud · DashScope",
+    "asset": "provider-alibaba",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/alibaba/logo.svg",
+    "license": "MIT",
+    "sha256": "eadb4ec38e1c855672cf56158b72047090b58bd443c190c285a5c8c69df42e89"
+  },
+  "deepinfra": {
+    "name": "DeepInfra",
+    "asset": "provider-deepinfra",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/deepinfra/logo.svg",
+    "license": "MIT",
+    "sha256": "45d79d27da3c2ebac5649286696b3e9bf8270ad6426e3cdae08e7628437b5d29"
+  },
+  "deepseek": {
+    "name": "DeepSeek",
+    "asset": "provider-deepseek",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/deepseek/logo.svg",
+    "license": "MIT",
+    "sha256": "08af9471ada10443414a75576cd05d27b30ac2b0ab2bafae2e051d487c5d17ef"
+  },
+  "fireworks": {
+    "name": "Fireworks AI",
+    "asset": "provider-fireworks-ai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/fireworks-ai/logo.svg",
+    "license": "MIT",
+    "sha256": "b201750586f8c3a44c2147d314ad327beeae0561f31ae5f144805b24d3110d33"
+  },
+  "flexai": {
+    "name": "FlexAI",
+    "asset": "provider-flexai",
+    "source": "https://flex.ai/favicon.ico",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://flex.ai",
+    "sha256": "41469f01c44be255e5b47c645b863fed3cf6887f0d7bfd9ce1d81ddf1915f086"
+  },
+  "google": {
+    "name": "Google Gemini",
+    "asset": "provider-google",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/google/logo.svg",
+    "license": "MIT",
+    "sha256": "718f949e343149f01ff8746131fc20ead884ee0c9fdcba162c94904d48c3a55a"
+  },
+  "google-interactions": {
+    "name": "Google Gemini · Interactions",
+    "asset": "provider-google",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/google/logo.svg",
+    "license": "MIT",
+    "sha256": "718f949e343149f01ff8746131fc20ead884ee0c9fdcba162c94904d48c3a55a"
+  },
+  "groq": {
+    "name": "Groq",
+    "asset": "provider-groq",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/groq/logo.svg",
+    "license": "MIT",
+    "sha256": "de1f403dfe7fe0a37bcbe573166680d0e4e18ac470359c63d0b23f7afd6d408d"
+  },
+  "heabsy": {
+    "name": "Heabsy",
+    "asset": "provider-heabsy",
+    "source": "https://heabsy.com/favicon/favicon-96x96.png",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://heabsy.com",
+    "sha256": "44b24b4eeacd43ab40d6f5c63a55ed3ab85d25e2862f96bcfd86ec2ec18d894c"
+  },
+  "huggingface": {
+    "name": "Hugging Face",
+    "asset": "provider-huggingface",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/huggingface/logo.svg",
+    "license": "MIT",
+    "sha256": "690e1a726953b79716b258efeae77d19ca45ecbfb823e42527879b94a03c7e0e"
+  },
+  "ibm": {
+    "name": "IBM watsonx",
+    "asset": "provider-watsonx",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/watsonx/logo.svg",
+    "license": "MIT",
+    "sha256": "6581283de32ceafca9e3985fe5f94ba7332ec8b64b72ecd6fcfc6ff299a586f7"
+  },
+  "inception": {
+    "name": "Inception",
+    "asset": "provider-inception",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/inception/logo.svg",
+    "license": "MIT",
+    "sha256": "7ba92f0503743ebbe8b2926c9412337faab0004f2c5b071476b74df50f23f0a3"
+  },
+  "internlm": {
+    "name": "InternLM",
+    "asset": "provider-internlm",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/internlm.svg",
+    "license": "MIT",
+    "sha256": "7c4b2a1fbd37916884afebc1af2d92264c014fbaff084573e648bdc13f368414"
+  },
+  "langdb": {
+    "name": "LangDB",
+    "asset": "provider-langdb",
+    "source": "https://langdb.ai/favicon.ico",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://langdb.ai",
+    "sha256": "781236d6bc3b7486c5a857ab695a8ec252eead41bde0a673dea1dc8c96860b82"
+  },
+  "litellm": {
+    "name": "LiteLLM",
+    "asset": "provider-litellm",
+    "source": "https://cdn.prod.website-files.com/69eb241da3f923869c226875/6abea43c7b43e2bc4b306584_litellm_favicon_light_32.png",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://www.litellm.ai",
+    "sha256": "404d91ca1d43ef3ba38e19e8e5df933e8f1adbf6b2f4d92f8c967c53bb33303b"
+  },
+  "litellm-openai": {
+    "name": "LiteLLM · OpenAI API",
+    "asset": "provider-litellm",
+    "source": "https://cdn.prod.website-files.com/69eb241da3f923869c226875/6abea43c7b43e2bc4b306584_litellm_favicon_light_32.png",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://www.litellm.ai",
+    "sha256": "404d91ca1d43ef3ba38e19e8e5df933e8f1adbf6b2f4d92f8c967c53bb33303b"
+  },
+  "llama-cpp": {
+    "name": "llama.cpp",
+    "asset": "provider-llama-cpp",
+    "source": "https://raw.githubusercontent.com/ggml-org/llama.brand/master/icon/icon-light.svg",
+    "license": "CC BY-NC 4.0 + explicit redistribution permission in llama.brand/BRAND-USAGE.md",
+    "template": false,
+    "homepage": "https://github.com/ggml-org/llama.brand",
+    "sha256": "64a8389ca6e20c1b5dfd20f2c63f7b2b8a1ecec7929ff6fbbdfa434cb13ab21f"
+  },
+  "llama-openai": {
+    "name": "Llama · OpenAI API",
+    "asset": "provider-llama",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/llama/logo.svg",
+    "license": "MIT",
+    "sha256": "5782a52fa6cfa87b0815d19f13d29ef96cf72902e10627010d647e31c5de40c4"
+  },
+  "llmman": {
+    "name": "LLMMan",
+    "asset": "provider-llmman",
+    "source": "https://avatars.githubusercontent.com/u/316802122?v=4",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://github.com/llmmanorg/llmman",
+    "sha256": "7a8f919fe6ca52c3f81b71c2c487f2733b34605e816a634ccc5cd4b72bc311cc"
+  },
+  "lmstudio": {
+    "name": "LM Studio",
+    "asset": "provider-lmstudio",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/lmstudio/logo.svg",
+    "license": "MIT",
+    "sha256": "e06f1d6a51d6f370cedfa886eab28f188765a4be4b951fba0264b2028c332e61"
+  },
+  "meta": {
+    "name": "Meta Llama",
+    "asset": "provider-meta",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/meta/logo.svg",
+    "license": "MIT",
+    "sha256": "5782a52fa6cfa87b0815d19f13d29ef96cf72902e10627010d647e31c5de40c4"
+  },
+  "minimax": {
+    "name": "MiniMax",
+    "asset": "provider-minimax",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/minimax/logo.svg",
+    "license": "MIT",
+    "sha256": "faf64ce27081d7670353755895de0cee7a2a9117e4d74292700e868ff7678b6c"
+  },
+  "mistral": {
+    "name": "Mistral AI",
+    "asset": "provider-mistral",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/mistral/logo.svg",
+    "license": "MIT",
+    "sha256": "2464c60555aa1bce0e0d24b127edbbcbff103ac05fae2ec49fd42f0436786090"
+  },
+  "moonshot": {
+    "name": "Moonshot AI",
+    "asset": "provider-moonshotai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/moonshotai/logo.svg",
+    "license": "MIT",
+    "sha256": "59eed4eacaf2f946170731f2e5ef1e51202c68748289a37fd14a6e7d22e55632"
+  },
+  "n1n": {
+    "name": "N1N",
+    "asset": "provider-n1n",
+    "source": "https://n1n.ai/favicon.svg",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://n1n.ai",
+    "sha256": "b9c05368d3386ec71f9cda45ccc5dd97e4d29282a7295dbceecfe5cbb39d5207"
+  },
+  "nebius": {
+    "name": "Nebius",
+    "asset": "provider-nebius",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/nebius/logo.svg",
+    "license": "MIT",
+    "sha256": "e449f6a6c08364bfbbde6dd05941a69ace5d1041065f84a82fb7d28fb16e6ae2"
+  },
+  "neosantara": {
+    "name": "Neosantara",
+    "asset": "provider-neosantara",
+    "source": "https://www.neosantara.xyz/favicon.ico",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://www.neosantara.xyz/en",
+    "sha256": "9d24b5f4f61275e141b1cc85d30b2edc03d17a2f8cd0e5e2d63ea391d6cf2ffc"
+  },
+  "nexus": {
+    "name": "Nexus",
+    "asset": "provider-nexus",
+    "source": "https://nexusrouter.com/icon.svg",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://nexusrouter.com",
+    "sha256": "048b3db51e2b2e6b85aaa274d4811d6da81565749d55faf3708fc8e183845c22"
+  },
+  "nvidia": {
+    "name": "NVIDIA",
+    "asset": "provider-nvidia",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/nvidia/logo.svg",
+    "license": "MIT",
+    "sha256": "3f73b8dd6c2fdeedc6d3712aae0f56eb518343d8d75a2ae407899bc5d8c69aa7"
+  },
+  "ollama": {
+    "name": "Ollama",
+    "asset": "provider-ollama-cloud",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/ollama-cloud/logo.svg",
+    "license": "MIT",
+    "sha256": "c495ecc6aa5f0d8f933b7269c8fe59b2bf9e940db673558f1f67b9f89216bce1"
+  },
+  "ollama-responses": {
+    "name": "Ollama · Responses",
+    "asset": "provider-ollama-cloud",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/ollama-cloud/logo.svg",
+    "license": "MIT",
+    "sha256": "c495ecc6aa5f0d8f933b7269c8fe59b2bf9e940db673558f1f67b9f89216bce1"
+  },
+  "open-responses": {
+    "name": "Open Responses",
+    "asset": "provider-open-responses",
+    "source": "https://www.openresponses.org/svg/favicon.svg",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://www.openresponses.org",
+    "sha256": "b1054daf80389e5e4060755ae4862f0cb8196b8a098159324b318391d023aeff"
+  },
+  "openai": {
+    "name": "OpenAI",
+    "asset": "provider-openai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/openai/logo.svg",
+    "license": "MIT",
+    "sha256": "caa713152ec99e8f4a12a9fc6c43c2371d637f07c2ecfe2afa5f63e219e97394"
+  },
+  "openai-chat": {
+    "name": "OpenAI · Chat Completions",
+    "asset": "provider-openai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/openai/logo.svg",
+    "license": "MIT",
+    "sha256": "caa713152ec99e8f4a12a9fc6c43c2371d637f07c2ecfe2afa5f63e219e97394"
+  },
+  "openai-responses": {
+    "name": "OpenAI · Responses",
+    "asset": "provider-openai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/openai/logo.svg",
+    "license": "MIT",
+    "sha256": "caa713152ec99e8f4a12a9fc6c43c2371d637f07c2ecfe2afa5f63e219e97394"
+  },
+  "openrouter": {
+    "name": "OpenRouter",
+    "asset": "provider-openrouter",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/openrouter/logo.svg",
+    "license": "MIT",
+    "sha256": "28f84259448e1c5f2000c0198540e4a601dd9da5a0c4681fdc6789a5abcf87e3"
+  },
+  "openrouter-responses": {
+    "name": "OpenRouter · Responses",
+    "asset": "provider-openrouter",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/openrouter/logo.svg",
+    "license": "MIT",
+    "sha256": "28f84259448e1c5f2000c0198540e4a601dd9da5a0c4681fdc6789a5abcf87e3"
+  },
+  "perplexity": {
+    "name": "Perplexity",
+    "asset": "provider-perplexity",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/perplexity/logo.svg",
+    "license": "MIT",
+    "sha256": "261da05bcacccee20fcce604de46ec73aa6e37152abf5dd11bed8bb5138d2523"
+  },
+  "portkey": {
+    "name": "Portkey",
+    "asset": "provider-portkey",
+    "source": "https://framerusercontent.com/images/pkFK3AGXHirogqiN67JGtlnMVM.png",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://portkey.ai",
+    "sha256": "c8c52c58a95e30ee9bcb086f788ad8b9232df8333286cc6886d79c4a9af27422"
+  },
+  "ramp": {
+    "name": "Ramp",
+    "asset": "provider-ramp",
+    "source": "https://router.com/favicon.ico?favicon.3948ndr73xvax.ico",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://router.com",
+    "sha256": "6ca4ac29423fd4ddbce4bae4cdaca35f31648ee8ea9de1213211f43480329d9c"
+  },
+  "requesty": {
+    "name": "Requesty",
+    "asset": "provider-requesty",
+    "source": "https://www.requesty.ai/favicon.ico?favicon.2-1x21bz7uom-.ico",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://www.requesty.ai",
+    "sha256": "d2cd9da874ea8bc1c23722612b1bc66126c7d00bc695fd54cc16778266d5ce5d"
+  },
+  "sambanova": {
+    "name": "SambaNova",
+    "asset": "provider-sambanova",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/sambanova.svg",
+    "license": "MIT",
+    "sha256": "60c3b5ea2abf1788b63ebcc2cc95ccdc218645256c21d2b5f5243e11995738a5"
+  },
+  "siliconflow": {
+    "name": "SiliconFlow",
+    "asset": "provider-siliconflow",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/siliconflow/logo.svg",
+    "license": "MIT",
+    "sha256": "86610fe6700080eb1bc7dfe2f37f477ef75d75b13bfceaa8d9a97437f61048c4"
+  },
+  "synthorai": {
+    "name": "SynthorAI",
+    "asset": "provider-synthorai",
+    "source": "https://synthorai.io/favicon.svg",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://synthorai.io",
+    "sha256": "0553d0b91344de2a917015dffbcb490d548c7d487622b521b5be013abecce14c"
+  },
+  "together": {
+    "name": "Together AI",
+    "asset": "provider-togetherai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/togetherai/logo.svg",
+    "license": "MIT",
+    "sha256": "af56ef8d78a72a1acac7a1290a34bff82181e9495fd3abcd96bc80ea7261b200"
+  },
+  "tokenlab": {
+    "name": "TokenLab",
+    "asset": "provider-tokenlab",
+    "source": "https://tokenlab.sh/favicon.ico?f0a5e9c08248b5d9",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://tokenlab.sh",
+    "sha256": "d465cd33d1b977922093df49d5e774e5ddb53d375b724ff3fe473764a2b531df"
+  },
+  "trustedrouter": {
+    "name": "TrustedRouter",
+    "asset": "provider-trustedrouter",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/trustedrouter/logo.svg",
+    "license": "MIT",
+    "sha256": "2c9137cc41d50b466bd9dc8efe1075d72d79cf7d10f64de9a5792325a263b2fa"
+  },
+  "tuning-engines": {
+    "name": "Tuning Engines",
+    "asset": "provider-tuning-engines",
+    "source": "https://www.tuningengines.com/favicon.ico",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://www.tuningengines.com/",
+    "sha256": "5a51f60d6b776bf68c77ca8da0a748da2a48ce915aad20e0244827aadd4082b0"
+  },
+  "vercel": {
+    "name": "Vercel v0",
+    "asset": "provider-vercel",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/vercel/logo.svg",
+    "license": "MIT",
+    "sha256": "afd8a9f9ea8e57b79fb2be80e5ea8e756b1263c53e5f9fd21d7659e477dab6fc"
+  },
+  "vertexai-claude": {
+    "name": "Google Vertex AI · Claude",
+    "asset": "provider-google-vertex-anthropic",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/google-vertex-anthropic/logo.svg",
+    "license": "MIT",
+    "sha256": "3d9dcb03c9c634f447d6253bc80da81ebb88b2053fa0126c8371daacae494ab1"
+  },
+  "vllm": {
+    "name": "vLLM",
+    "asset": "provider-vllm",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/vllm.svg",
+    "license": "MIT",
+    "sha256": "4e431a0a53f824dbf2991848932f4978c4197a8d3ef2bec6b703ead9400a98de"
+  },
+  "xai": {
+    "name": "xAI",
+    "asset": "provider-xai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/xai/logo.svg",
+    "license": "MIT",
+    "sha256": "7bf6005387176d68f24e35168e4da6de7ce85a12c0f02a58b79e6ef4061f4f3a"
+  },
+  "xai-responses": {
+    "name": "xAI · Responses",
+    "asset": "provider-xai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/xai/logo.svg",
+    "license": "MIT",
+    "sha256": "7bf6005387176d68f24e35168e4da6de7ce85a12c0f02a58b79e6ef4061f4f3a"
+  },
+  "xiaomi": {
+    "name": "Xiaomi MiMo",
+    "asset": "provider-xiaomi",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/xiaomi/logo.svg",
+    "license": "MIT",
+    "sha256": "6c664aecfdc8c9552c3de97405e0c1726c894cf95f488a2e1fec5170a1d65913"
+  },
+  "yapi": {
+    "name": "YAPI",
+    "asset": "provider-yapi",
+    "source": "https://y-api.bestvirtualgoods.com/favicon-32.png",
+    "license": "Official brand asset; trademark identification",
+    "template": false,
+    "homepage": "https://y-api.bestvirtualgoods.com",
+    "sha256": "867bcb62ec6c40f684d3c7352c28fe08a7d2c9874e38ee130995fc3466581ce6"
+  },
+  "openai-chatgpt": {
+    "name": "OpenAI · ChatGPT",
+    "asset": "provider-openai",
+    "source": "https://raw.githubusercontent.com/anomalyco/models.dev/786553b0a448c08b38abeb06f4850e584e1ae943/providers/openai/logo.svg",
+    "license": "MIT",
+    "sha256": "caa713152ec99e8f4a12a9fc6c43c2371d637f07c2ecfe2afa5f63e219e97394"
+  }
+}

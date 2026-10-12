@@ -1,0 +1,113 @@
+# قائمة مصادر قابلة للتعديل. إضافة مصدر هنا لا تفعّل الاشتراك تلقائيًا.
+# الحقول المطلوبة: id, title, url, category, language
+# يمكن إضافة تصنيفات جديدة، وحذف verified_at للمصادر غير المتحققة.
+version: 1
+feeds:
+- id: bbc-ar
+  title: BBC Arabic
+  url: https://feeds.bbci.co.uk/arabic/rss.xml
+  category: general
+  language: ar
+  verified_at: '2026-10-12'
+  description_ar: أبرز الأخبار العربية والعالمية.
+  description_en: Top Arabic and world stories.
+  publisher_url: https://www.bbc.com/arabic
+- id: bbc-top
+  title: BBC News
+  url: https://feeds.bbci.co.uk/news/rss.xml
+  category: general
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: أبرز الأخبار من BBC.
+  description_en: Top stories from BBC News.
+  publisher_url: https://www.bbc.com/news
+- id: bbc-world
+  title: BBC World
+  url: https://feeds.bbci.co.uk/news/world/rss.xml
+  category: news
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: أخبار العالم والتطورات الدولية.
+  description_en: World news and international developments.
+  publisher_url: https://www.bbc.com/news/world
+- id: aljazeera-ar
+  title: الجزيرة
+  url: https://www.aljazeera.net/aljazeerarss
+  category: news
+  language: ar
+  verified_at: '2026-10-12'
+  description_ar: أخبار وتقارير بالعربية من الجزيرة نت.
+  description_en: Arabic news and reporting from Al Jazeera.
+  publisher_url: https://www.aljazeera.net
+- id: the-verge
+  title: The Verge
+  url: https://www.theverge.com/rss/index.xml
+  category: technology
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: التقنية والمنتجات والثقافة الرقمية.
+  description_en: Technology, products and digital culture.
+  publisher_url: https://www.theverge.com
+- id: deepmind
+  title: Google DeepMind
+  url: https://deepmind.google/blog/rss.xml
+  category: ai
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: أبحاث وإعلانات Google DeepMind الرسمية.
+  description_en: Official Google DeepMind research and announcements.
+  publisher_url: https://deepmind.google/blog/
+- id: hacker-news
+  title: Hacker News
+  url: https://news.ycombinator.com/rss
+  category: technology
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: روابط ونقاشات مجتمع التقنية؛ راجع المصدر الأصلي.
+  description_en: Community technology links; check the original source.
+  publisher_url: https://news.ycombinator.com
+- id: nasa
+  title: NASA
+  url: https://www.nasa.gov/feed/
+  category: science
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: أخبار الفضاء والعلوم من وكالة NASA.
+  description_en: Space and science news from NASA.
+  publisher_url: https://www.nasa.gov/rss-feeds/
+- id: guardian-science
+  title: The Guardian — Science
+  url: https://www.theguardian.com/science/rss
+  category: science
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: تقارير العلوم والاكتشافات.
+  description_en: Science reporting and discoveries.
+  publisher_url: https://www.theguardian.com/help/feeds
+- id: bbc-business
+  title: BBC Business
+  url: https://feeds.bbci.co.uk/news/business/rss.xml
+  category: business
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: أخبار الاقتصاد والشركات والأعمال.
+  description_en: Economics, companies and business news.
+  publisher_url: https://www.bbc.com/news/business
+- id: bbc-sport
+  title: BBC Sport
+  url: https://feeds.bbci.co.uk/sport/rss.xml
+  category: sports
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: أبرز أخبار الرياضة.
+  description_en: Top sports news.
+  publisher_url: https://www.bbc.com/sport
+- id: new-heights
+  title: New Heights
+  url: https://rss.art19.com/new-heights
+  category: podcasts
+  language: en
+  verified_at: '2026-10-12'
+  description_ar: حلقات ووصف بودكاست New Heights؛ دون تفريغ صوتي.
+  description_en: New Heights episodes and descriptions; no audio transcription.
+  publisher_url: https://rss.art19.com/new-heights

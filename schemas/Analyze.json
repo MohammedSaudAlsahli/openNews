@@ -1,0 +1,67 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "item_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Item Ids",
+      "type": "array"
+    },
+    "mode": {
+      "default": "incremental",
+      "enum": [
+        "incremental",
+        "explicit_rebuild"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "profile_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Profile Id"
+    },
+    "model_id": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Id"
+    },
+    "consent": {
+      "default": false,
+      "title": "Consent",
+      "type": "boolean"
+    },
+    "idempotency_key": {
+      "format": "uuid",
+      "title": "Idempotency Key",
+      "type": "string"
+    }
+  },
+  "required": [
+    "item_ids",
+    "idempotency_key"
+  ],
+  "title": "Analyze",
+  "type": "object"
+}

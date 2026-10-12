@@ -1,0 +1,41 @@
+[project]
+name = "eis-engine"
+version = "0.1.0"
+description = "Local editorial repositories and Agno orchestration"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "agno==3.1.2",
+    "pydantic==2.14.0",
+    "sqlite-vec==0.1.9",
+    "openai==3.28.0",
+    "anthropic==1.13.0",
+    "httpx==0.28.1",
+    "pyjwt[crypto]==2.15.1",
+    "boto3>=1.43.111",
+    "azure-ai-inference>=1.0.0b9",
+    "azure-identity>=1.26.0",
+    "cerebras-cloud-sdk>=1.91.0",
+    "cohere>=7.2.0",
+    "google-genai>=2.29.0",
+    "groq>=1.7.0",
+    "huggingface-hub>=2.2.0",
+    "ibm-watsonx-ai>=1.8.0",
+    "litellm>=1.83.0",
+    "llama-api-client>=0.6.0",
+    "mistralai>=3.2.0",
+    "ollama>=0.6.3",
+    "portkey-ai>=2.3.4",
+    "trafilatura>=2.3.1",
+    "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "fastapi==0.143.0", "uvicorn==0.54.0", "python-multipart==0.0.32"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

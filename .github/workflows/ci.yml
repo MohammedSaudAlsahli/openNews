@@ -1,0 +1,20 @@
+name: Editorial contracts and bundle
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12.13'
+      - name: Contract and integration tests
+        run: bash scripts/test.sh
+      - name: Build and smoke-test embedded runtime
+        run: bash scripts/build_app.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: development-evidence
+          path: |
+            build/bundle-sha256.json
+            engine/eis_engine/provider_catalog.json
