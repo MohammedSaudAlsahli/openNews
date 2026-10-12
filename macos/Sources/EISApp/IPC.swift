@@ -197,7 +197,19 @@ struct NewsArticle: Decodable, Identifiable {
 struct NewsArticleDetail: Decodable {
     let text: String
     let title, url, bodyStatus, summary: String?
+    let reader: ArticleReadingContent?
 }
+struct ArticleReadingContent: Decodable {
+    let blocks: [ArticleReadingBlock]?
+    let author, origin, checkedAt: String?
+    let refreshFailed: Bool?
+}
+struct ArticleReadingBlock: Decodable {
+    let type: String
+    let id, text, url, alt, caption: String?
+}
+struct ArticleImageFile: Decodable { let path: String }
+
 
 struct CustomAgent: Decodable, Identifiable {
     let id, name, instructions, profileId, modelId, createdAt, updatedAt: String

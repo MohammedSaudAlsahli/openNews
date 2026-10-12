@@ -336,6 +336,10 @@ class Service:
             return {"started":True}
         if command == "news.update":
             return self.news.update(p)
+        if command == "news.reader":
+            return await self.news.reader(p["article_id"], force=p.get("refresh") is True)
+        if command == "news.image":
+            return await self.news.image(p["article_id"], p["image_id"])
         if command == "news.preview":
             return self.news.article(p["article_id"], mark_read=False)
         if command == "news.article":

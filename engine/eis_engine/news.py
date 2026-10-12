@@ -4,6 +4,10 @@ Transport pins the TCP connection to a validated public DNS answer while retaini
 TLS hostname verification. No cookies, account credentials, proxies or browser bypass.
 """
 import asyncio
+import hashlib
+import json
+import os
+import tempfile
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
@@ -360,7 +364,21 @@ def parse_feed(body, base, kind="rss"):
         try: link = canonical_url(urljoin(base, link))
         except NewsError: continue
         guid = node_text(entry, {"guid", "id"})[:2000] or link
-        result.append({"guid":guid,"title":plain(node_text(entry,{"title"}))[:500] or "خبر بلا عنوان", "url":link,
+        from .article_reader import extract_reader
+        try: reader = extract_reader(summary or '<p></p>', link, fragment=True)
+        except Exception: reader = {}
+        # RSS media/enclosure thumbnails may exist outside the HTML description.
+        if not any(b.get('type') == 'image' for b in reader.get('blocks', [])):
+            for media in entry.iter():
+                if local_name(media.tag) in {'thumbnail', 'content', 'enclosure', 'image'}:
+                    media_type = media.get('type', '')
+                    if local_name(media.tag) in {'content', 'enclosure'} and not (media_type.startswith('image/') or media.get('medium') == 'image'): continue
+                    from .article_reader import image_url
+                    cover = image_url(media.get('url') or media.get('href'), link)
+                    if cover:
+                        reader.setdefault('blocks', []).insert(0, {'type':'image','id':'feed-cover','url':cover,'alt':'','caption':''})
+                        break
+        result.append({"reader":reader,"guid":guid,"title":plain(node_text(entry,{"title"}))[:500] or "خبر بلا عنوان", "url":link,
                        "published_at":date_value(node_text(entry,{"pubdate","published","date"})), "summary":("وصف الحلقة من الخلاصة، وليس تفريغًا للصوت أو الفيديو.\n\n" if media_only else "") + summary_markdown(summary, link), "media_only":media_only})
     return title, result
 
@@ -384,6 +402,10 @@ class NewsManager:
         self.fetch = fetcher or fetch_public
         self.lock = asyncio.Lock()
         self.db.executescript(NEWS_SCHEMA)
+        if 'reader_json' not in {row[1] for row in self.db.execute('PRAGMA table_info(news_articles)')}:
+            self.db.execute("ALTER TABLE news_articles ADD COLUMN reader_json TEXT NOT NULL DEFAULT '{}'")
+        self.reader_locks = {}
+        self.image_slots = asyncio.Semaphore(3)
         self.db.execute("UPDATE news_subscriptions SET status='pending' WHERE workspace_id=? AND status='syncing'", (self.ws,))
         self.db.commit()
 
@@ -403,7 +425,63 @@ class NewsManager:
         if mark_read:
             with self.db: self.db.execute("UPDATE news_articles SET is_read=1 WHERE id=? AND workspace_id=?", (identifier,self.ws))
             row["is_read"] = True
+        row["reader"] = json.loads(row.pop("reader_json", "{}"))
         return row
+
+    async def reader(self, identifier, force=False):
+        # Upgrade older saved text on first reading, without touching model context.
+        lock = self.reader_locks.setdefault(identifier, asyncio.Lock())
+        async with lock:
+            row = self.article(identifier, mark_read=False)
+            if not force and row["reader"].get("checked_at"): return row
+            if row["body_status"] == "media_summary": return row
+            reader = row["reader"]
+            try:
+                response = await self.fetch(row["url"], None)
+                content_type = response["headers"].get("content-type", "").lower()
+                if content_type and not any(t in content_type for t in ("html", "xhtml")):
+                    raise NewsError("المقال ليس نصًا مقروءًا.")
+                from .article_reader import extract_reader
+                candidate = await asyncio.to_thread(extract_reader, response["body"], response["url"])
+                if sum(len(b.get("text", "")) for b in candidate["blocks"]) >= 80:
+                    reader = candidate
+                reader.pop("refresh_failed", None)
+            except asyncio.CancelledError: raise
+            except Exception:
+                reader["refresh_failed"] = True
+            reader["checked_at"] = now()
+            with self.db:
+                self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=? AND workspace_id=?", (json.dumps(reader), identifier, self.ws))
+            return self.article(identifier, mark_read=False)
+
+    async def image(self, identifier, image_id):
+        row = self.article(identifier, mark_read=False)
+        block = next((b for b in row["reader"].get("blocks", []) if b.get("type") == "image" and b.get("id") == image_id), None)
+        if not block: raise Failure("VALIDATION_ERROR", "الصورة غير موجودة في هذا المقال.")
+        cache = self.store.path.parent / "reader-images"
+        cache.mkdir(mode=0o700, exist_ok=True)
+        path = cache / (hashlib.sha256(block["url"].encode()).hexdigest() + ".image")
+        async with self.image_slots:
+            if not path.exists():
+                response = await self.fetch(block["url"], None)
+                body = response["body"]
+                # Raster formats only. Never execute SVG, HTML, scripts or remote embeds.
+                raster = (body.startswith((b'\x89PNG\r\n\x1a\n', b'\xff\xd8\xff', b'GIF87a', b'GIF89a')) or
+                          (body.startswith(b'RIFF') and body[8:12] == b'WEBP') or
+                          (body[4:8] == b'ftyp' and body[8:12] in (b'avif', b'avis', b'heic', b'heix')))
+                if not raster or len(body) > MAX_BYTES:
+                    raise Failure("VALIDATION_ERROR", "تعذّر تحميل صورة المقال.")
+                files = sorted(cache.glob('*.image'), key=lambda f: f.stat().st_mtime)
+                size = sum(f.stat().st_size for f in files)
+                while files and size + len(body) > 100 * 1024 * 1024:
+                    oldest = files.pop(0); size -= oldest.stat().st_size; oldest.unlink(missing_ok=True)
+                # Different reader windows may request the same image concurrently.
+                with tempfile.NamedTemporaryFile(dir=cache, suffix='.tmp', delete=False) as temporary:
+                    temporary.write(body)
+                try: os.replace(temporary.name, path)
+                finally:
+                    if os.path.exists(temporary.name): os.unlink(temporary.name)
+        return {"path":str(path)}
 
     async def add(self, payload, sync=True):
         try:
@@ -478,6 +556,7 @@ class NewsManager:
                             self.db.execute("UPDATE news_articles SET title=?,summary=?,published_at=coalesce(?,published_at) WHERE id=?", (entry["title"],entry["summary"],entry["published_at"],existing["id"]))
                         else:
                             self.db.execute("INSERT INTO news_articles(id,workspace_id,subscription_id,guid,title,url,published_at,discovered_at,summary) VALUES(?,?,?,?,?,?,?,?,?)", (uid(),self.ws,row["id"],entry["guid"],entry["title"],entry["url"],entry["published_at"],now(),entry["summary"]))
+                        self.db.execute("UPDATE news_articles SET reader_json=? WHERE subscription_id=? AND guid=? AND reader_json='{}'", (json.dumps(entry['reader']), row['id'], entry['guid']))
                         if entry.get("media_only"):
                             # Never download or pretend to transcribe an enclosure.
                             self.db.execute("UPDATE news_articles SET text=?,body_status='media_summary' WHERE subscription_id=? AND guid=?", (entry["summary"],row["id"],entry["guid"]))
@@ -511,6 +590,12 @@ class NewsManager:
                         extracted = await asyncio.to_thread(extract_markdown, response["body"], response["url"])
                     if extracted and len(extracted.strip()) >= 80:
                         text, status = extracted.strip()[:MAX_TEXT], "full"
+                        if "text/plain" not in content_type:
+                            from .article_reader import extract_reader
+                            reader = await asyncio.to_thread(extract_reader, response["body"], response["url"])
+                            reader["checked_at"] = now()
+                            with self.db:
+                                self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=?", (json.dumps(reader), row["id"]))
                 except asyncio.CancelledError: raise
                 except Exception: pass
                 with self.db:

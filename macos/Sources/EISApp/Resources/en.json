@@ -887,5 +887,21 @@
   "جارٍ استقبال الرد من النموذج": "Receiving the model response",
   "النموذج يجهّز الرد…": "The model is preparing a reply…",
   "بدأت متابعة {0}. ستظهر أخباره في الأخبار.": "Following {0}. Its stories will appear in News.",
-  "المتابعة متوقفة مؤقتًا": "Following is paused"
+  "المتابعة متوقفة مؤقتًا": "Following is paused",
+  "وضع القراءة": "Reader mode",
+  "تكبير النص": "Larger text",
+  "تصغير النص": "Smaller text",
+  "عرض صور المقال": "Show article images",
+  "إعادة تحميل المقال": "Reload article",
+  "خيارات القراءة": "Reading options",
+  "مشاركة المقال": "Share article",
+  "قراءة نحو {0} دقيقة": "About {0} min read",
+  "جارٍ تجهيز الصور وتنسيق المقال…": "Preparing article layout and images…",
+  "تعذّر تحديث المقال؛ نعرض النسخة المحفوظة.": "Could not refresh this article. Showing the saved copy.",
+  "تكبير الصورة": "Enlarge image",
+  "صورة المقال": "Article image",
+  "تعذّر تحميل الصورة": "Could not load image",
+  "جارٍ تحميل الصورة…": "Loading image…",
+  "تعذّر تحميل صورة المقال.": "Could not load the article image.",
+  "الصورة غير موجودة في هذا المقال.": "This image is not part of the article."
 }

@@ -1,0 +1,30 @@
+import AppKit
+import ImageIO
+import Testing
+@testable import EISApp
+
+@Test func articleReaderDecodesImageOrderWithoutChangingEvidence() throws {
+    let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let data = Data(#"{"text":"Original model evidence","reader":{"blocks":[{"type":"text","text":"مقدمة"},{"type":"image","id":"0","url":"https://example.com/photo.jpg","alt":"وصف","caption":"Photo credit"},{"type":"text","text":"End"}],"checked_at":"2026-10-12","origin":"article"}}"#.utf8)
+    let detail = try decoder.decode(NewsArticleDetail.self, from: data)
+    #expect(detail.text == "Original model evidence")
+    #expect(detail.reader?.blocks?.map(\.type) == ["text", "image", "text"])
+    #expect(detail.reader?.blocks?[1].caption == "Photo credit")
+    #expect(detail.reader?.checkedAt == "2026-10-12")
+}
+
+@Test func readerImageDecoderDownsamplesAndRejectsNonImages() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let url = directory.appendingPathComponent("test.png")
+    let context = try #require(CGContext(data: nil, width: 4096, height: 2048, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    let image = try #require(context.makeImage())
+    let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil))
+    CGImageDestinationAddImage(destination, image, nil)
+    #expect(CGImageDestinationFinalize(destination))
+    let decoded = try #require(ReaderImageDecoder.image(at: url.path))
+    #expect(decoded.size.width == 2048 && decoded.size.height == 1024)
+    try Data("<script>not an image</script>".utf8).write(to: url)
+    #expect(ReaderImageDecoder.image(at: url.path) == nil)
+}

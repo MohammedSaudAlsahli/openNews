@@ -9,8 +9,6 @@ struct NewsPanel: View {
     @State private var subscriptions = false
     @State private var query = ""
     @State private var selected: NewsArticle?
-    @State private var detail: NewsArticleDetail?
-    @State private var loading = false
     @State private var syncing = false
     @State private var error: String?
     private var feeds: [NewsSubscription] { model.snapshot?.subscriptions ?? [] }
@@ -44,7 +42,7 @@ struct NewsPanel: View {
             }.padding(14)
         }
         .sheet(item: $selected) { article in
-            ReadingSheet(title: article.title) { articleDetail(article) }
+            ArticleReaderSheet(article: article, useInConversation: selection(article.id))
         }
         .sheet(isPresented: $library) { FeedLibraryView() }
         .sheet(isPresented: $adding) { AddNewsSubscriptionSheet() }
@@ -55,7 +53,6 @@ struct NewsPanel: View {
                 try? await model.refresh()
             }
         }
-        .task(id: selected?.id) { await loadSelected() }
     }
     private var subscriptionList: some View {
         ScrollView {
@@ -116,52 +113,10 @@ struct NewsPanel: View {
             }
         }
     }
-    private func articleDetail(_ article: NewsArticle) -> some View {
-        ScrollView {
-            ReadingColumn {
-                VStack(alignment: .leading, spacing: 14) {
-                    if let error {
-                    Text(L(error)).font(.callout).foregroundStyle(.red)
-                    Button(L("حاول مجددًا")) { Task { await loadSelected() } }
-                }
-                    Text(article.title).font(.title3.weight(.semibold)).textSelection(.enabled)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(article.sourceTitle)
-                        Text(article.publishedAt.map { DisplayFormat.date($0) } ?? L("بلا تاريخ نشر"))
-                    }.font(.caption).foregroundStyle(.secondary)
-                    Toggle(L("استخدم هذا الخبر في المحادثة"), isOn: selection(article.id))
-                        .disabled(selectedArticleIDs.count >= 12 && !selectedArticleIDs.contains(article.id))
-                    if let url = URL(string: article.url), ["https", "http"].contains(url.scheme?.lowercased() ?? "") { Link(L("قراءة المصدر الأصلي"), destination: url) }
-                    Text(L("مادة مرجعية غير متحققة؛ راجع المصدر قبل النشر.")).font(.caption).foregroundStyle(.secondary)
-                    if (detail?.bodyStatus ?? article.bodyStatus) == "media_summary" {
-                        Text(L("وصف الحلقة فقط؛ لم يُفرّغ الصوت أو الفيديو.")).font(.caption).foregroundStyle(.secondary)
-                    } else if (detail?.bodyStatus ?? article.bodyStatus) != "full" {
-                        Text(L("المتاح ملخص الخلاصة؛ لم تُقرأ صفحة المقال كاملة.")).font(.caption).foregroundStyle(.secondary)
-                    }
-                    Divider()
-                    if loading { ProgressView(L("جارٍ فتح النص…")).controlSize(.small) }
-                    else if let detail, !detail.text.isEmpty { RichTextView(text: detail.text, fontSize: 15) }
-                    else {
-                        RichTextView(text: article.summary.isEmpty ? L("لا يتوفر نص كامل. افتح المصدر الأصلي.") : article.summary, fontSize: 15)
-                        Text(L("المتاح ملخص المصدر فقط.")).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }.id(article.id)
-    }
     private func selection(_ id: String) -> Binding<Bool> {
         Binding(get: { selectedArticleIDs.contains(id) }, set: { value in
-            if value { selectedArticleIDs.insert(id) } else { selectedArticleIDs.remove(id) }
+            if value && selectedArticleIDs.count < 12 { selectedArticleIDs.insert(id) } else { selectedArticleIDs.remove(id) }
         })
-    }
-    private func loadSelected() async {
-        guard let id = selected?.id else { return }
-        loading = true; detail = nil; error = nil
-        defer { if selected?.id == id { loading = false } }
-        do {
-            let fetched = try await model.decoded("news.article", ["article_id": id], as: NewsArticleDetail.self)
-            if !Task.isCancelled && selected?.id == id { detail = fetched }
-        } catch { if !Task.isCancelled, selected?.id == id { self.error = error.localizedDescription } }
     }
     private func sync() async {
         syncing = true; error = nil

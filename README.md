@@ -101,3 +101,7 @@ Preferences are saved locally and frozen when a job is submitted, including retr
 ## Source discovery and execution visibility
 
 Open **Discover sources** from the main sidebar to browse the YAML-backed catalog by topic/language, follow a publisher, or add an RSS/Reddit link. Hover or click a numbered conversation reference to preview its saved source. **Assistant activity** shows the current request stage and attached sources. See [interaction verification](docs/source-interactions-verification.md) and the [current Agno integration audit](docs/agno-current-usage.md).
+
+### قارئ المقالات بالصور
+
+قارئ موحّد للنافذة والمينيو بار، بصور المقال ووصفها وتكبيرها، وحجم نص قابل للتعديل ومشاركة الرابط. تُجهّز المقالات القديمة عند فتحها، وتُحفظ الصور محليًا للقراءة التالية. [تفاصيل القارئ ومصادر أدلة RSS](docs/article-reader.md).
