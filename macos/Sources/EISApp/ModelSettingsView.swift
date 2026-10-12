@@ -13,6 +13,7 @@ struct ConnectionModelPicker: View {
     @State private var failure: String?
     @State private var choosingModel = false
     private var profiles: [ProviderProfile] { model.snapshot?.profiles ?? [] }
+    private var connectionRevision: String { profileID + ":" + (profiles.first { $0.id == profileID }?.connection?.state ?? "") }
     var body: some View {
         let _ = interfaceLanguage
         Group {
@@ -51,7 +52,7 @@ struct ConnectionModelPicker: View {
                 }
             }
         }
-        .task(id: profileID) {
+        .task(id: connectionRevision) {
             await load(refresh: false)
             while !Task.isCancelled && !profileID.isEmpty {
                 do { try await Task.sleep(nanoseconds: 60_000_000_000) } catch { break }
@@ -59,7 +60,7 @@ struct ConnectionModelPicker: View {
             }
         }
         .onChange(of: modelID) { _, _ in updateReadiness() }
-        .onChange(of: profileID) { _, _ in choosingModel = false }
+        .onChange(of: connectionRevision) { _, _ in choosingModel = false }
     }
     private func updateReadiness() { ready = !loading && result?.models.contains { $0.id == modelID && $0.available } == true }
     private func load(refresh: Bool, quietly: Bool = false) async {
@@ -71,7 +72,7 @@ struct ConnectionModelPicker: View {
         do {
             let fetched = try await model.decoded("providers.models", ["profile_id": requested, "refresh": refresh], as: ProviderModels.self)
             guard !Task.isCancelled, requested == profileID else { return }
-            result = fetched
+            result = fetched; failure = nil
             if !fetched.models.contains(where: { $0.id == modelID && $0.available }) {
                 if !modelID.isEmpty {
                     modelID = ""
