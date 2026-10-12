@@ -196,7 +196,7 @@ struct NewsArticle: Decodable, Identifiable {
 }
 struct NewsArticleDetail: Decodable {
     let text: String
-    let title, url, bodyStatus: String?
+    let title, url, bodyStatus, summary: String?
 }
 
 struct CustomAgent: Decodable, Identifiable {

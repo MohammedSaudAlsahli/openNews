@@ -312,3 +312,21 @@ def test_chat_pagination_is_ordered_bounded_and_rejects_other_conversation_curso
         with pytest.raises(Failure):
             await service.dispatch("chat.detail", {"conversation_id":cid,"before_message_id":foreign_marker})
     asyncio.run(scenario())
+
+
+def test_source_preview_is_local_read_only_and_workspace_scoped(service, monkeypatch):
+    from eis_engine.news import NewsManager
+    monkeypatch.setattr(service.news, "article", NewsManager.article.__get__(service.news))
+    identifier = article(service)
+    async def scenario():
+        preview = await service.dispatch("news.preview", {"article_id": identifier})
+        assert preview["text"] == "مادة الخبر الأصلية"
+        assert service.db.execute("SELECT is_read FROM news_articles WHERE id=?", (identifier,)).fetchone()[0] == 0
+        assert service.factory.calls == []
+        other = uid()
+        with service.db:
+            service.db.execute("INSERT INTO workspaces VALUES(?,?,?)", (other,"Other",now()))
+            service.db.execute("UPDATE news_articles SET workspace_id=? WHERE id=?", (other,identifier))
+        with pytest.raises(Failure):
+            await service.dispatch("news.preview", {"article_id": identifier})
+    asyncio.run(scenario())

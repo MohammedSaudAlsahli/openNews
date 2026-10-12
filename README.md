@@ -97,3 +97,7 @@ The main sidebar offers **New conversation** (⌘N), history, saved drafts, Acti
 Open **Customize assistant** from Settings for shared preferences, from an agent for its specialization, or from a conversation header for that chat only. The six optional sections cover role, working instructions, writing style, background knowledge, examples, and response format. Advanced System/Developer fields are mapped to each provider's instruction channel; they are not advertised as separate native message roles on every provider. Your normal chat input remains the user request.
 
 Preferences are saved locally and frozen when a job is submitted, including retries. Conversation responses stream from the provider with an actual progress state. Only completed, validated responses and drafts are saved. Existing UUID citations render as clickable numbered references. Read [customization and streaming verification](docs/assistant-customization-verification.md) for scope and tests.
+
+## Source discovery and execution visibility
+
+Open **Discover sources** from the main sidebar to browse the YAML-backed catalog by topic/language, follow a publisher, or add an RSS/Reddit link. Hover or click a numbered conversation reference to preview its saved source. **Assistant activity** shows the current request stage and attached sources. See [interaction verification](docs/source-interactions-verification.md) and the [current Agno integration audit](docs/agno-current-usage.md).

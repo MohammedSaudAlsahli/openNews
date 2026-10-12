@@ -63,3 +63,23 @@ import Testing
     #expect(style?.baseWritingDirection == .rightToLeft)
     #expect(rendered.string == arabic)
 }
+
+@MainActor @Test func citationHoverOnlyTargetsActualLinkGlyphs() throws {
+    for text in ["خبر عربي [1](https://example.org/story)", "English news [1](https://example.org/story)"] {
+        let view = CitationTextView(frame: NSRect(x: 0, y: 0, width: 500, height: 200))
+        view.textContainerInset = .zero
+        view.textContainer?.lineFragmentPadding = 0
+        view.textContainer?.containerSize = NSSize(width: 500, height: 200)
+        view.textStorage?.setAttributedString(RichTextLinks.native(RichTextLinks.attributed(text), fontSize: 16, lineSpacing: 6))
+        let layout = try #require(view.layoutManager)
+        let container = try #require(view.textContainer)
+        layout.ensureLayout(for: container)
+        let index = (view.string as NSString).range(of: "1").location
+        let range = layout.glyphRange(forCharacterRange: NSRange(location: index, length: 1), actualCharacterRange: nil)
+        let rect = layout.boundingRect(forGlyphRange: range, in: container)
+        let result = view.citation(at: NSPoint(x: rect.midX + view.textContainerOrigin.x, y: rect.midY + view.textContainerOrigin.y))
+        #expect(result?.0.absoluteString == "https://example.org/story")
+        #expect(result?.1 == index)
+        #expect(view.citation(at: NSPoint(x: 250, y: 190)) == nil)
+    }
+}

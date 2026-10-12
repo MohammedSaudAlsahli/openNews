@@ -9,6 +9,7 @@ struct WorkspaceSidebar: View {
     let openDrafts: () -> Void
     @State private var query = ""
     @State private var showActivity = false
+    @State private var discoverSources = false
 
     private var conversations: [ConversationSummary] {
         chat.conversations.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
@@ -34,6 +35,11 @@ struct WorkspaceSidebar: View {
                 Label(L("المسودات المحفوظة"), systemImage: "doc.on.doc")
                     .frame(maxWidth: .infinity, alignment: .leading).padding(10).contentShape(Rectangle())
             }.buttonStyle(.plain).padding(.horizontal, 10).padding(.bottom, 20)
+            Button { discoverSources = true } label: {
+                Label(L("اكتشف المصادر"), systemImage: "safari")
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(10).contentShape(Rectangle())
+            }.buttonStyle(.plain).padding(.horizontal, 10).padding(.bottom, 16)
+                .sheet(isPresented: $discoverSources) { FeedLibraryView() }
             Text(L("المحادثات")).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 20)
             TextField(L("ابحث في المحادثات"), text: $query)
                 .textFieldStyle(.roundedBorder).padding(.horizontal, 14).padding(.vertical, 10)

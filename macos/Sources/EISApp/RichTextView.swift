@@ -7,6 +7,7 @@ struct RichTextView: View {
     let text: String
     var fontSize: CGFloat = 16
     var lineSpacing: CGFloat = 6
+    var citationPreview: ((URL) -> AnyView?)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -50,7 +51,7 @@ struct RichTextView: View {
 
     // Content keeps its own direction regardless of interface language or line count.
     private func paragraphs(_ value: String) -> some View {
-        ParagraphText(value: RichTextLinks.attributed(value), fontSize: fontSize, lineSpacing: lineSpacing)
+        ParagraphText(value: RichTextLinks.attributed(value), fontSize: fontSize, lineSpacing: lineSpacing, citationPreview: citationPreview)
     }
 
     private func inline(_ value: String) -> some View {
@@ -111,10 +112,11 @@ private struct ParagraphText: NSViewRepresentable {
     let value: AttributedString
     let fontSize: CGFloat
     let lineSpacing: CGFloat
+    var citationPreview: ((URL) -> AnyView?)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> NSTextView {
-        let view = NSTextView(frame: .zero)
+        let view = CitationTextView(frame: .zero)
         view.isEditable = false
         view.isSelectable = true
         view.drawsBackground = false
@@ -131,6 +133,7 @@ private struct ParagraphText: NSViewRepresentable {
         return view
     }
     func updateNSView(_ view: NSTextView, context: Context) {
+        (view as? CitationTextView)?.preview = citationPreview
         let rendered = RichTextLinks.native(value, fontSize: fontSize, lineSpacing: lineSpacing)
         if !view.attributedString().isEqual(to: rendered) {
             view.textStorage?.setAttributedString(rendered)
@@ -147,6 +150,7 @@ private struct ParagraphText: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
             let url = (link as? URL) ?? (link as? String).flatMap(URL.init(string:))
+            if let url, let view = textView as? CitationTextView, view.showPreview(url: url, at: charIndex) { return true }
             if let url, RichTextLinks.allowed(url) { NSWorkspace.shared.open(url) }
             return true
         }

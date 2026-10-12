@@ -336,6 +336,8 @@ class Service:
             return {"started":True}
         if command == "news.update":
             return self.news.update(p)
+        if command == "news.preview":
+            return self.news.article(p["article_id"], mark_read=False)
         if command == "news.article":
             return self.news.article(p["article_id"])
         if command == "news.snapshot":

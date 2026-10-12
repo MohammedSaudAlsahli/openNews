@@ -291,8 +291,11 @@ struct ConversationPanel: View {
                                 Text(progressTitle).font(.callout)
                                 if let progress = session.progress { Text(L("{0} ثانية", progress.elapsedSeconds)).font(.caption).monospacedDigit().foregroundStyle(.secondary) }
                             }
+                            if let progress = session.progress {
+                                ConversationActivity(progress: progress, model: model)
+                            }
                             if let progress = session.progress, !progress.message.isEmpty {
-                                RichTextView(text: ConversationPresentation.markdown(progress.message, citations: progress.citations, partial: true), fontSize: 16, lineSpacing: 7)
+                                RichTextView(text: ConversationPresentation.markdown(progress.message, citations: progress.citations, partial: true), fontSize: 16, lineSpacing: 7, citationPreview: preview(for: progress.citations))
                                 Text(L("رد جارٍ؛ يُحفظ بعد اكتماله والتحقق من تنسيقه ومراجعه.")).font(.caption).foregroundStyle(.secondary)
                             }
                         }.id("pending")
@@ -305,11 +308,17 @@ struct ConversationPanel: View {
             }
         }
     }
+    private func preview(for citations: [ConversationCitation]) -> (URL) -> AnyView? {
+        { url in
+            guard let citation = citations.first(where: { URL(string: $0.url) == url }) else { return nil }
+            return AnyView(CitationPreview(citation: citation, model: model))
+        }
+    }
     private var progressTitle: String {
         switch session.progress?.stage {
         case "waiting_model", "queued": return L("بانتظار النموذج…")
         case "validating": return L("جارٍ مراجعة التنسيق والمراجع…")
-        default: return L("جارٍ كتابة الرد…")
+        default: return L(session.progress?.message.isEmpty == false ? "جارٍ كتابة الرد…" : "النموذج يجهّز الرد…")
         }
     }
     private var startingPrompts: some View {
@@ -334,7 +343,7 @@ struct ConversationPanel: View {
         } else {
             VStack(alignment: .leading, spacing: 16) {
                 Label(L("المساعد التحريري"), systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
-                RichTextView(text: ConversationPresentation.markdown(message.content, citations: message.citations ?? []), fontSize: 16, lineSpacing: 7)
+                RichTextView(text: ConversationPresentation.markdown(message.content, citations: message.citations ?? []), fontSize: 16, lineSpacing: 7, citationPreview: preview(for: message.citations ?? []))
                 ForEach(message.outputs ?? []) { output in
                     Button { openDraft(output.draftId) } label: {
                         Label(L("فتح المسودة: ") + output.title, systemImage: "doc.text").multilineTextAlignment(.leading)

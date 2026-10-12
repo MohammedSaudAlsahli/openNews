@@ -25,7 +25,7 @@ struct NewsPanel: View {
                 Button { subscriptions.toggle() } label: { Image(systemName: "list.bullet.rectangle") }.help(L("إدارة الاشتراكات")).accessibilityLabel(L("إدارة الاشتراكات"))
                 Button { adding = true } label: { Image(systemName: "plus") }.help(L("إضافة RSS أو Reddit")).accessibilityLabel(L("إضافة RSS أو Reddit"))
             }.padding(16)
-            Button { library = true } label: { Label(L("مكتبة المصادر"), systemImage: "books.vertical") }
+            Button { library = true } label: { Label(L("اكتشف المصادر"), systemImage: "safari") }
                 .buttonStyle(.bordered).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.bottom, 12)
             if let error {
                 Text(L(error)).font(.caption).foregroundStyle(.red).padding(.horizontal, 16)
@@ -179,7 +179,7 @@ struct NewsPanel: View {
     }
 }
 
-private struct AddNewsSubscriptionSheet: View {
+struct AddNewsSubscriptionSheet: View {
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @EnvironmentObject private var model: StudioModel
     @Environment(\.dismiss) private var dismiss

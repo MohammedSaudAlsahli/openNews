@@ -68,8 +68,6 @@ struct AssistantCustomizationEditor: View {
                     Text(scopeTitle).font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { close() } label: { Image(systemName: "xmark") }
-                    .buttonStyle(.borderless).accessibilityLabel(L("إغلاق"))
             }.padding(22)
             Divider()
             HStack(alignment: .top, spacing: 0) {
