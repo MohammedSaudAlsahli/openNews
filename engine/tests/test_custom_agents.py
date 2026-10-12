@@ -96,11 +96,11 @@ def test_route_mismatch_rejected_before_job_or_message(service):
 def test_v3_upgrade_backed_up_and_existing_data_retained(tmp_path):
     store=Store(tmp_path)
     workspace=store.workspace
-    store.db.executescript("DROP TABLE custom_agents; PRAGMA user_version=3;")
+    store.db.executescript("DROP TABLE assistant_preferences; DROP TABLE custom_agents; PRAGMA user_version=3;")
     store.close()
     upgraded=Store(tmp_path)
     assert upgraded.workspace==workspace
-    assert upgraded.db.execute("PRAGMA user_version").fetchone()[0]==5
+    assert upgraded.db.execute("PRAGMA user_version").fetchone()[0]==6
     assert upgraded.rows("SELECT * FROM custom_agents")==[]
     backup=tmp_path/"editorial-before-v4.sqlite"
     assert backup.exists() and stat.S_IMODE(backup.stat().st_mode)==0o600

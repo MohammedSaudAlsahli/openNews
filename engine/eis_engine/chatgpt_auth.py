@@ -353,6 +353,7 @@ def response_failure(error=None, status=None):
 
 
 from dataclasses import dataclass
+from typing import Callable
 
 
 @dataclass
@@ -360,6 +361,7 @@ class ChatGPTResponses(OpenAIResponses):
     # This restricted route does not send native text.format. Advertising the
     # inherited Responses capability makes Agno omit the JSON schema from the
     # prompt too, so the model never learns the contract it must return.
+    on_text_delta: Callable[[str], None] | None = None
     supports_native_structured_outputs: bool = False
     supports_json_schema_outputs: bool = False
 
@@ -374,7 +376,9 @@ class ChatGPTResponses(OpenAIResponses):
         try:
             stream=await self.get_async_client().responses.create(model=self.id,input=items,store=False,stream=True)
             async for event in stream:
-                if event.type=="response.output_item.done":
+                if event.type=="response.output_text.delta" and self.on_text_delta:
+                    self.on_text_delta(event.delta)
+                elif event.type=="response.output_item.done":
                     # Plan-usage streams can omit all items from response.completed.
                     # Keep finalized items (including annotations/refusals), not partial deltas.
                     finalized[event.output_index]=event.item

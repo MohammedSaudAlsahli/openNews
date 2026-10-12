@@ -20,6 +20,7 @@ import SwiftUI
     @Published var sending = false
     @Published var error: String?
     @Published var jobID: String?
+    @Published var progress: ConversationProgress?
     private var initialized = false
 
     func start(_ model: StudioModel) async {
@@ -43,6 +44,7 @@ import SwiftUI
         do {
             let loaded = try await model.decoded("chat.detail", ["conversation_id": id], as: ConversationDetail.self)
             composer = unsentMessages[id] ?? ""
+            progress = nil
             conversationID = id; detail = loaded; jobID = loaded.activeJobId; sending = jobID != nil
             if let last = loaded.lastJob, ["failed", "interrupted", "cancelled"].contains(last.state) {
                 error = Self.failureMessage(last.errorCode)
@@ -68,6 +70,7 @@ import SwiftUI
     func newConversation(_ model: StudioModel) {
         guard !sending && !loading else { return }
         unsentMessages[conversationID] = composer
+        progress = nil
         conversationID = ""; detail = nil; error = nil; agentID = ""; jobID = nil
         composer = ""; format = "discussion"; includeDraft = false; seconds = 60
         composerRevision = UUID()
@@ -77,7 +80,7 @@ import SwiftUI
     }
     func send(_ model: StudioModel, articleIDs: Set<String>, draftText: String, draftTitle: String) async {
         guard !sending, !loading, modelReady, ModelPermission.allowed(), composer.count <= 12000, (!includeDraft || draftText.count <= 60000), !composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        sending = true; error = nil
+        sending = true; error = nil; progress = nil
         let message = composer
         do {
             if conversationID.isEmpty {
@@ -97,13 +100,30 @@ import SwiftUI
     }
     func update(_ model: StudioModel) async {
         guard let id = jobID, let job = model.snapshot?.jobs.first(where: { $0.id == id }), !job.active else { return }
-        jobID = nil; sending = false
+        jobID = nil; sending = false; progress = nil
         if !conversationID.isEmpty {
             do { detail = try await model.decoded("chat.detail", ["conversation_id": conversationID], as: ConversationDetail.self) }
             catch { self.error = error.localizedDescription }
         }
         await refreshList(model)
         if job.state != "completed" { error = Self.failureMessage(job.errorCode) }
+    }
+    func monitor(_ model: StudioModel, job: String) async {
+        while !Task.isCancelled && jobID == job {
+            do {
+                let next = try await model.decoded("chat.progress", ["job_id": job], as: ConversationProgress.self)
+                guard !Task.isCancelled, jobID == job else { return }
+                progress = next
+                if !["queued", "running"].contains(next.state) {
+                    try await model.refresh(); await update(model); return
+                }
+                try await Task.sleep(for: .milliseconds(300))
+            } catch {
+                if Task.isCancelled { return }
+                // The normal snapshot monitor still handles completion if a poll fails.
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
     static func failureMessage(_ code: String?) -> String {
         switch code {
@@ -117,7 +137,7 @@ import SwiftUI
     func retry(_ model: StudioModel) async {
         guard !sending, ModelPermission.allowed(), let last = detail?.lastJob,
               ["failed", "interrupted", "cancelled"].contains(last.state) else { return }
-        sending = true; error = nil
+        sending = true; error = nil; progress = nil
         do {
             _ = try await model.call("jobs.resume", ["job_id": last.id, "consent": true])
             jobID = last.id
@@ -140,6 +160,7 @@ struct ConversationPanel: View {
     @AppStorage(ModelPermission.key) private var modelPermission = false
     @State private var modelOptions = false
     @State private var contextOptions = false
+    @State private var customization = false
     @FocusState private var composerFocused: Bool
     private var canSend: Bool {
         !session.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && session.composer.count <= 12000 &&
@@ -168,6 +189,10 @@ struct ConversationPanel: View {
     private var configuredConversation: some View {
         conversationLayout
             .task(id: model.snapshot?.workspaceId) { await session.start(model) }
+            .task(id: session.jobID) { if let id = session.jobID { await session.monitor(model, job: id) } }
+            .sheet(isPresented: $customization) {
+                AssistantCustomizationEditor(scope: "conversation", targetID: session.conversationID).editorialPresentation()
+            }
             .task(id: session.profileID + "|" + session.modelID) { await validateModelSelection() }
             .onChange(of: agentRevision) { _, _ in updateAgentConfiguration() }
             .onChange(of: jobRevision) { _, _ in Task { await session.update(model) } }
@@ -210,7 +235,23 @@ struct ConversationPanel: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            if session.loading || session.sending { ProgressView().controlSize(.small) }
+            Button {
+                Task {
+                    guard !session.loading else { return }
+                    session.loading = true
+                    defer { session.loading = false }
+                    do {
+                        if session.conversationID.isEmpty {
+                            let created = try await model.decoded("chat.create", ["title": L("محادثة جديدة")], as: CreatedConversation.self)
+                            session.conversationID = created.conversationId
+                            await session.refreshList(model)
+                        }
+                        customization = true
+                    } catch { session.error = error.localizedDescription }
+                }
+            } label: { Label(L("تخصيص المساعد"), systemImage: "slider.horizontal.3") }
+                .buttonStyle(.borderless).disabled(session.sending || session.loading || model.health == nil)
+            if session.loading { ProgressView().controlSize(.small) }
         }.padding(.horizontal, 24).padding(.vertical, 16)
     }
     private var failureNotice: some View {
@@ -244,15 +285,31 @@ struct ConversationPanel: View {
                         messageView(message).id(message.id)
                     }
                     if session.sending {
-                        HStack(spacing: 8) { ProgressView().controlSize(.small); Text(L("جارٍ إعداد الرد…")).font(.callout) }
-                            .id("pending")
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 8) {
+                                ProgressView().controlSize(.small)
+                                Text(progressTitle).font(.callout)
+                                if let progress = session.progress { Text(L("{0} ثانية", progress.elapsedSeconds)).font(.caption).monospacedDigit().foregroundStyle(.secondary) }
+                            }
+                            if let progress = session.progress, !progress.message.isEmpty {
+                                RichTextView(text: ConversationPresentation.markdown(progress.message, citations: progress.citations, partial: true), fontSize: 16, lineSpacing: 7)
+                                Text(L("رد جارٍ؛ يُحفظ بعد اكتماله والتحقق من تنسيقه ومراجعه.")).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }.id("pending")
                     }
                     if session.error != nil { failureNotice }
-                }.frame(maxWidth: 760, alignment: .leading).padding(24).frame(maxWidth: .infinity)
+                }.frame(maxWidth: 720, alignment: .leading).padding(24).frame(maxWidth: .infinity)
             }
             .onChange(of: session.detail?.messages.last?.id) { _, _ in
                 if let last = session.detail?.messages.last?.id { proxy.scrollTo(last, anchor: .bottom) }
             }
+        }
+    }
+    private var progressTitle: String {
+        switch session.progress?.stage {
+        case "waiting_model", "queued": return L("بانتظار النموذج…")
+        case "validating": return L("جارٍ مراجعة التنسيق والمراجع…")
+        default: return L("جارٍ كتابة الرد…")
         }
     }
     private var startingPrompts: some View {
@@ -264,30 +321,48 @@ struct ConversationPanel: View {
             Button(L("إضافة مصادر للأخبار…"), action: showNews).buttonStyle(.link)
         }.padding(.vertical, 8)
     }
-    private func messageView(_ message: ConversationMessage) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(message.role == "user" ? L("أنت") : L("المساعد التحريري"), systemImage: message.role == "user" ? "person.crop.circle" : "sparkles")
-                .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            RichTextView(text: message.content, fontSize: 14, lineSpacing: 5)
-            if let outputs = message.outputs, !outputs.isEmpty {
-                ForEach(outputs) { output in
+    @ViewBuilder private func messageView(_ message: ConversationMessage) -> some View {
+        if message.role == "user" {
+            HStack {
+                Spacer(minLength: 70)
+                Text(verbatim: message.content).font(.system(size: 16)).lineSpacing(6).textSelection(.enabled)
+                    .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                    .environment(\.layoutDirection, RichTextDirection.detect(message.content))
+                    .padding(16).background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+                    .frame(maxWidth: 580, alignment: .trailing).accessibilityLabel(L("أنت") + ": " + message.content)
+            }.environment(\.layoutDirection, .leftToRight).padding(.bottom, 8)
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                Label(L("المساعد التحريري"), systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
+                RichTextView(text: ConversationPresentation.markdown(message.content, citations: message.citations ?? []), fontSize: 16, lineSpacing: 7)
+                ForEach(message.outputs ?? []) { output in
                     Button { openDraft(output.draftId) } label: {
-                        Label(L("فتح المسودة: ") + output.title, systemImage: "doc.text")
-                            .multilineTextAlignment(.leading)
+                        Label(L("فتح المسودة: ") + output.title, systemImage: "doc.text").multilineTextAlignment(.leading)
                     }.buttonStyle(.bordered).disabled(model.busy)
                 }
-            }
-            if let citations = message.citations, !citations.isEmpty {
-                DisclosureGroup(L("المراجع ({0})", citations.count)) {
-                    ForEach(citations) { citation in
-                        if let url = URL(string: citation.url), ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
-                            Link(citation.title, destination: url).font(.caption)
-                        }
-                    }
-                    Text(L("روابط مرجعية؛ لا تمثّل تحققًا مستقلًا من الوقائع.")).font(.caption).foregroundStyle(.secondary)
-                }.font(.caption)
-            }
-        }.frame(maxWidth: .infinity, alignment: .leading)
+                if let citations = message.citations, !citations.isEmpty {
+                    DisclosureGroup(L("المراجع ({0})", citations.count)) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(Array(citations.enumerated()), id: \.element.id) { index, citation in
+                                if let url = URL(string: citation.url), RichTextLinks.allowed(url) {
+                                    Link(destination: url) {
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Text(DisplayFormat.integer(index + 1)).monospacedDigit()
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(citation.title).multilineTextAlignment(.leading)
+                                                Text(url.host ?? "").font(.caption).foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                            Image(systemName: "arrow.up.right")
+                                        }.padding(10).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                                    }
+                                }
+                            }
+                        }.padding(.top, 8)
+                    }.font(.callout)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
     private func validateModelSelection() async {
         let profile = session.profileID, selected = session.modelID

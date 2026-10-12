@@ -36,6 +36,7 @@ class CustomAgents:
         s = self.service
         agent = s.require("custom_agents",identifier)
         with s.db:
+            s.db.execute("DELETE FROM assistant_preferences WHERE workspace_id=? AND scope='agent' AND target_id=?",(s.ws,agent["id"]))
             s.db.execute("DELETE FROM custom_agents WHERE id=? AND workspace_id=?",(agent["id"],s.ws))
         return {"deleted":True}
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import NaturalLanguage
 
 /// Read-only Markdown and plain-text rendering. No HTML, web views, image loading or scripts.
 struct RichTextView: View {
@@ -188,7 +189,7 @@ enum RichTextBlock: Equatable {
                 flush(); result.append(.quote(String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces))); continue
             }
             let depth = line.prefix { $0 == " " || $0 == "\t" }.reduce(0) { $0 + ($1 == "\t" ? 2 : 1) } / 2
-            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") {
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") || trimmed.hasPrefix("• ") {
                 flush(); result.append(.list("•", String(trimmed.dropFirst(2)), depth)); continue
             }
             if let match = trimmed.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
@@ -254,11 +255,20 @@ enum RichTextLinks {
             if let link = run.link, allowed(link) { native.addAttribute(.foregroundColor, value: NSColor.linkColor, range: range) }
             location += length
         }
-        let style = NSMutableParagraphStyle()
-        style.baseWritingDirection = .natural
-        style.alignment = .natural
-        style.lineSpacing = lineSpacing
-        native.addAttribute(.paragraphStyle, value: style, range: full)
+        // NSTextAlignment.natural follows the app's base localization, which
+        // need not match the document or our in-app language selection.
+        let text = native.string as NSString
+        var start = 0
+        while start < text.length {
+            let range = text.paragraphRange(for: NSRange(location: start, length: 0))
+            let style = NSMutableParagraphStyle()
+            let rtl = RichTextDirection.detect(text.substring(with: range)) == .rightToLeft
+            style.baseWritingDirection = rtl ? .rightToLeft : .leftToRight
+            style.alignment = rtl ? .right : .left
+            style.lineSpacing = lineSpacing
+            native.addAttribute(.paragraphStyle, value: style, range: range)
+            start = NSMaxRange(range)
+        }
         return native
     }
 
@@ -275,6 +285,15 @@ enum RichTextLinks {
 /// Content direction is independent of the chosen interface language.
 enum RichTextDirection {
     static func detect(_ text: String) -> LayoutDirection {
+        // A brand name at the beginning (e.g. GitHub) must not reverse an
+        // otherwise Arabic paragraph. Use the paragraph language, then the
+        // first strong character when the short text cannot be identified.
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        if let language = recognizer.dominantLanguage {
+            if [.arabic, .hebrew, .persian, .urdu].contains(language) { return .rightToLeft }
+            if language != .undetermined { return .leftToRight }
+        }
         guard let scalar = text.unicodeScalars.first(where: { CharacterSet.letters.contains($0) }) else { return .leftToRight }
         let value = scalar.value
         let rightToLeft = (0x0590...0x08FF).contains(value) || (0xFB1D...0xFDFF).contains(value) ||

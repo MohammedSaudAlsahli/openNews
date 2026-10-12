@@ -56,12 +56,12 @@ import Testing
     #expect(RichTextBlock.parse("```\nlet url = \"https://example.com\" // العربية\n```") == [.code("let url = \"https://example.com\" // العربية")])
 }
 
-@Test func shortAndLongParagraphsUseNaturalAlignment() {
+@Test func shortAndLongParagraphsAlignToTheirOwnLanguage() {
     for text in ["Hello", "مرحبا", String(repeating: "English words. ", count: 40), String(repeating: "كلمات عربية. ", count: 40)] {
         let rendered = RichTextLinks.native(AttributedString(text), fontSize: 16, lineSpacing: 6)
         let style = rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
-        #expect(style?.alignment == .natural)
-        #expect(style?.baseWritingDirection == .natural)
+        #expect(style?.alignment == (RichTextDirection.detect(text) == .rightToLeft ? .right : .left))
+        #expect(style?.baseWritingDirection == (RichTextDirection.detect(text) == .rightToLeft ? .rightToLeft : .leftToRight))
         #expect(rendered.string == text)
     }
 }
@@ -78,8 +78,8 @@ import Testing
     let font = native.attribute(.font, at: boldStart, effectiveRange: nil) as? NSFont
     #expect(font.map { NSFontManager.shared.traits(of: $0).contains(.boldFontMask) } == true)
     let style = native.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
-    #expect(style?.baseWritingDirection == .natural)
-    #expect(style?.alignment == .natural)
+    #expect(style?.baseWritingDirection == .rightToLeft)
+    #expect(style?.alignment == .right)
 }
 
 @Test func nativeEvidenceKeepsLiteralMarkdownAndBlankLines() {

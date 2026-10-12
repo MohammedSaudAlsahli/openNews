@@ -155,7 +155,7 @@ private struct ModelChooserList: View {
 }
 
 private enum SettingsSection: String, CaseIterable {
-    case general, connections, agents, permissions
+    case general, connections, agents, permissions, assistant
 }
 
 struct ModelSettingsView: View {
@@ -172,6 +172,7 @@ struct ModelSettingsView: View {
                 List(selection: $section) {
                     Section(L("مساحة العمل")) {
                         Label(L("الوكلاء"), systemImage: "person.2").tag(SettingsSection.agents)
+                        Label(L("تخصيص المساعد"), systemImage: "slider.horizontal.3").tag(SettingsSection.assistant)
                     }
                     Section(L("التطبيق")) {
                         Label(L("مزوّدو الذكاء الاصطناعي"), systemImage: "network").tag(SettingsSection.connections)
@@ -195,6 +196,14 @@ struct ModelSettingsView: View {
                     PermissionsSettingsView()
                 }.opacity(section == .permissions ? 1 : 0)
                     .allowsHitTesting(section == .permissions).disabled(section != .permissions).accessibilityHidden(section != .permissions)
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(L("تخصيص المساعد")).font(.title2.weight(.semibold))
+                    Text(L("اضبط الدور والتعليمات والأسلوب مرة واحدة. يمكنك تخصيص كل وكيل أو محادثة بصورة مستقلة."))
+                        .foregroundStyle(.secondary)
+                    AssistantCustomizationButton(scope: "general").buttonStyle(.borderedProminent)
+                    Spacer()
+                }.padding(28).opacity(section == .assistant ? 1 : 0)
+                    .allowsHitTesting(section == .assistant).disabled(section != .assistant).accessibilityHidden(section != .assistant)
                 agents.opacity(section == .agents ? 1 : 0)
                     .allowsHitTesting(section == .agents).disabled(section != .agents).accessibilityHidden(section != .agents)
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -209,13 +218,13 @@ struct ModelSettingsView: View {
                 Picker(L("لغة الواجهة"), selection: $appLanguage) {
                     Text(L("العربية")).tag("ar")
                     Text("English").tag("en")
-                }
+                }.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
                 Text(L("يتغير اتجاه الواجهة مع اللغة. تبقى نصوصك بلغتها الأصلية.")).font(.caption).foregroundStyle(.secondary)
                 Picker(L("المظهر"), selection: $appearance) {
                     Text(L("حسب النظام")).tag("system")
                     Text(L("فاتح")).tag("light")
                     Text(L("داكن")).tag("dark")
-                }
+                }.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
             }
             Section(L("مساحة العمل")) {
                 LabeledContent(L("حفظ النصوص"), value: L("محليًا على جهازك"))

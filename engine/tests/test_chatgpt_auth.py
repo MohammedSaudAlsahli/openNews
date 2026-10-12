@@ -286,3 +286,28 @@ def test_chatgpt_errors_explain_recovery_without_exposing_provider_body(code,sta
     error=auth.response_failure({'code':code,'message':'secret prompt and Bearer token'},status)
     assert error.code==expected
     assert 'secret' not in error.message and 'Bearer' not in error.message
+
+
+def test_factory_streams_chatgpt_text_before_validated_completion(monkeypatch):
+    from openai.types.responses import Response
+    from eis_engine.providers import ModelFactory
+    async def run():
+        deltas=[]
+        response=Response.model_validate({"id":"resp_test","object":"response","created_at":1,"model":"account-model","status":"completed","output":[{"type":"message","id":"msg_test","role":"assistant","status":"completed","content":[{"type":"output_text","text":'{"message":"A structured reply","article_ids":[],"drafts":[]}',"annotations":[]}]}],"parallel_tool_calls":False,"tool_choice":"auto","tools":[]})
+        class Stream:
+            closed=False
+            def __aiter__(self): return self.events()
+            async def events(self):
+                yield SimpleNamespace(type="response.output_text.delta",delta='{"message":"A structured')
+                assert deltas == ['{"message":"A structured']
+                yield SimpleNamespace(type="response.output_text.delta",delta=' reply","article_ids":[],"drafts":[]}')
+                yield SimpleNamespace(type="response.completed",response=response)
+            async def close(self): self.closed=True
+        stream=Stream()
+        async def create(**kwargs): return stream
+        async def token(profile): return "fake-access"
+        monkeypatch.setattr(auth,"access_token",token)
+        monkeypatch.setattr(auth.ChatGPTResponses,"get_async_client",lambda self:SimpleNamespace(responses=SimpleNamespace(create=create)))
+        result=await ModelFactory().run_stream({"provider_key":"openai-chatgpt","model_id":"account-model"},"Editorial rules",{"message":"Discuss"},ChatReply,deltas.append)
+        assert result.message=="A structured reply" and len(deltas)==2 and stream.closed
+    asyncio.run(run())

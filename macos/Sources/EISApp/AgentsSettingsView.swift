@@ -110,6 +110,7 @@ struct AgentsSettingsView: View {
                         Text(selection == "writer" ? L("الكاتب") : L("المحلل")).font(.title2.bold())
                         AgentModelAssignment(role: selection, title: selection == "writer" ? L("الكاتب") : L("المحلل"))
                             .id(selection)
+                        AssistantCustomizationButton(scope: "agent", targetID: selection).id(selection)
                     } else {
                         editor
                     }
@@ -136,12 +137,16 @@ struct AgentsSettingsView: View {
             Text(selection == "new" ? L("وكيل جديد") : L("تعديل الوكيل")).font(.title2.bold())
             Text(L("حدد تخصص الوكيل وتعليماته، ثم اختره في المحادثة.")).foregroundStyle(.secondary)
             TextField(L("اسم الوكيل"), text: $model.agentEditor.name).textFieldStyle(.roundedBorder)
-            Text(L("تعليمات الوكيل")).font(.headline)
+            Text(L("تعليمات العمل")).font(.headline)
             TextEditor(text: $model.agentEditor.instructions).font(.body).frame(minHeight: 150)
                 .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color(nsColor: .separatorColor)))
                 .accessibilityLabel(L("تعليمات الوكيل"))
             Text(L("يستخدم الوكيل المصادر المرفقة وقواعد التحقق نفسها؛ لا يحصل على أدوات أو صلاحيات إضافية."))
                 .font(.caption).foregroundStyle(.secondary)
+            if selection != "new" {
+                AssistantCustomizationButton(scope: "agent", targetID: selection).id(selection)
+                Text(L("تعليمات العمل أعلاه تُطبّق مع التخصيص الإضافي لهذا الوكيل.")).font(.caption).foregroundStyle(.secondary)
+            }
             if model.snapshot?.profiles.isEmpty != false {
                 SetupConnectionCTA(onSetupConnection: { navigate("connection") })
             } else {

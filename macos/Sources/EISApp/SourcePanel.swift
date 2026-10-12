@@ -61,7 +61,6 @@ struct SourcePanel: View {
                     ScrollView {
                         ReadingColumn {
                             VStack(alignment: .leading, spacing: 20) {
-                                Text(source.title).font(.title2.weight(.semibold)).textSelection(.enabled)
                                 ProseText(text: detail.text, fontSize: 17, lineSpacing: 7)
                             }
                         }

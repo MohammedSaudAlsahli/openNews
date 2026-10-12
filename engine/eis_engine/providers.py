@@ -181,19 +181,48 @@ class ModelFactory:
         except Exception:
             raise Failure("MODEL_UNSUPPORTED", "تعذّرت تهيئة المهايئ. راجع بيانات الحساب وإعدادات المزود.") from None
 
-    async def run(self, profile, instructions, data, schema):
+    async def run_stream(self, profile, instructions, data, schema, on_delta):
+        return await self.run(profile,instructions,data,schema,on_delta=on_delta)
+
+    async def run(self, profile, instructions, data, schema, on_delta=None):
         from agno.agent import Agent
         if profile["provider_key"] == "openai-chatgpt":
             from .chatgpt_auth import ChatGPTResponses, access_token
             model = ChatGPTResponses(id=profile["model_id"], api_key=await access_token(profile), base_url="https://api.openai.com/v1", store=False, retries=0, max_retries=0, timeout=90)
         else:
             model = self.create(profile)
+        if profile["provider_key"] == "openai-chatgpt": model.on_text_delta = on_delta
         agent = Agent(model=model, instructions=instructions,
                       output_schema=schema, structured_outputs=False,
                       tools=[], search_knowledge=False, telemetry=False,
-                      retries=0, debug_mode=False)
+                      retries=0, debug_mode=False, parse_response=on_delta is None)
         try:
-            response = await agent.arun(json.dumps(data, ensure_ascii=False))
+            if on_delta and profile["provider_key"] != "openai-chatgpt":
+                from agno.run.agent import RunOutput, RunContentEvent, RunErrorEvent
+                response = None
+                provider_errors = []
+                original_stream = model.ainvoke_stream
+                async def observed_stream(*args, **kwargs):
+                    try:
+                        async for chunk in original_stream(*args, **kwargs): yield chunk
+                    except Exception as error:
+                        provider_errors.append(error)
+                        raise
+                model.ainvoke_stream = observed_stream
+                stream = agent.arun(json.dumps(data,ensure_ascii=False),stream=True,stream_events=True,yield_run_output=True)
+                try:
+                    async for event in stream:
+                        if isinstance(event,RunContentEvent) and isinstance(event.content,str): on_delta(event.content)
+                        elif isinstance(event,RunOutput): response = event
+                        elif isinstance(event,RunErrorEvent):
+                            if provider_errors: raise provider_errors[-1]
+                            raise Failure("MODEL_RESPONSE_INVALID","لم يكتمل رد النموذج. حاول مجددًا.")
+                finally:
+                    await stream.aclose()
+                    model.ainvoke_stream = original_stream
+                if response is None: raise Failure("MODEL_RESPONSE_INVALID","لم يكتمل رد النموذج. حاول مجددًا.")
+            else:
+                response = await agent.arun(json.dumps(data, ensure_ascii=False))
             if isinstance(response.content, schema):
                 return response.content
             if isinstance(response.content, str):
@@ -203,8 +232,8 @@ class ModelFactory:
             raise
         except Exception as error:
             from pydantic import ValidationError
-            if profile["provider_key"] == "openai-chatgpt" and isinstance(error, ValidationError):
-                raise Failure("MODEL_RESPONSE_INVALID", "اتصال ChatGPT ناجح، لكن الرد لم يطابق التنسيق المطلوب. حاول مجددًا أو اختر نموذجًا آخر.") from None
+            if isinstance(error, ValidationError):
+                raise Failure("MODEL_RESPONSE_INVALID", "وصل رد بتنسيق غير صالح. أعد المحاولة؛ لا يعني هذا تسجيل خروجك.") from None
             status = getattr(error, "status_code", None)
             from openai import APIConnectionError, APITimeoutError
             import httpx

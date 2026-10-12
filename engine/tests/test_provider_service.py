@@ -162,7 +162,7 @@ def test_v1_migration_preserves_existing_provider(tmp_path):
         assert row["id"] == profile
         assert row["model_id"] == "legacy-direct-model"
         assert row["label"] == "" and row["auto_refresh"] == 1
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
         assert service.snapshot()["assignments"] == []
     finally:
         store.close()

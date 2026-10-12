@@ -32,7 +32,15 @@ class Handler(BaseHTTPRequestHandler):
         aid=context['news'][0]['id']
         fmt={'x_posts':'x_post','youtube_long':'youtube_long','tiktok':'tiktok'}.get(context['format'])
         result={'message':'هذه صياغة اختبارية تستند إلى الخبر المحدد.','article_ids':[aid],'drafts':([{'title':'مسودة اختبار '+fmt,'text':'خبر تجريبي لا يمثل واقعة حقيقية. هذه صياغة خاصة باختبار الربط المحلي.','format':fmt,'article_ids':[aid]}] if fmt else [])}
-        self.answer({'id':'test-completion','object':'chat.completion','created':int(time.time()),'model':'local-editorial-test','choices':[{'index':0,'message':{'role':'assistant','content':json.dumps(result,ensure_ascii=False)},'finish_reason':'stop'}],'usage':{'prompt_tokens':10,'completion_tokens':10,'total_tokens':20}})
+        if request.get('stream'):
+            self.send_response(200); self.send_header('Content-Type','text/event-stream'); self.end_headers()
+            content=json.dumps(result,ensure_ascii=False)
+            for offset in range(0,len(content),12):
+                chunk={'id':'test-completion','object':'chat.completion.chunk','created':int(time.time()),'model':'local-editorial-test','choices':[{'index':0,'delta':{'content':content[offset:offset+12]},'finish_reason':None}]}
+                self.wfile.write(('data: '+json.dumps(chunk,ensure_ascii=False)+'\n\n').encode()); self.wfile.flush(); time.sleep(.01)
+            self.wfile.write(b'data: [DONE]\n\n'); self.wfile.flush()
+        else:
+            self.answer({'id':'test-completion','object':'chat.completion','created':int(time.time()),'model':'local-editorial-test','choices':[{'index':0,'message':{'role':'assistant','content':json.dumps(result,ensure_ascii=False)},'finish_reason':'stop'}],'usage':{'prompt_tokens':10,'completion_tokens':10,'total_tokens':20}})
 server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
 threading.Thread(target=server.serve_forever,daemon=True).start()
 with tempfile.TemporaryDirectory(prefix='eis-chat-smoke-') as temporary:
@@ -69,14 +77,19 @@ with tempfile.TemporaryDirectory(prefix='eis-chat-smoke-') as temporary:
         assert catalog['models'] and catalog['models'][0]['id']=='local-editorial-test',catalog
         source=call('sources.add',{'title':'أسلوب اختباري','text':'هذه كتابتي التجريبية المخصصة للاختبار.','rights_status':'owned','purpose':'style'})
         conversation=call('chat.create',{})['conversation_id']
+        previews=[]
+        call('assistant.save',{'scope':'general','settings':{'style':'Brief and clear'}})
         for fmt in ['discussion','x_posts','youtube_long','tiktok']:
             job=call('chat.send',{'conversation_id':conversation,'message':'طلب اختباري '+fmt,'profile_id':profile,'model_id':'local-editorial-test','consent':True,'idempotency_key':uid(),'article_ids':[article],'format':fmt,'target_seconds':600 if fmt=='youtube_long' else 60})['job_id']
             for _ in range(300):
+                progress=call('chat.progress',{'job_id':job})
+                if progress['message']: previews.append(progress['message'])
                 state=call('jobs.get',{'job_id':job})
                 if state['state'] not in {'queued','running'}:break
                 time.sleep(.05)
             assert state['state']=='completed',state
         detail=call('chat.detail',{'conversation_id':conversation})
+        assert previews, 'No incremental preview observed over IPC'
         assert len(detail['messages'])==8
         assert len(call('workspace.snapshot')['drafts'])==3
         assert len(calls)==4 and all(c['style_samples'][0]['id']==source['item_id'] for c in calls)
@@ -85,7 +98,7 @@ with tempfile.TemporaryDirectory(prefix='eis-chat-smoke-') as temporary:
         output=detail['messages'][-1]['outputs'][0]['draft_id']
         exported=call('drafts.export',{'draft_id':output})['text']
         assert 'https://example.org/story' in exported
-        print(json.dumps({'result':'passed','actual_agno_calls_to_mock':len(calls),'formats':['discussion','x_posts','youtube_long','tiktok'],'persistent_messages':8,'separate_drafts':3,'style_and_news_isolated':True,'export_has_source':True,'bundled':resources is not None}))
+        print(json.dumps({'result':'passed','actual_agno_calls_to_mock':len(calls),'formats':['discussion','x_posts','youtube_long','tiktok'],'stream_previews':len(previews),'persistent_messages':8,'separate_drafts':3,'style_and_news_isolated':True,'export_has_source':True,'bundled':resources is not None}))
     finally:
         child.terminate()
         try:child.wait(timeout=10)

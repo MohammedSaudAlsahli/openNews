@@ -97,7 +97,7 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA busy_timeout=5000")
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version > 5:
+        if version > 6:
             raise RuntimeError("Database was created by a newer application")
         if version == 0:
             self.db.executescript("BEGIN;" + SCHEMA + "COMMIT;")
@@ -165,6 +165,18 @@ class Store:
                     finally: backup.close()
             from .connection_health import SCHEMA as HEALTH_SCHEMA
             self.db.executescript("BEGIN;" + HEALTH_SCHEMA + "PRAGMA user_version=5; COMMIT;")
+        if version < 6:
+            if version > 0:
+                backup_path = directory / "editorial-before-v6.sqlite"
+                if backup_path.is_symlink(): raise RuntimeError("Unsafe migration backup path")
+                if not backup_path.exists():
+                    fd = os.open(backup_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                    os.close(fd)
+                    backup = sqlite3.connect(backup_path)
+                    try: self.db.backup(backup)
+                    finally: backup.close()
+            from .personalization import SCHEMA as PREFERENCES_SCHEMA
+            self.db.executescript("BEGIN;" + PREFERENCES_SCHEMA + "PRAGMA user_version=6; COMMIT;")
         with self.db:
             row = self.db.execute("SELECT id FROM workspaces").fetchone()
             self.workspace = row[0] if row else uid()

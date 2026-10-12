@@ -66,7 +66,7 @@ bash scripts/build_app.sh
 
 `~/Library/Application Support/com.editorialintelligence.studio/default/editorial.sqlite`
 
-احتفظ بنسخة أخرى من مكتبتك: توجد ترقية مخطط إلى v5 مع نسخة محلية قبل ترقية قواعد البيانات السابقة، لكن واجهة النسخ الاحتياطي والاستعادة الشاملة لم تُنفذ بعد. للنسخ اليدوي أغلق التطبيق ثم انسخ مجلد `default` كاملًا. مجلد `default/.providers` يحتوي ملفات بيانات الاعتماد؛ نسخه يتضمن مفاتيحك، فاحفظ النسخة في مكان خاص. انظر [الخصوصية](docs/privacy.md).
+احتفظ بنسخة أخرى من مكتبتك: توجد ترقية مخطط إلى v6 مع نسخة محلية قبل ترقية قواعد البيانات السابقة، لكن واجهة النسخ الاحتياطي والاستعادة الشاملة لم تُنفذ بعد. للنسخ اليدوي أغلق التطبيق ثم انسخ مجلد `default` كاملًا. مجلد `default/.providers` يحتوي ملفات بيانات الاعتماد؛ نسخه يتضمن مفاتيحك، فاحفظ النسخة في مكان خاص. انظر [الخصوصية](docs/privacy.md).
 
 إضافة اشتراك أخبار تفعّل متابعته التلقائية، افتراضيًا كل ساعة أثناء فتح التطبيق، مع فحص المستحق عند إعادة التشغيل. إغلاق نافذة التحرير يخفيها فقط وتستمر المتابعة من شريط القوائم. اختيار «إنهاء التطبيق» أو ⌘Q يوقفها. إدخال رابط ضمن بيانات نص مستورد لا يحوله إلى اشتراك. لا تستخدم طلبات الأخبار جلسات المتصفح أو بيانات الدخول ولا تتجاوز حظر الوصول؛ يبقى الملخص عندما يتعذر المقال الكامل.
 
@@ -90,3 +90,10 @@ bash scripts/build_app.sh
 On first launch, OpenStudio guides you through language, provider/model, and an optional persistent AI-use permission. Existing connections are reused; a manual model test is not required. You can skip the provider to read and write locally. Change or revoke the permission, or reopen the guide, in **Settings → Permissions and setup**. After opting in, user-requested chat, generation and analysis do not repeat a consent checkbox. Closing the app window keeps the news reader running; quitting stops the engine.
 
 The main sidebar offers **New conversation** (⌘N), history, saved drafts, Activity, and Settings. **⌘⇧N** creates a draft. See [setup and conversation verification](docs/conversation-setup-verification.md).
+
+
+## Assistant customization and streaming
+
+Open **Customize assistant** from Settings for shared preferences, from an agent for its specialization, or from a conversation header for that chat only. The six optional sections cover role, working instructions, writing style, background knowledge, examples, and response format. Advanced System/Developer fields are mapped to each provider's instruction channel; they are not advertised as separate native message roles on every provider. Your normal chat input remains the user request.
+
+Preferences are saved locally and frozen when a job is submitted, including retries. Conversation responses stream from the provider with an actual progress state. Only completed, validated responses and drafts are saved. Existing UUID citations render as clickable numbered references. Read [customization and streaming verification](docs/assistant-customization-verification.md) for scope and tests.

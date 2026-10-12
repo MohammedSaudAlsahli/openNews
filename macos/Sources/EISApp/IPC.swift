@@ -204,3 +204,9 @@ struct CustomAgent: Decodable, Identifiable {
 }
 struct CustomAgentList: Decodable { let agents: [CustomAgent] }
 struct SavedCustomAgent: Decodable { let agentId: String }
+
+struct ConversationProgress: Decodable {
+    let jobId, state, stage, message: String
+    let citations: [ConversationCitation]
+    let elapsedSeconds: Int
+}
