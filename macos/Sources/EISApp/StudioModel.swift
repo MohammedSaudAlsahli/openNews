@@ -17,8 +17,10 @@ import AppKit
     private var socketPath = ""
     private var polling: Task<Void, Never>?
     let workspace: URL
+    private let permissionDefaults: UserDefaults
 
-    init() {
+    init(permissionDefaults: UserDefaults = .standard) {
+        self.permissionDefaults = permissionDefaults
         workspace = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("com.editorialintelligence.studio/default", isDirectory: true)
     }
@@ -89,6 +91,10 @@ import AppKit
     }
 
     func call(_ command: String, _ payload: [String: Any] = [:]) async throws -> Data {
+        // Recheck at dispatch, including actions from sheets opened before permission was revoked.
+        if payload["consent"] as? Bool == true && !ModelPermission.allowed(in: permissionDefaults) {
+            throw EngineError(message: L("فعّل استخدام النماذج من إعدادات الصلاحيات للمتابعة."))
+        }
         let request = UUID().uuidString
         var data = try JSONSerialization.data(withJSONObject: ["schema_version":1,"request_id":request,"command":command,"payload":payload])
         data.append(10)

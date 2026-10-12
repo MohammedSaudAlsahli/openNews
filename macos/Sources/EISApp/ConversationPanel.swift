@@ -9,7 +9,8 @@ import SwiftUI
     @Published var modelID = ""
     @Published var modelReady = false
     @Published var agentID = ""
-    @Published var consent = false
+    @Published var composerRevision = UUID()
+    private var unsentMessages: [String: String] = [:]
     @Published var format = "discussion"
     @Published var seconds = 60
     @Published var useNews = true
@@ -28,21 +29,23 @@ import SwiftUI
             profileID = assignment.profileId; modelID = assignment.modelId
         } else if let profiles = model.snapshot?.profiles, profiles.count == 1 { profileID = profiles[0].id }
         await refreshList(model)
-        if let first = conversations.first { await select(first.id, model) }
+        // Start on an explicit new conversation; history remains one click away.
     }
     func refreshList(_ model: StudioModel) async {
         do { conversations = try await model.decoded("chat.list", as: ConversationList.self).conversations }
         catch { self.error = error.localizedDescription }
     }
     func select(_ id: String, _ model: StudioModel) async {
-        guard !sending else { return }
-        loading = true; error = nil; consent = false
+        guard !sending && !loading else { return }
+        unsentMessages[conversationID] = composer
+        loading = true; error = nil
         defer { loading = false }
         do {
             let loaded = try await model.decoded("chat.detail", ["conversation_id": id], as: ConversationDetail.self)
+            composer = unsentMessages[id] ?? ""
             conversationID = id; detail = loaded; jobID = loaded.activeJobId; sending = jobID != nil
             if let last = loaded.lastJob, ["failed", "interrupted", "cancelled"].contains(last.state) {
-                error = L("لم يكتمل آخر رد. يمكنك مراجعة النشاط أو إرسال رسالة جديدة.")
+                error = Self.failureMessage(last.errorCode)
             }
         } catch { self.error = error.localizedDescription }
     }
@@ -63,14 +66,17 @@ import SwiftUI
         } catch { self.error = error.localizedDescription }
     }
     func newConversation(_ model: StudioModel) {
-        guard !sending else { return }
-        conversationID = ""; detail = nil; error = nil; consent = false; agentID = ""
+        guard !sending && !loading else { return }
+        unsentMessages[conversationID] = composer
+        conversationID = ""; detail = nil; error = nil; agentID = ""; jobID = nil
+        composer = ""; format = "discussion"; includeDraft = false; seconds = 60
+        composerRevision = UUID()
         if let assignment = model.snapshot?.assignments?.first(where: { $0.role == "writer" }) {
             profileID = assignment.profileId; modelID = assignment.modelId
         }
     }
     func send(_ model: StudioModel, articleIDs: Set<String>, draftText: String, draftTitle: String) async {
-        guard !sending, modelReady, consent, !composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !sending, !loading, modelReady, ModelPermission.allowed(), composer.count <= 12000, (!includeDraft || draftText.count <= 60000), !composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         sending = true; error = nil
         let message = composer
         do {
@@ -83,7 +89,7 @@ import SwiftUI
             if includeDraft && !draftText.isEmpty { payload["draft_text"] = draftText; payload["draft_title"] = draftTitle }
             if ["youtube_long", "tiktok"].contains(format) { payload["target_seconds"] = seconds }
             let submitted = try await model.decoded("chat.send", payload, as: SubmittedJob.self)
-            jobID = submitted.jobId; composer = ""
+            jobID = submitted.jobId; composer = ""; unsentMessages[conversationID] = nil
             try await model.refresh()
             detail = try await model.decoded("chat.detail", ["conversation_id": conversationID], as: ConversationDetail.self)
             await refreshList(model)
@@ -97,8 +103,28 @@ import SwiftUI
             catch { self.error = error.localizedDescription }
         }
         await refreshList(model)
-        if job.state != "completed" { error = L("تعذّر إكمال الرد. راجع النشاط أو حاول برسالة جديدة.") }
+        if job.state != "completed" { error = Self.failureMessage(job.errorCode) }
     }
+    static func failureMessage(_ code: String?) -> String {
+        switch code {
+        case "MODEL_RESPONSE_INVALID": return L("وصل رد بتنسيق غير صالح. أعد المحاولة؛ لا يعني هذا تسجيل خروجك.")
+        case "MODEL_UNSUPPORTED": return L("هذا النموذج غير متاح لهذا الاتصال. اختر نموذجًا آخر.")
+        case "AUTH_REQUIRED", "AUTH_EXPIRED", "MODEL_AUTH_FAILED": return L("يحتاج الاتصال إلى تسجيل الدخول مجددًا. افتح إعدادات المزوّد.")
+        case "PERMISSION_DENIED": return L("فعّل استخدام النماذج من إعدادات الصلاحيات للمتابعة.")
+        default: return L("لم يكتمل الرد. يمكنك إعادة المحاولة أو مراجعة الاتصال من الإعدادات.")
+        }
+    }
+    func retry(_ model: StudioModel) async {
+        guard !sending, ModelPermission.allowed(), let last = detail?.lastJob,
+              ["failed", "interrupted", "cancelled"].contains(last.state) else { return }
+        sending = true; error = nil
+        do {
+            _ = try await model.call("jobs.resume", ["job_id": last.id, "consent": true])
+            jobID = last.id
+            try await model.refresh()
+        } catch { sending = false; self.error = error.localizedDescription }
+    }
+
 }
 
 struct ConversationPanel: View {
@@ -111,10 +137,17 @@ struct ConversationPanel: View {
     let draftTitle: String
     let openDraft: (String) -> Void
     let showNews: () -> Void
+    @AppStorage(ModelPermission.key) private var modelPermission = false
     @State private var modelOptions = false
+    @State private var contextOptions = false
+    @FocusState private var composerFocused: Bool
     private var canSend: Bool {
         !session.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && session.composer.count <= 12000 &&
-        (session.includeDraft ? draftText.count <= 60000 : true) && session.modelReady && session.consent && !session.sending && model.health != nil
+        (session.includeDraft ? draftText.count <= 60000 : true) && session.modelReady && modelPermission && !session.sending && model.health != nil
+    }
+    private var writerAssignmentRevision: String {
+        guard let item = model.snapshot?.assignments?.first(where: { $0.role == "writer" }) else { return "" }
+        return item.profileId + "|" + item.modelId
     }
     private var jobRevision: [String] {
         let jobs: [Job] = model.snapshot?.jobs ?? []
@@ -124,17 +157,12 @@ struct ConversationPanel: View {
     var body: some View {
         let _ = interfaceLanguage
         configuredConversation
-            .onChange(of: session.seconds) { _, _ in session.consent = false }
-            .onChange(of: model.snapshot?.dnaVersion.id) { _, _ in session.consent = false }
-            .onChange(of: model.snapshot?.assignments?.first(where: { $0.role == "writer" })?.modelId) { _, _ in
-                if session.profileID.isEmpty, let assignment = model.snapshot?.assignments?.first(where: { $0.role == "writer" }) {
+                        .onChange(of: writerAssignmentRevision) { _, _ in
+                if session.agentID.isEmpty, !session.sending,
+                   let assignment = model.snapshot?.assignments?.first(where: { $0.role == "writer" }) {
                     session.profileID = assignment.profileId; session.modelID = assignment.modelId
                 }
             }
-            .onChange(of: session.useNews) { _, _ in session.consent = false }
-            .onChange(of: session.includeDraft) { _, _ in session.consent = false }
-            .onChange(of: draftText) { _, _ in if session.includeDraft { session.consent = false } }
-            .onChange(of: selectedArticleIDs) { _, _ in session.consent = false }
     }
 
     private var configuredConversation: some View {
@@ -143,45 +171,63 @@ struct ConversationPanel: View {
             .task(id: session.profileID + "|" + session.modelID) { await validateModelSelection() }
             .onChange(of: agentRevision) { _, _ in updateAgentConfiguration() }
             .onChange(of: jobRevision) { _, _ in Task { await session.update(model) } }
-            .onChange(of: session.profileID) { _, _ in session.consent = false }
-            .onChange(of: session.modelID) { _, _ in session.consent = false }
             .onChange(of: session.format) { _, value in
-                session.consent = false
                 if value == "youtube_long" { session.seconds = 600 }
                 else if value == "tiktok" { session.seconds = 60 }
             }
     }
 
+    private var isWelcome: Bool { session.detail?.messages.isEmpty != false && !session.sending }
     private var conversationLayout: some View {
         VStack(spacing: 0) {
             conversationHeader
             Divider()
-            messageHistory
-            Divider()
-            composer.frame(maxWidth: 800).frame(maxWidth: .infinity)
-        }.background(Color(nsColor: .controlBackgroundColor))
+            if isWelcome {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(L("بماذا نبدأ؟")).font(.system(size: 30, weight: .semibold))
+                            Text(L("ناقش فكرة أو حوّل أخبار مصادرِك إلى محتوى بأسلوبك."))
+                                .font(.title3).foregroundStyle(.secondary)
+                        }
+                        composer
+                        startingPrompts
+                        if session.error != nil { failureNotice }
+                    }.frame(maxWidth: 720, alignment: .leading).padding(32)
+                        .padding(.top, 70).frame(maxWidth: .infinity)
+                }
+            } else {
+                messageHistory
+                composer.frame(maxWidth: 800).padding(20).frame(maxWidth: .infinity)
+            }
+        }.background(Color(nsColor: .textBackgroundColor))
     }
-
     private var conversationHeader: some View {
         HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(L("المحادثة")).font(.headline)
-                Text(session.detail?.title ?? L("فكّر بصوتٍ عالٍ، ثم اكتب")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(session.detail?.title ?? L("محادثة جديدة")).font(.headline).lineLimit(1)
+                Text(L(session.loading ? "جارٍ تحميل المحادثة…" : session.sending ? "جارٍ إعداد الرد…" : session.error != nil ? "تحتاج المحادثة انتباهك" : session.conversationID.isEmpty ? "لم تبدأ المحادثة بعد" : "محفوظة على جهازك"))
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Menu {
-                Button(L("محادثة جديدة"), systemImage: "plus") { session.newConversation(model) }
-                Button(L("تحديث المحادثات"), systemImage: "arrow.clockwise") {
-                    Task { await session.refreshList(model); if !session.conversationID.isEmpty { await session.select(session.conversationID, model) } }
+            if session.loading || session.sending { ProgressView().controlSize(.small) }
+        }.padding(.horizontal, 24).padding(.vertical, 16)
+    }
+    private var failureNotice: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(session.error ?? "", systemImage: "exclamationmark.circle").foregroundStyle(.red).textSelection(.enabled)
+            HStack {
+                if let last = session.detail?.lastJob, ["failed", "interrupted", "cancelled"].contains(last.state) {
+                    Button(L("إعادة المحاولة")) { Task { await session.retry(model) } }.disabled(!modelPermission || session.sending)
                 }
-                Divider()
-                ForEach(session.conversations) { conversation in
-                    Button(conversation.title) { Task { await session.select(conversation.id, model) } }
-                }
-            } label: { Image(systemName: "clock.arrow.circlepath") }
-                .menuStyle(.borderlessButton).frame(width: 24).disabled(session.sending)
-                .help(L("المحادثات السابقة ومحادثة جديدة"))
-        }.padding(18)
+                Button(L("إعدادات الاتصال")) { UserDefaults.standard.set("connections", forKey: "settingsSection"); openSettings() }
+                Button(L("إغلاق التنبيه")) { session.error = nil }
+            }.font(.caption)
+            if let code = session.detail?.lastJob?.errorCode {
+                DisclosureGroup(L("تفاصيل المشكلة")) { Text(code).font(.caption.monospaced()).textSelection(.enabled) }
+            }
+        }.font(.callout).padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var messageHistory: some View {
@@ -194,7 +240,6 @@ struct ConversationPanel: View {
                             if session.loadingOlder { ProgressView().controlSize(.small) }
                         }.font(.caption)
                     }
-                    if session.detail?.messages.isEmpty != false { startingPrompts }
                     ForEach(session.detail?.messages ?? []) { message in
                         messageView(message).id(message.id)
                     }
@@ -202,12 +247,7 @@ struct ConversationPanel: View {
                         HStack(spacing: 8) { ProgressView().controlSize(.small); Text(L("جارٍ إعداد الرد…")).font(.callout) }
                             .id("pending")
                     }
-                    if let error = session.error {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(L(error)).font(.callout).foregroundStyle(.red).textSelection(.enabled)
-                            Button(L("إغلاق التنبيه")) { session.error = nil }.font(.caption)
-                        }
-                    }
+                    if session.error != nil { failureNotice }
                 }.frame(maxWidth: 760, alignment: .leading).padding(24).frame(maxWidth: .infinity)
             }
             .onChange(of: session.detail?.messages.last?.id) { _, _ in
@@ -217,9 +257,6 @@ struct ConversationPanel: View {
     }
     private var startingPrompts: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(L("من خبرٍ إلى فكرة تستحق الكتابة")).font(.title3.weight(.semibold))
-            Text(L("ناقش زاوية، راجع أخبار الأسبوع، أو اطلب مسودات قابلة للتحرير. الأخبار لا تغيّر أسلوبك؛ أنت تعتمد قواعده من كتاباتك."))
-                .font(.callout).foregroundStyle(.secondary).lineSpacing(4)
             Button(L("ناقش معي أخبار هذا الأسبوع")) { session.composer = L("لخّص أهم أخبار هذا الأسبوع من اشتراكاتي، ثم اقترح ثلاث زوايا تستحق النقاش."); session.format = "discussion" }
                 .buttonStyle(.link)
             Button(L("حوّل فكرة إلى منشورات X")) { session.composer = L("ساعدني على اختيار زاوية واضحة، ثم اكتب عدة منشورات X مستقلة بأسلوبي."); session.format = "x_posts" }
@@ -268,7 +305,6 @@ struct ConversationPanel: View {
     private var agentRevision: [String] { model.customAgents.map { $0.id + $0.updatedAt } }
     private func updateAgentConfiguration() {
         guard !session.agentID.isEmpty else { return }
-        session.consent = false
         if let agent = model.customAgents.first(where: { $0.id == session.agentID }) {
             session.profileID = agent.profileId; session.modelID = agent.modelId
         } else { session.agentID = ""; session.modelReady = false }
@@ -279,7 +315,7 @@ struct ConversationPanel: View {
                 ForEach(model.customAgents) { Text($0.name).tag($0.id) }
             }.labelsHidden().accessibilityLabel(L("الوكيل")).fixedSize().disabled(session.sending)
             .onChange(of: session.agentID) { _, selected in
-                session.consent = false; session.modelReady = false
+                session.modelReady = false
                 if let agent = model.customAgents.first(where: { $0.id == selected }) {
                     session.profileID = agent.profileId; session.modelID = agent.modelId
                 } else if let assignment = model.snapshot?.assignments?.first(where: { $0.role == "writer" }) {
@@ -322,37 +358,61 @@ struct ConversationPanel: View {
                 }
     }
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 14) { agentPicker; outputPicker; Spacer(); modelPickerButton }
-                VStack(alignment: .leading, spacing: 10) { agentPicker; outputPicker; modelPickerButton }
-            }
-            if ["youtube_long", "tiktok"].contains(session.format) {
-                Stepper(L("المدة: {0} ثانية", session.seconds), value: $session.seconds, in: 10...7200, step: 10).font(.caption)
-            }
-            Toggle(selectedArticleIDs.isEmpty ? L("استخدم أخبار آخر {0} أيام من اشتراكاتي", 7) : L("استخدم الأخبار المحددة ({0})", selectedArticleIDs.count), isOn: $session.useNews)
-                .font(.caption)
-            if !draftText.isEmpty {
-                Toggle(L("إرفاق المسودة الحالية للنقاش أو إعادة الصياغة"), isOn: $session.includeDraft).font(.caption)
-            }
-            ZStack(alignment: .topLeading) {
-                if session.composer.isEmpty { Text(L("اكتب طلبك أو ناقش فكرة…")).foregroundStyle(.secondary).font(.body).padding(5).allowsHitTesting(false) }
-                TextEditor(text: $session.composer).font(.body).scrollContentBackground(.hidden)
-                    .accessibilityLabel(L("رسالة المحادثة")).frame(minHeight: 65, maxHeight: 110)
-            }.padding(10).background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(nsColor: .separatorColor)))
-            Toggle(L("أسمح باستخدام النموذج لهذا النقاش والأسلوب والمراجع المرفقة؛ قد تُحتسب تكلفة."), isOn: $session.consent)
-                .font(.caption).fixedSize(horizontal: false, vertical: true)
-            HStack {
-                if session.composer.count > 12000 { Text(L("اختصر الرسالة إلى {0} حرف.", 12000)).font(.caption).foregroundStyle(.red) }
-                Spacer()
-                if session.sending, let job = session.jobID {
-                    Button(L("إيقاف")) { Task { await model.perform("jobs.cancel", ["job_id": job]) } }
-                } else {
-                    Button(L("إرسال")) { Task { await session.send(model, articleIDs: selectedArticleIDs, draftText: draftText, draftTitle: draftTitle) } }
-                        .buttonStyle(.borderedProminent).disabled(!canSend)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                ZStack(alignment: .topLeading) {
+                    if session.composer.isEmpty {
+                        Text(L("اكتب طلبك أو ناقش فكرة…")).foregroundStyle(.secondary).padding(5).allowsHitTesting(false)
+                    }
+                    TextEditor(text: $session.composer).font(.body).scrollContentBackground(.hidden)
+                        .focused($composerFocused)
+                        .task(id: session.composerRevision) { await Task.yield(); composerFocused = true }
+                        .accessibilityLabel(L("رسالة المحادثة"))
+                        .frame(height: isWelcome ? 96 : 72)
                 }
+                HStack(spacing: 12) {
+                    Button { contextOptions.toggle() } label: { Image(systemName: "plus.circle") }
+                        .buttonStyle(.borderless).help(L("المراجع وخيارات الكتابة"))
+                        .accessibilityLabel(L("المراجع وخيارات الكتابة"))
+                        .popover(isPresented: $contextOptions) { contextControls.editorialPresentation() }
+                    outputPicker
+                    modelPickerButton
+                    Spacer(minLength: 0)
+                    if session.sending, let job = session.jobID {
+                        Button(L("إيقاف"), systemImage: "stop.fill") { Task { await model.perform("jobs.cancel", ["job_id": job]) } }
+                    } else {
+                        Button { Task { await session.send(model, articleIDs: selectedArticleIDs, draftText: draftText, draftTitle: draftTitle) } } label: {
+                            Image(systemName: "arrow.up").font(.body.weight(.semibold)).frame(width: 22, height: 22)
+                        }.buttonStyle(.borderedProminent).disabled(!canSend)
+                            .accessibilityLabel(L("إرسال")).help(L("إرسال (⌘↩)"))
+                            .keyboardShortcut(.return, modifiers: .command)
+                    }
+                }
+            }.padding(16).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(nsColor: .separatorColor).opacity(0.6)))
+            if !modelPermission { ModelPermissionNotice() }
+            else if session.profileID.isEmpty || session.modelID.isEmpty {
+                HStack { Text(L("اختر نموذجًا لبدء المحادثة.")).foregroundStyle(.secondary); Button(L("الإعدادات")) { openSettings() } }
             }
-        }.padding(16).disabled(session.loading)
+            if session.useNews || session.includeDraft {
+                HStack(spacing: 12) {
+                    if session.useNews { Label(selectedArticleIDs.isEmpty ? L("أخبار آخر 7 أيام") : L("الأخبار المحددة ({0})", selectedArticleIDs.count), systemImage: "newspaper") }
+                    if session.includeDraft { Label(L("المسودة الحالية"), systemImage: "doc.text") }
+                }.font(.caption).foregroundStyle(.secondary)
+            }
+            if session.composer.count > 12000 { Text(L("اختصر الرسالة إلى {0} حرف.", 12000)).font(.caption).foregroundStyle(.red) }
+        }.disabled(session.loading)
+    }
+    private var contextControls: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(L("المراجع وخيارات الكتابة")).font(.headline)
+            Toggle(selectedArticleIDs.isEmpty ? L("استخدم أخبار آخر {0} أيام من اشتراكاتي", 7) : L("استخدم الأخبار المحددة ({0})", selectedArticleIDs.count), isOn: $session.useNews)
+            if !draftText.isEmpty { Toggle(L("إرفاق المسودة الحالية للنقاش أو إعادة الصياغة"), isOn: $session.includeDraft) }
+            agentPicker
+            if ["youtube_long", "tiktok"].contains(session.format) {
+                Stepper(L("المدة: {0} ثانية", session.seconds), value: $session.seconds, in: 10...7200, step: 10)
+            }
+            Button(L("إضافة مصادر للأخبار…")) { contextOptions = false; showNews() }
+        }.padding(22).frame(width: 380)
     }
 }

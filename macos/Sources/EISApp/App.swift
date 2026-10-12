@@ -41,7 +41,8 @@ import AppKit
         .windowStyle(.titleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
-                command(L("مسودة جديدة"), .newEditorialDraft, "n")
+                command(L("محادثة جديدة"), .newEditorialConversation, "n")
+                command(L("مسودة جديدة"), .newEditorialDraft, "n", [.command, .shift])
                 command(L("المسودات المحفوظة…"), .openEditorialDrafts, "o")
                 command(L("إضافة مصدر…"), .importEditorialSource, "i", [.command, .shift])
             }

@@ -262,7 +262,7 @@ private struct AnalyzeSourceSheet: View {
     @State private var profile = ""
     @State private var modelID = ""
     @State private var modelReady = false
-    @State private var consent = false
+    @AppStorage(ModelPermission.key) private var consent = false
     @State private var submitting = false
     @State private var errorMessage: String?
     var body: some View {
@@ -275,7 +275,7 @@ private struct AnalyzeSourceSheet: View {
                 Button(L("فتح الإعدادات")) { dismiss(); openSettings() }
             } else {
                 ConnectionModelPicker(profileID: $profile, modelID: $modelID, ready: $modelReady).disabled(submitting)
-                Toggle(L("أوافق على إرسال هذا النص للنموذج المختار. قد تترتب تكلفة."), isOn: $consent).disabled(submitting)
+                if !consent { ModelPermissionNotice() }
                 Text(L("يطلب هذا الإجراء تحليلًا جديدًا عند تغيير النموذج، حتى إذا سبق فحص النص محليًا. الاقتراحات تحتاج موافقتك قبل إضافتها لأسلوبك.")).font(.caption).foregroundStyle(.secondary)
             }
             HStack {
@@ -292,13 +292,12 @@ private struct AnalyzeSourceSheet: View {
                 profile = assignment.profileId; modelID = assignment.modelId
             } else if let profiles = model.snapshot?.profiles, profiles.count == 1 { profile = profiles[0].id }
         }
-        .onChange(of: profile) { _, _ in consent = false }
-        .onChange(of: modelID) { _, _ in consent = false }
         .alert(L("تعذّر بدء التحليل"), isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button(L("حسنًا"), role: .cancel) { errorMessage = nil }
         } message: { Text(L(errorMessage ?? "")) }
     }
     private func submit() {
+        guard consent && modelReady && !submitting else { return }
         submitting = true
         Task {
             defer { submitting = false }

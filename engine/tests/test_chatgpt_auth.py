@@ -193,6 +193,11 @@ def test_factory_keeps_agno_schema_execution(monkeypatch):
         assert result.message=="A structured reply"
         assert calls and calls[0]["store"] is False and calls[0]["stream"] is True
         assert "Editorial rules" in json.dumps(calls[0]["input"])
+        # This route does not send text.format: the schema must reach the model
+        # through Agno's system prompt, including nested draft definitions.
+        system_input=json.dumps([m for m in calls[0]["input"] if m.get("role") in {"system","developer"}])
+        assert "article_ids" in system_input and "ChatDraft" in system_input
+        assert "youtube_long" in system_input and "drafts" in system_input
     asyncio.run(run())
 
 def test_rejects_wrong_signing_key(monkeypatch,signing):

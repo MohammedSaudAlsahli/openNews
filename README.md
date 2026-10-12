@@ -83,3 +83,10 @@ bash scripts/build_app.sh
 يعرض التطبيق عناوين المقالات والقوائم والتغليظ والروابط القابلة للنقر. في المسودة توجد أدوات تنسيق للنص المحدد مع معاينة واضحة قبل الحفظ أو تصدير Markdown. اختر لغة الواجهة من **الإعدادات ← عام**؛ تتغير العربية/الإنجليزية واتجاه الواجهة دون تغيير لغة محتواك.
 
 من **الأخبار ← مكتبة المصادر** ابحث أو اختر تصنيفًا وأضف الخلاصة بضغطة. زر **تعديل ملف المصادر** يفتح `sources.yml` الخاص بك، ثم **إعادة تحميل** لتطبيق التعديلات وإظهار التصنيفات الجديدة. [طريقة تعديل الملف وأمثلة YAML](docs/source-library.md).
+
+
+## First-run setup and permissions
+
+On first launch, OpenStudio guides you through language, provider/model, and an optional persistent AI-use permission. Existing connections are reused; a manual model test is not required. You can skip the provider to read and write locally. Change or revoke the permission, or reopen the guide, in **Settings → Permissions and setup**. After opting in, user-requested chat, generation and analysis do not repeat a consent checkbox. Closing the app window keeps the news reader running; quitting stops the engine.
+
+The main sidebar offers **New conversation** (⌘N), history, saved drafts, Activity, and Settings. **⌘⇧N** creates a draft. See [setup and conversation verification](docs/conversation-setup-verification.md).

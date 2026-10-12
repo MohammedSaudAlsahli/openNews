@@ -91,7 +91,7 @@ Three segments, `الأخبار`, `كتاباتي` and `أسلوبي`, change on
 
 ### Editorial conversation
 
-The composer prioritizes the request, a compact output choice (`نقاش`, independent X posts, long YouTube script, TikTok script), optional news/current-draft context, and explicit model-use consent. Model choice and duration are supporting controls. Messages persist, older history can be loaded, an in-flight response can be stopped, and proposals appear as separately saved artifacts with an explicit open action. Opening a proposal does not silently replace unsaved writing.
+The composer prioritizes the request, a compact output choice (`نقاش`, independent X posts, long YouTube script, TikTok script), optional news/current-draft context, and a one-time, revocable model-use permission. Model choice and duration are supporting controls. Messages persist, older history can be loaded, an in-flight response can be stopped, and proposals appear as separately saved artifacts with an explicit open action. Opening a proposal does not silently replace unsaved writing.
 
 ### News and writing samples
 
@@ -101,11 +101,11 @@ The writing import form asks whether a text is a personal style example or a con
 
 ### Review and activity
 
-Claims use neutral review-needed symbols and readable status, never a success checkmark for an unverified fact. Version history is disclosed beneath the current review. Activity is a compact popover; failed model work has a retry consent step. A completed generated draft is associated with its submitted job and offers a ready-to-open action when dirty writing must be preserved.
+Claims use neutral review-needed symbols and readable status, never a success checkmark for an unverified fact. Version history is disclosed beneath the current review. Activity is a compact popover; failed model work has a direct retry action that honors the saved permission. A completed generated draft is associated with its submitted job and offers a ready-to-open action when dirty writing must be preserved.
 
 ### Sheets and settings
 
-Import prioritizes title, source text, purpose and rights; saving a personal-style sample stays unavailable until ownership or licensing is selected; author/URL are optional details. Generation prioritizes the brief and format, with references and explicit sending/cost consent. Native settings contain model configuration, secure credential controls, and connection-test consent. Credentials now use owner-only local files under the connection settings workflow. Historical Keychain limitations must not be presented as a current-path failure. Adapter and catalog availability are not live account validation.
+Import prioritizes title, source text, purpose and rights; saving a personal-style sample stays unavailable until ownership or licensing is selected; author/URL are optional details. Generation prioritizes the brief and format, with references and the saved sending/cost permission. Native settings contain model configuration, secure credential controls, and an optional connection test that honors the saved permission. Credentials now use owner-only local files under the connection settings workflow. Historical Keychain limitations must not be presented as a current-path failure. Adapter and catalog availability are not live account validation.
 
 ## Do's and Don'ts
 
@@ -131,3 +131,12 @@ Current conversation/news implementation has been documented from source. This d
 ## Menu bar reader
 
 A native SwiftUI MenuBarExtra with window style provides a420×580pt reader. A newspaper symbol opens a searchable recent-news list, source filter and unread toggle. Selecting a story loads cached article text and marks it read, with explicit summary/podcast-description labels. Closing the editor hides its existing window, retaining unsaved text and chat state. Reopening focuses that same window; explicit Quit retains the dirty-work warning and stops the engine. Background snapshot refresh continues independent of visible views. This does not install a login item or wake a sleeping Mac. Apple reference: https://developer.apple.com/documentation/swiftui/windowmenubarextrastyle
+
+
+## Conversation navigation and first-run setup (2026-10-12)
+
+The leading 220pt sidebar keeps New conversation (Command–N), conversation history, saved drafts, activity, and Settings visible. A new conversation starts at a centered request composer and explicitly says it has not started. Existing conversations show their title and saved/running/attention state. References occupy a 300pt accessory panel on wide windows and a toolbar popover below 1180pt. Drafts remain available with their existing dirty-work protection; Command–Shift–N starts a new draft.
+
+A three-step setup sheet asks for language, a provider/model, then optional model-use permission. Existing connections are reused. Provider setup can be skipped for local reading/writing. No manual inference test is required. The user must explicitly enable the permission; credentials do not grant it. The saved permission applies to user-requested conversation, generation, analysis, optional model testing and retry. Revocation blocks subsequent model actions; it does not cancel an already-submitted job. Settings → Permissions and setup changes this permission or reopens setup. This is an application preference, not an invented macOS system permission.
+
+The main-layout reference was inspected directly in the installed OpenWork app, including its New session state, leading session sidebar, central composer, and settings navigation. Native SwiftUI controls and semantic macOS colors are retained.

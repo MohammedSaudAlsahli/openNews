@@ -125,7 +125,7 @@ struct GenerationSheet: View {
     @State private var modelID = ""
     @State private var modelReady = false
     @State private var sourceIDs = Set<String>()
-    @State private var consent = false
+    @AppStorage(ModelPermission.key) private var consent = false
     @State private var submitting = false
     @State private var error: String?
     private var profiles: [ProviderProfile] { model.snapshot?.profiles ?? [] }
@@ -186,8 +186,7 @@ struct GenerationSheet: View {
                     } else {
                         ConnectionModelPicker(profileID: $profileID, modelID: $modelID, ready: $modelReady)
                     }
-                    Toggle(L("أوافق على إرسال الفكرة والأسلوب والمصادر المختارة إلى مزود النموذج، وقد تُحتسب تكلفة."), isOn: $consent)
-                        .font(.callout)
+                    if !consent { ModelPermissionNotice() }
                 }
             }.formStyle(.grouped).disabled(submitting)
             if let error { sheetError(error) }
@@ -206,8 +205,6 @@ struct GenerationSheet: View {
                     profileID = assignment.profileId; modelID = assignment.modelId
                 } else if profiles.count == 1 { profileID = profiles[0].id }
             }
-            .onChange(of: profileID) { _, _ in consent = false }
-            .onChange(of: modelID) { _, _ in consent = false }
     }
     private func submit() async {
         guard valid, let snapshot = model.snapshot else { return }

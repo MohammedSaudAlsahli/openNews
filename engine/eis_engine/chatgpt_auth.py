@@ -352,7 +352,17 @@ def response_failure(error=None, status=None):
     return Failure("MODEL_RESPONSE_INCOMPLETE", "لم يكتمل رد ChatGPT. اتصال حسابك محفوظ؛ حاول مجددًا.")
 
 
+from dataclasses import dataclass
+
+
+@dataclass
 class ChatGPTResponses(OpenAIResponses):
+    # This restricted route does not send native text.format. Advertising the
+    # inherited Responses capability makes Agno omit the JSON schema from the
+    # prompt too, so the model never learns the contract it must return.
+    supports_native_structured_outputs: bool = False
+    supports_json_schema_outputs: bool = False
+
     async def ainvoke(self,messages,assistant_message,response_format=None,tools=None,tool_choice=None,run_response=None,compress_tool_results=False):
         from openai import APIStatusError, APIConnectionError, APITimeoutError
         if tools: raise Failure("MODEL_UNSUPPORTED","أدوات ChatGPT غير مفعلة في هذا الاتصال.")

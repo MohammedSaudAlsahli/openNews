@@ -155,7 +155,7 @@ private struct ModelChooserList: View {
 }
 
 private enum SettingsSection: String, CaseIterable {
-    case general, connections, agents
+    case general, connections, agents, permissions
 }
 
 struct ModelSettingsView: View {
@@ -163,7 +163,7 @@ struct ModelSettingsView: View {
     @EnvironmentObject private var model: StudioModel
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("appLanguage") private var appLanguage = "ar"
-    @State private var section: SettingsSection = .general
+    @AppStorage("settingsSection") private var section: SettingsSection = .general
     var body: some View {
         let _ = interfaceLanguage
         HStack(spacing: 0) {
@@ -176,6 +176,7 @@ struct ModelSettingsView: View {
                     Section(L("التطبيق")) {
                         Label(L("مزوّدو الذكاء الاصطناعي"), systemImage: "network").tag(SettingsSection.connections)
                         Label(L("اللغة والمظهر"), systemImage: "globe").tag(SettingsSection.general)
+                        Label(L("الصلاحيات والإعداد"), systemImage: "lock.shield").tag(SettingsSection.permissions)
                     }
                 }.listStyle(.sidebar)
             }.frame(width: 250)
@@ -189,6 +190,11 @@ struct ModelSettingsView: View {
                     .allowsHitTesting(section == .general).disabled(section != .general).accessibilityHidden(section != .general)
                 ConnectionsSettingsView().opacity(section == .connections ? 1 : 0)
                     .allowsHitTesting(section == .connections).disabled(section != .connections).accessibilityHidden(section != .connections)
+                VStack(alignment: .leading, spacing: 0) {
+                    settingsHeading(L("الصلاحيات والإعداد"), subtitle: L("اضبط صلاحيات التطبيق مرة واحدة، وغيّرها متى شئت."))
+                    PermissionsSettingsView()
+                }.opacity(section == .permissions ? 1 : 0)
+                    .allowsHitTesting(section == .permissions).disabled(section != .permissions).accessibilityHidden(section != .permissions)
                 agents.opacity(section == .agents ? 1 : 0)
                     .allowsHitTesting(section == .agents).disabled(section != .agents).accessibilityHidden(section != .agents)
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -213,7 +219,7 @@ struct ModelSettingsView: View {
             }
             Section(L("مساحة العمل")) {
                 LabeledContent(L("حفظ النصوص"), value: L("محليًا على جهازك"))
-                Text(L("تُرسل البيانات إلى النموذج فقط عند موافقتك على عملية تحليل أو كتابة. يمكنك إدارة المزوّدين من الاتصالات وتحديد نموذج كل وكيل من الوكلاء."))
+                Text(L("تُرسل البيانات عند طلب الكتابة أو التحليل بعد تفعيل إذن استخدام النماذج. يمكنك تغيير الإذن من الصلاحيات والإعداد."))
                     .font(.callout).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
@@ -267,7 +273,7 @@ private struct ConnectionsSettingsView: View {
     }
 }
 
-private struct AddConnectionView: View {
+struct AddConnectionView: View {
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @EnvironmentObject private var model: StudioModel
     @Environment(\.dismiss) private var dismiss
@@ -600,7 +606,7 @@ private struct ConnectionSettingsDetail: View {
     @State private var label = ""
     @State private var autoRefresh = true
     @State private var ready = false
-    @State private var consent = false
+    @AppStorage(ModelPermission.key) private var consent = false
     @State private var working = false
     @State private var editing = false
     @State private var signingIn = false
@@ -652,10 +658,9 @@ private struct ConnectionSettingsDetail: View {
                 }
                 Section {
                     DisclosureGroup(L("اختبار الاتصال")) {
-                        Toggle(L("أوافق على إرسال طلب اختبار إلى النموذج المختار، وقد تُحتسب تكلفة."), isOn: $consent).font(.callout)
+                        if !consent { ModelPermissionNotice() }
                         Button(L("اختبار النموذج")) {
                             perform("providers.validate", ["profile_id": profile.id, "model_id": modelID, "consent": true], success: L("نجح اختبار النموذج."))
-                            consent = false
                         }.disabled(!ready || !consent || working)
                     }
                 }
@@ -673,7 +678,6 @@ private struct ConnectionSettingsDetail: View {
             }.padding(18)
         }
         .onAppear { profileID = profile.id; modelID = profile.modelId; label = profile.label ?? ""; autoRefresh = profile.autoRefresh ?? true }
-        .onChange(of: modelID) { _, _ in consent = false }
         .confirmationDialog(L("فصل هذا الاتصال؟"), isPresented: $disconnecting, titleVisibility: .visible) {
             Button(L("فصل الاتصال"), role: .destructive) { perform("providers.disconnect", ["profile_id": profile.id], success: L("تم فصل الاتصال على هذا الجهاز.")) }
             Button(L("إلغاء"), role: .cancel) {}

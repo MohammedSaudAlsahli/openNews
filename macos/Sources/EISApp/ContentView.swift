@@ -2,6 +2,8 @@ import SwiftUI
 import AppKit
 
 extension Notification.Name {
+    static let showEditorialSetup = Self("eis.showSetup")
+    static let newEditorialConversation = Self("eis.newConversation")
     static let newEditorialDraft = Self("eis.newDraft")
     static let openEditorialDrafts = Self("eis.openDrafts")
     static let saveEditorialDraft = Self("eis.saveDraft")
@@ -14,6 +16,8 @@ extension Notification.Name {
 struct ContentView: View {
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @EnvironmentObject private var model: StudioModel
+    @AppStorage("setupCompleted") private var setupCompleted = false
+    @State private var showingSetup = false
     @State private var draft: Draft?
     @State private var title = ""
     @State private var text = ""
@@ -22,6 +26,8 @@ struct ContentView: View {
     @StateObject private var markdownEditor = MarkdownEditorController()
     @State private var previewDraft = false
     @State private var showReferences = true
+    @State private var compactWindow = false
+    @State private var compactReferences = false
     @AppStorage("sideBySideWorkspace") private var sideBySideWorkspace = false
     @State private var referenceSection: ReferenceSection = .news
     @StateObject private var chat = ChatSession()
@@ -58,11 +64,13 @@ struct ContentView: View {
             .onChange(of: jobRevision) { _, _ in
                 Task { await receiveGeneratedDraft(); await chat.update(model) }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .showEditorialSetup)) { _ in showingSetup = true }
+            .onReceive(NotificationCenter.default.publisher(for: .newEditorialConversation)) { _ in beginConversation() }
             .onReceive(NotificationCenter.default.publisher(for: .openEditorialDrafts)) { _ in showDrafts = true }
             .onReceive(NotificationCenter.default.publisher(for: .newEditorialDraft)) { _ in if !model.busy { requestOpen(nil) } }
             .onReceive(NotificationCenter.default.publisher(for: .saveEditorialDraft)) { _ in if canSave && dirty { Task { _ = await save() } } }
             .onReceive(NotificationCenter.default.publisher(for: .importEditorialSource)) { _ in importing = true }
-            .onReceive(NotificationCenter.default.publisher(for: .toggleEditorialReferences)) { _ in showReferences.toggle() }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleEditorialReferences)) { _ in if compactWindow { compactReferences.toggle() } else { showReferences.toggle() } }
             .onReceive(NotificationCenter.default.publisher(for: .exportEditorialDraft)) { _ in if canSave { Task { await export() } } }
             .onReceive(NotificationCenter.default.publisher(for: .helpEditorialWriting)) { _ in compactPane = "conversation"; chat.includeDraft = !text.isEmpty }
     }
@@ -78,58 +86,91 @@ struct ContentView: View {
                 }.font(.callout).padding(12).background(Color(nsColor: .controlBackgroundColor))
             }
             GeometryReader { geometry in
-                let paired = sideBySideWorkspace && geometry.size.width >= (showReferences ? 1180 : 860)
+                let referencesVisible = showReferences && geometry.size.width >= 1180
+                let contentWidth = geometry.size.width - 220 - (referencesVisible ? 300 : 0)
+                let paired = sideBySideWorkspace && contentWidth >= 860
                 HStack(spacing: 0) {
-                    if paired {
-                        conversationArea.frame(width: max(420, min(620, geometry.size.width * 0.46)))
-                        Divider()
-                        writingArea.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        VStack(spacing: 0) {
-                            Picker(L("مساحة العمل"), selection: $compactPane) {
-                                Text(L("المحادثة")).tag("conversation")
-                                Text(L("المسودة")).tag("draft")
-                            }.pickerStyle(.segmented).frame(maxWidth: 300).padding(12)
+                    WorkspaceSidebar(chat: chat, pane: $compactPane, newConversation: beginConversation, openDrafts: { showDrafts = true })
+                    Divider()
+                    VStack(spacing: 0) {
+                        if paired {
+                            HStack(spacing: 0) {
+                                conversationArea.frame(width: max(400, min(620, contentWidth * 0.48)))
+                                Divider()
+                                writingArea
+                            }
+                        } else if compactPane == "conversation" {
+                            conversationArea
+                        } else {
+                            HStack {
+                                Button { compactPane = "conversation" } label: { Label(L("العودة إلى المحادثة"), systemImage: "bubble.left") }
+                                Spacer()
+                                Text(L("المسودة")).font(.headline)
+                            }.padding(16)
                             Divider()
-                            if compactPane == "conversation" { conversationArea }
-                            else { writingArea }
-                        }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                    if showReferences {
+                            writingArea
+                        }
+                        if compactPane == "draft" || paired { Divider(); statusBar }
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if referencesVisible {
                         Divider()
-                        SourcePanel(section: $referenceSection, selectedSourceID: $selectedSourceID, selectedArticleIDs: $selectedArticleIDs) { importing = true }
-                            .frame(width: 320).background(Color(nsColor: .windowBackgroundColor))
+                        referencesPanel.frame(width: 300).background(Color(nsColor: .windowBackgroundColor))
                     }
                 }
+                .onAppear { compactWindow = geometry.size.width < 1180 }
+                .onChange(of: geometry.size.width) { _, width in compactWindow = width < 1180 }
             }
-            Divider()
-            statusBar
         }
         .background(Color(nsColor: .textBackgroundColor))
-        .navigationTitle(L("مساحة التحرير"))
+        .navigationTitle("OpenStudio")
         .toolbar { workspaceToolbar }
+        .popover(isPresented: $compactReferences) {
+            referencesPanel.frame(width: 360, height: 580).editorialPresentation()
+        }
+        .popover(isPresented: $showDrafts) { draftsPopover }
+    }
+
+    private var referencesPanel: some View {
+        SourcePanel(section: $referenceSection, selectedSourceID: $selectedSourceID, selectedArticleIDs: $selectedArticleIDs) { importing = true }
+    }
+
+    private func beginConversation() {
+        guard !chat.sending && !chat.loading else { return }
+        compactPane = "conversation"
+        chat.newConversation(model)
+    }
+
+    private func revealReferences() {
+        if compactWindow { compactReferences = true } else { showReferences = true }
     }
 
     @ToolbarContentBuilder private var workspaceToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Button { sideBySideWorkspace.toggle() } label: { Label(L("عرض المحادثة والمسودة معًا"), systemImage: "rectangle.split.2x1") }
-                .help(L("عرض المحادثة والمسودة معًا"))
-            Button { requestOpen(nil) } label: { Label(L("مسودة جديدة"), systemImage: "square.and.pencil") }.help(L("مسودة جديدة (⌘N)"))
-            Button { showDrafts.toggle() } label: { Label(L("المسودات"), systemImage: "doc.on.doc") }
-                .popover(isPresented: $showDrafts, arrowEdge: .bottom) { draftsPopover }
-            Divider()
-            Button { Task { _ = await save() } } label: { Label(L("حفظ"), systemImage: "square.and.arrow.down") }
-                .disabled(!canSave || !dirty).help(L("حفظ نسخة (⌘S)"))
-            Button { Task { await export() } } label: { Label(L("تصدير"), systemImage: "square.and.arrow.up") }
-                .disabled(!canSave).help(L("تصدير Markdown للمراجعة"))
-            Divider()
-            Button { showReferences.toggle() } label: { Label(L("الأخبار والكتابات"), systemImage: "sidebar.trailing") }
-                .help(showReferences ? L("إخفاء الأخبار والكتابات") : L("إظهار الأخبار والكتابات"))
+            Button { compactPane = compactPane == "draft" ? "conversation" : "draft" } label: {
+                Label(L(compactPane == "draft" ? "المحادثة" : "المسودة"), systemImage: compactPane == "draft" ? "bubble.left" : "doc.text")
+            }.help(L("التبديل بين المحادثة والمسودة"))
+            if compactPane == "draft" {
+                Button { requestOpen(nil) } label: { Label(L("مسودة جديدة"), systemImage: "square.and.pencil") }
+                Button { Task { _ = await save() } } label: { Label(L("حفظ"), systemImage: "square.and.arrow.down") }.disabled(!canSave || !dirty)
+                Button { Task { await export() } } label: { Label(L("تصدير"), systemImage: "square.and.arrow.up") }.disabled(!canSave)
+            }
+            Menu {
+                Button(L("عرض المحادثة والمسودة معًا")) { sideBySideWorkspace.toggle(); if sideBySideWorkspace { showReferences = false } }
+                Button(L("المسودات المحفوظة")) { showDrafts = true }
+            } label: { Label(L("خيارات العرض"), systemImage: "ellipsis") }
+            Button {
+                if compactWindow { compactReferences.toggle() } else { showReferences.toggle() }
+            } label: { Label(L("المصادر"), systemImage: "sidebar.trailing") }.help(L("الأخبار والكتابات"))
+            SettingsLink { Label(L("الإعدادات"), systemImage: "gearshape") }.help(L("الإعدادات (⌘,)"))
         }
     }
 
     private var workspaceSheets: some View {
         workspaceLayout
+        .task(id: model.snapshot?.workspaceId) {
+            if model.snapshot != nil && !setupCompleted { showingSetup = true }
+        }
+        .sheet(isPresented: $showingSetup) { SetupWizard() }
         .sheet(isPresented: $importing) {
             ImportSourceSheet { id in selectedSourceID = id; referenceSection = .sources; showReferences = true }
         }
@@ -157,7 +198,7 @@ struct ContentView: View {
                     else { model.error = L("تعذّر العثور على المسودة. حدّث مساحة العمل ثم حاول مجددًا.") }
                 } catch { model.error = error.localizedDescription }
             }
-        }, showNews: { referenceSection = .news; showReferences = true })
+        }, showNews: { referenceSection = .news; revealReferences() })
     }
 
     private var writingArea: some View {
@@ -383,7 +424,7 @@ struct ActivityRow: View {
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @EnvironmentObject var model: StudioModel
     let job: Job
-    @State private var resume = false
+    @AppStorage(ModelPermission.key) private var consent = false
     private var state: String { ["queued": L("في الانتظار"), "running": L("جارٍ التنفيذ"), "completed": L("اكتملت"), "failed": L("تعذّرت"), "interrupted": L("توقفت"), "cancelled": L("أُلغيت")][job.state] ?? L("تحتاج مراجعة") }
     var body: some View {
         let _ = interfaceLanguage
@@ -398,12 +439,9 @@ struct ActivityRow: View {
                 DisclosureGroup(L("تفاصيل المشكلة")) { Text(code).font(.caption.monospaced()).textSelection(.enabled) }
             }
             if job.active { Button(L("إلغاء العملية")) { Task { await model.perform("jobs.cancel", ["job_id": job.id]) } } }
-            if ["failed", "interrupted", "cancelled"].contains(job.state) { Button(L("إعادة المحاولة…")) { resume = true } }
+            if ["failed", "interrupted", "cancelled"].contains(job.state) { Button(L("إعادة المحاولة")) { Task { await model.perform("jobs.resume", ["job_id": job.id, "consent": consent]) } } }
             Divider()
-        }.font(.callout).confirmationDialog(L("قد تعيد المحاولة إرسال البيانات إلى النموذج وتكرار التكلفة."), isPresented: $resume, titleVisibility: .visible) {
-            Button(L("أوافق، أعد المحاولة")) { Task { await model.perform("jobs.resume", ["job_id": job.id, "consent": true]) } }
-            Button(L("إلغاء"), role: .cancel) { }
-        }
+        }.font(.callout)
     }
 }
 
