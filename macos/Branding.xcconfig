@@ -1,0 +1,3 @@
+// Use when importing Assets.xcassets into an Xcode macOS target.
+// The current SwiftPM/CLI packaging path embeds the equivalent OpenStudio.icns.
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon

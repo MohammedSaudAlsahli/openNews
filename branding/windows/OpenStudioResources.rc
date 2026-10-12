@@ -1,0 +1,6 @@
+// Add this resource to the future Windows executable target.
+// Set its resource include directory to this folder.
+#include "OpenStudioResources.h"
+IDI_OPENSTUDIO ICON "OpenStudio.ico"
+IDI_OPENSTUDIO_TRAY_BLACK ICON "tray-black.ico"
+IDI_OPENSTUDIO_TRAY_WHITE ICON "tray-white.ico"

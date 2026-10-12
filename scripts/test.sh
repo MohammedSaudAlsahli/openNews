@@ -2,6 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+uv run scripts/verify_brand_assets.py
 uv sync --project engine --frozen
 engine/.venv/bin/python -m pytest engine/tests -q
 FLAGS=()

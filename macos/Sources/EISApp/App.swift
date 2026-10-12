@@ -59,7 +59,11 @@ import AppKit
                 .environment(\.layoutDirection, direction).environment(\.locale, AppLanguage.current.locale)
                 .task { delegate.model = model; if model.health == nil { await model.start() } }
         } label: {
-            Label(L("الأخبار"), systemImage: "newspaper")
+            Label {
+                Text(L("الأخبار"))
+            } icon: {
+                Image(nsImage: BrandAssets.menuBarIcon).renderingMode(.template)
+            }
                 .accessibilityLabel(L("أخبار Editorial Intelligence Studio"))
         }.menuBarExtraStyle(.window)
         Settings {

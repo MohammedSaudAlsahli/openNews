@@ -21,6 +21,7 @@ localization_bundle = Path(sys.argv[1]).parent / 'EditorialIntelligenceStudio_EI
 if not localization_bundle.is_dir():
     raise RuntimeError('Missing SwiftPM localization resource bundle')
 shutil.copytree(localization_bundle, resources / localization_bundle.name)
+shutil.copy2(ROOT/'branding/macos/OpenStudio.icns', resources/'OpenStudio.icns')
 base=Path(sys.base_prefix)
 if 'cpython-3.12' not in str(base):
     raise SystemExit('Build requires relocatable uv-managed CPython 3.12, not system/Homebrew Python')
@@ -38,6 +39,7 @@ with (app/'Contents/Info.plist').open('wb') as f:
     plistlib.dump(dict(CFBundleIdentifier='com.editorialintelligence.studio',CFBundleExecutable='EditorialIntelligenceStudio',
                       CFBundleName='Editorial Intelligence Studio',CFBundleDisplayName='Editorial Intelligence Studio',
                       CFBundleShortVersionString='0.1.0',CFBundleVersion='1',CFBundlePackageType='APPL',
+                      CFBundleIconFile='OpenStudio.icns',
                       LSMinimumSystemVersion='14.0',NSHighResolutionCapable=True,
                       CFBundleDevelopmentRegion='ar',CFBundleLocalizations=['ar','en'],NSPrincipalClass='NSApplication'),f)
 sbom=[]
