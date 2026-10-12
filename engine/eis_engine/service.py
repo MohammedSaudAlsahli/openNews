@@ -39,6 +39,8 @@ class Service:
         from .news import NewsManager
         from .conversation import ConversationManager
         self.news = NewsManager(store)
+        from .feed_directory import FeedDirectory
+        self.feed_directory = FeedDirectory(store)
         self.conversations = ConversationManager(self)
         from .custom_agents import CustomAgents
         self.custom_agents = CustomAgents(self)
@@ -318,6 +320,8 @@ class Service:
             return self.conversations.detail(p["conversation_id"],p.get("before_message_id"))
         if command == "chat.send":
             return self.conversations.submit(p)
+        if command == "news.directory":
+            return await self.feed_directory.search(p)
         if command == "news.library.path":
             from .feed_library import library_path
             return library_path(self.store)
