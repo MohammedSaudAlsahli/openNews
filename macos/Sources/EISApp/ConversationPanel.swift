@@ -116,72 +116,14 @@ struct ConversationPanel: View {
         !session.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && session.composer.count <= 12000 &&
         (session.includeDraft ? draftText.count <= 60000 : true) && session.modelReady && session.consent && !session.sending && model.health != nil
     }
+    private var jobRevision: [String] {
+        let jobs: [Job] = model.snapshot?.jobs ?? []
+        return jobs.map { $0.id + $0.state }
+    }
+
     var body: some View {
         let _ = interfaceLanguage
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(L("المحادثة")).font(.headline)
-                    Text(session.detail?.title ?? L("فكّر بصوتٍ عالٍ، ثم اكتب")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer()
-                Menu {
-                    Button(L("محادثة جديدة"), systemImage: "plus") { session.newConversation(model) }
-                    Button(L("تحديث المحادثات"), systemImage: "arrow.clockwise") {
-                        Task { await session.refreshList(model); if !session.conversationID.isEmpty { await session.select(session.conversationID, model) } }
-                    }
-                    Divider()
-                    ForEach(session.conversations) { conversation in
-                        Button(conversation.title) { Task { await session.select(conversation.id, model) } }
-                    }
-                } label: { Image(systemName: "clock.arrow.circlepath") }
-                    .menuStyle(.borderlessButton).frame(width: 24).disabled(session.sending)
-                    .help(L("المحادثات السابقة ومحادثة جديدة"))
-            }.padding(18)
-            Divider()
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 22) {
-                        if session.detail?.hasMore == true {
-                            HStack {
-                                Button(L("تحميل رسائل أقدم")) { Task { await session.loadOlder(model) } }.disabled(session.loadingOlder)
-                                if session.loadingOlder { ProgressView().controlSize(.small) }
-                            }.font(.caption)
-                        }
-                        if session.detail?.messages.isEmpty != false { startingPrompts }
-                        ForEach(session.detail?.messages ?? []) { message in
-                            messageView(message).id(message.id)
-                        }
-                        if session.sending {
-                            HStack(spacing: 8) { ProgressView().controlSize(.small); Text(L("جارٍ إعداد الرد…")).font(.callout) }
-                                .id("pending")
-                        }
-                        if let error = session.error {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(L(error)).font(.callout).foregroundStyle(.red).textSelection(.enabled)
-                                Button(L("إغلاق التنبيه")) { session.error = nil }.font(.caption)
-                            }
-                        }
-                    }.frame(maxWidth: 760, alignment: .leading).padding(24).frame(maxWidth: .infinity)
-                }
-                .onChange(of: session.detail?.messages.last?.id) { _, _ in
-                    if let last = session.detail?.messages.last?.id { proxy.scrollTo(last, anchor: .bottom) }
-                }
-            }
-            Divider()
-            composer.frame(maxWidth: 800).frame(maxWidth: .infinity)
-        }.background(Color(nsColor: .controlBackgroundColor))
-            .task(id: model.snapshot?.workspaceId) { await session.start(model) }
-            .task(id: session.profileID + "|" + session.modelID) { await validateModelSelection() }
-            .onChange(of: agentRevision) { _, _ in updateAgentConfiguration() }
-            .onChange(of: model.snapshot?.jobs.map { $0.id + $0.state } ?? []) { _, _ in Task { await session.update(model) } }
-            .onChange(of: session.profileID) { _, _ in session.consent = false }
-            .onChange(of: session.modelID) { _, _ in session.consent = false }
-            .onChange(of: session.format) { _, value in
-                session.consent = false
-                if value == "youtube_long" { session.seconds = 600 }
-                else if value == "tiktok" { session.seconds = 60 }
-            }
+        configuredConversation
             .onChange(of: session.seconds) { _, _ in session.consent = false }
             .onChange(of: model.snapshot?.dnaVersion.id) { _, _ in session.consent = false }
             .onChange(of: model.snapshot?.assignments?.first(where: { $0.role == "writer" })?.modelId) { _, _ in
@@ -193,6 +135,85 @@ struct ConversationPanel: View {
             .onChange(of: session.includeDraft) { _, _ in session.consent = false }
             .onChange(of: draftText) { _, _ in if session.includeDraft { session.consent = false } }
             .onChange(of: selectedArticleIDs) { _, _ in session.consent = false }
+    }
+
+    private var configuredConversation: some View {
+        conversationLayout
+            .task(id: model.snapshot?.workspaceId) { await session.start(model) }
+            .task(id: session.profileID + "|" + session.modelID) { await validateModelSelection() }
+            .onChange(of: agentRevision) { _, _ in updateAgentConfiguration() }
+            .onChange(of: jobRevision) { _, _ in Task { await session.update(model) } }
+            .onChange(of: session.profileID) { _, _ in session.consent = false }
+            .onChange(of: session.modelID) { _, _ in session.consent = false }
+            .onChange(of: session.format) { _, value in
+                session.consent = false
+                if value == "youtube_long" { session.seconds = 600 }
+                else if value == "tiktok" { session.seconds = 60 }
+            }
+    }
+
+    private var conversationLayout: some View {
+        VStack(spacing: 0) {
+            conversationHeader
+            Divider()
+            messageHistory
+            Divider()
+            composer.frame(maxWidth: 800).frame(maxWidth: .infinity)
+        }.background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var conversationHeader: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L("المحادثة")).font(.headline)
+                Text(session.detail?.title ?? L("فكّر بصوتٍ عالٍ، ثم اكتب")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Menu {
+                Button(L("محادثة جديدة"), systemImage: "plus") { session.newConversation(model) }
+                Button(L("تحديث المحادثات"), systemImage: "arrow.clockwise") {
+                    Task { await session.refreshList(model); if !session.conversationID.isEmpty { await session.select(session.conversationID, model) } }
+                }
+                Divider()
+                ForEach(session.conversations) { conversation in
+                    Button(conversation.title) { Task { await session.select(conversation.id, model) } }
+                }
+            } label: { Image(systemName: "clock.arrow.circlepath") }
+                .menuStyle(.borderlessButton).frame(width: 24).disabled(session.sending)
+                .help(L("المحادثات السابقة ومحادثة جديدة"))
+        }.padding(18)
+    }
+
+    private var messageHistory: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 22) {
+                    if session.detail?.hasMore == true {
+                        HStack {
+                            Button(L("تحميل رسائل أقدم")) { Task { await session.loadOlder(model) } }.disabled(session.loadingOlder)
+                            if session.loadingOlder { ProgressView().controlSize(.small) }
+                        }.font(.caption)
+                    }
+                    if session.detail?.messages.isEmpty != false { startingPrompts }
+                    ForEach(session.detail?.messages ?? []) { message in
+                        messageView(message).id(message.id)
+                    }
+                    if session.sending {
+                        HStack(spacing: 8) { ProgressView().controlSize(.small); Text(L("جارٍ إعداد الرد…")).font(.callout) }
+                            .id("pending")
+                    }
+                    if let error = session.error {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(L(error)).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+                            Button(L("إغلاق التنبيه")) { session.error = nil }.font(.caption)
+                        }
+                    }
+                }.frame(maxWidth: 760, alignment: .leading).padding(24).frame(maxWidth: .infinity)
+            }
+            .onChange(of: session.detail?.messages.last?.id) { _, _ in
+                if let last = session.detail?.messages.last?.id { proxy.scrollTo(last, anchor: .bottom) }
+            }
+        }
     }
     private var startingPrompts: some View {
         VStack(alignment: .leading, spacing: 14) {

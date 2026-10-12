@@ -45,8 +45,29 @@ struct ContentView: View {
     private var activeJobs: [Job] { (model.snapshot?.jobs ?? []).filter(\.active) }
     private var draftList: [Draft] { (model.snapshot?.drafts ?? []).filter { draftQuery.isEmpty || $0.topic.localizedCaseInsensitiveContains(draftQuery) } }
 
+    private var jobRevision: [String] {
+        let jobs: [Job] = model.snapshot?.jobs ?? []
+        return jobs.map { $0.id + $0.state }
+    }
+
     var body: some View {
         let _ = interfaceLanguage
+        workspaceSheets
+            .background(BackgroundWindowHost())
+            .onChange(of: dirty) { _, value in model.hasUnsavedChanges = value }
+            .onChange(of: jobRevision) { _, _ in
+                Task { await receiveGeneratedDraft(); await chat.update(model) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .openEditorialDrafts)) { _ in showDrafts = true }
+            .onReceive(NotificationCenter.default.publisher(for: .newEditorialDraft)) { _ in if !model.busy { requestOpen(nil) } }
+            .onReceive(NotificationCenter.default.publisher(for: .saveEditorialDraft)) { _ in if canSave && dirty { Task { _ = await save() } } }
+            .onReceive(NotificationCenter.default.publisher(for: .importEditorialSource)) { _ in importing = true }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleEditorialReferences)) { _ in showReferences.toggle() }
+            .onReceive(NotificationCenter.default.publisher(for: .exportEditorialDraft)) { _ in if canSave { Task { await export() } } }
+            .onReceive(NotificationCenter.default.publisher(for: .helpEditorialWriting)) { _ in compactPane = "conversation"; chat.includeDraft = !text.isEmpty }
+    }
+
+    private var workspaceLayout: some View {
         VStack(spacing: 0) {
             if model.health == nil {
                 HStack {
@@ -86,23 +107,29 @@ struct ContentView: View {
         }
         .background(Color(nsColor: .textBackgroundColor))
         .navigationTitle(L("مساحة التحرير"))
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button { sideBySideWorkspace.toggle() } label: { Label(L("عرض المحادثة والمسودة معًا"), systemImage: "rectangle.split.2x1") }
-                    .help(L("عرض المحادثة والمسودة معًا"))
-                Button { requestOpen(nil) } label: { Label(L("مسودة جديدة"), systemImage: "square.and.pencil") }.help(L("مسودة جديدة (⌘N)"))
-                Button { showDrafts.toggle() } label: { Label(L("المسودات"), systemImage: "doc.on.doc") }
-                    .popover(isPresented: $showDrafts, arrowEdge: .bottom) { draftsPopover }
-                Divider()
-                Button { Task { _ = await save() } } label: { Label(L("حفظ"), systemImage: "square.and.arrow.down") }
-                    .disabled(!canSave || !dirty).help(L("حفظ نسخة (⌘S)"))
-                Button { Task { await export() } } label: { Label(L("تصدير"), systemImage: "square.and.arrow.up") }
-                    .disabled(!canSave).help(L("تصدير Markdown للمراجعة"))
-                Divider()
-                Button { showReferences.toggle() } label: { Label(L("الأخبار والكتابات"), systemImage: "sidebar.trailing") }
-                    .help(showReferences ? L("إخفاء الأخبار والكتابات") : L("إظهار الأخبار والكتابات"))
-            }
+        .toolbar { workspaceToolbar }
+    }
+
+    @ToolbarContentBuilder private var workspaceToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button { sideBySideWorkspace.toggle() } label: { Label(L("عرض المحادثة والمسودة معًا"), systemImage: "rectangle.split.2x1") }
+                .help(L("عرض المحادثة والمسودة معًا"))
+            Button { requestOpen(nil) } label: { Label(L("مسودة جديدة"), systemImage: "square.and.pencil") }.help(L("مسودة جديدة (⌘N)"))
+            Button { showDrafts.toggle() } label: { Label(L("المسودات"), systemImage: "doc.on.doc") }
+                .popover(isPresented: $showDrafts, arrowEdge: .bottom) { draftsPopover }
+            Divider()
+            Button { Task { _ = await save() } } label: { Label(L("حفظ"), systemImage: "square.and.arrow.down") }
+                .disabled(!canSave || !dirty).help(L("حفظ نسخة (⌘S)"))
+            Button { Task { await export() } } label: { Label(L("تصدير"), systemImage: "square.and.arrow.up") }
+                .disabled(!canSave).help(L("تصدير Markdown للمراجعة"))
+            Divider()
+            Button { showReferences.toggle() } label: { Label(L("الأخبار والكتابات"), systemImage: "sidebar.trailing") }
+                .help(showReferences ? L("إخفاء الأخبار والكتابات") : L("إظهار الأخبار والكتابات"))
         }
+    }
+
+    private var workspaceSheets: some View {
+        workspaceLayout
         .sheet(isPresented: $importing) {
             ImportSourceSheet { id in selectedSourceID = id; referenceSection = .sources; showReferences = true }
         }
@@ -119,18 +146,6 @@ struct ContentView: View {
         .alert(L("تعذّر إكمال العملية"), isPresented: Binding(get: { model.error != nil && !importing && !generating }, set: { if !$0 { model.error = nil } })) {
             Button(L("حسنًا"), role: .cancel) { model.error = nil }
         } message: { Text(L(model.error ?? "")) }
-        .background(BackgroundWindowHost())
-        .onChange(of: dirty) { _, value in model.hasUnsavedChanges = value }
-        .onChange(of: model.snapshot?.jobs.map { $0.id + $0.state } ?? []) { _, _ in
-            Task { await receiveGeneratedDraft(); await chat.update(model) }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openEditorialDrafts)) { _ in showDrafts = true }
-        .onReceive(NotificationCenter.default.publisher(for: .newEditorialDraft)) { _ in if !model.busy { requestOpen(nil) } }
-        .onReceive(NotificationCenter.default.publisher(for: .saveEditorialDraft)) { _ in if canSave && dirty { Task { _ = await save() } } }
-        .onReceive(NotificationCenter.default.publisher(for: .importEditorialSource)) { _ in importing = true }
-        .onReceive(NotificationCenter.default.publisher(for: .toggleEditorialReferences)) { _ in showReferences.toggle() }
-        .onReceive(NotificationCenter.default.publisher(for: .exportEditorialDraft)) { _ in if canSave { Task { await export() } } }
-        .onReceive(NotificationCenter.default.publisher(for: .helpEditorialWriting)) { _ in compactPane = "conversation"; chat.includeDraft = !text.isEmpty }
     }
 
     private var conversationArea: some View {

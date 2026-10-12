@@ -28,9 +28,12 @@ struct SourcePanel: View {
     }
     private var rules: [DNARule] { (model.snapshot?.rules ?? []).filter { $0.status == "approved" } }
     private var refreshKey: String {
-        (selectedSourceID ?? "") + (source?.currentVersionId ?? "") +
-        (model.snapshot?.jobs.map { $0.id + $0.state }.joined() ?? "") +
-        (model.snapshot?.dnaVersion.id ?? "")
+        let selected = selectedSourceID ?? ""
+        let version = source?.currentVersionId ?? ""
+        let jobs: [Job] = model.snapshot?.jobs ?? []
+        let jobStates = jobs.map { $0.id + $0.state }.joined()
+        let dna = model.snapshot?.dnaVersion.id ?? ""
+        return [selected, version, jobStates, dna].joined(separator: "|")
     }
 
     var body: some View {
