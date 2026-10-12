@@ -192,9 +192,14 @@ struct NewsSubscription: Decodable, Identifiable {
 struct NewsArticle: Decodable, Identifiable {
     let id, subscriptionId, sourceTitle, title, url, discoveredAt, summary, bodyStatus: String
     let publishedAt: String?
-    let isRead: Bool?
+    var isRead: Bool?
+    var isBookmarked: Bool? = nil
+    var coverImageId: String? = nil
 }
+struct NewsArticlePage: Decodable { let articles: [NewsArticle]; let hasMore: Bool }
+struct ArticleAISummary: Decodable { let summary, model: String; let cached: Bool }
 struct NewsArticleDetail: Decodable {
+    let isBookmarked: Bool?
     let text: String
     let title, url, bodyStatus, summary: String?
     let reader: ArticleReadingContent?

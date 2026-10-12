@@ -94,8 +94,33 @@ class ReaderSummary(MarkdownSummary):
         else: super().handle_starttag(tag, attrs)
 
 
+def preserve_special_blocks(tree, base):
+    """Protect preformatted/quoted content from article extraction whitespace folding."""
+    replacements = {}
+    for node in list(tree.xpath('//pre|//blockquote')):
+        if node.getparent() is None or any(p.tag in {'pre','blockquote'} for p in node.iterancestors()):
+            continue
+        if node.tag == 'pre':
+            value = node.text_content().strip('\n')
+            fence = '`' * max(3, max((len(m[0])+1 for m in re.finditer(r'`+',value)), default=3))
+            value = fence + '\n' + value + '\n' + fence
+        else:
+            parser = ReaderSummary(base)
+            parser.feed(html.tostring(node,encoding='unicode'))
+            value = ''.join(parser.parts).strip().removeprefix('> ').strip()
+            value = '\n'.join('> '+line for line in value.splitlines())
+        token = 'OPENSTUDIOPRESERVEDBLOCK' + str(len(replacements)) + 'END'
+        replacements[token] = value
+        replacement = html.Element('p')
+        replacement.text = token
+        replacement.tail = node.tail
+        node.getparent().replace(node,replacement)
+    return replacements
+
+
 def extract_reader(body, base, fragment=False):
     tree, images = prepare_tree(body, base)
+    special = preserve_special_blocks(tree, base)
     if fragment:
         parser = ReaderSummary(base)
         parser.feed(html.tostring(tree, encoding='unicode'))
@@ -103,7 +128,9 @@ def extract_reader(body, base, fragment=False):
     else:
         markdown = extract(tree, url=base, output_format='markdown', include_formatting=True,
                            include_links=True, include_images=True, include_comments=False,
-                           include_tables=False, favor_precision=True) or ''
+                           include_tables=True, favor_precision=True) or ''
+    for token, value in special.items():
+        markdown = markdown.replace(token, value)
     blocks = blocks_from_markdown(markdown[:MAX_TEXT], images)
     # Some publishers put their lead photo outside the extracted article body.
     if not any(b['type'] == 'image' for b in blocks):
@@ -111,5 +138,5 @@ def extract_reader(body, base, fragment=False):
         cover = image_url(meta[0], base) if meta else None
         if cover: blocks.insert(0, {'type':'image','id':'cover','url':cover,'alt':'','caption':''})
     authors = tree.xpath('//meta[@name="author"]/@content')
-    return {'version':1, 'blocks':blocks, 'author':plain(authors[0])[:300] if authors else '',
+    return {'version':2, 'blocks':blocks, 'author':plain(authors[0])[:300] if authors else '',
             'origin':'feed' if fragment else 'article'}

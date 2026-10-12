@@ -34,7 +34,10 @@ struct WorkspaceSidebar: View {
             Button(action: openDrafts) {
                 Label(L("المسودات المحفوظة"), systemImage: "doc.on.doc")
                     .frame(maxWidth: .infinity, alignment: .leading).padding(10).contentShape(Rectangle())
-            }.buttonStyle(.plain).padding(.horizontal, 10).padding(.bottom, 20)
+            }.buttonStyle(.plain).padding(.horizontal, 10).padding(.bottom, 4)
+            Button { pane = "articles" } label: {
+                Label(L("المقالات"), systemImage: "newspaper").frame(maxWidth: .infinity, alignment: .leading).padding(10).contentShape(Rectangle())
+            }.buttonStyle(.plain).background(pane == "articles" ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8)).padding(.horizontal, 10)
             Button { discoverSources = true } label: {
                 Label(L("اكتشف المصادر"), systemImage: "safari")
                     .frame(maxWidth: .infinity, alignment: .leading).padding(10).contentShape(Rectangle())

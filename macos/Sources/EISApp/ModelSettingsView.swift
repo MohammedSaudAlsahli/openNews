@@ -18,13 +18,30 @@ struct ConnectionModelPicker: View {
         let _ = interfaceLanguage
         Group {
             if showsConnection {
-                Picker(L("الاتصال"), selection: $profileID) {
-                    Text(L("اختر اتصالًا")).tag("")
-                    ForEach(profiles) { Text($0.displayName).tag($0.id) }
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(L("الاتصال")).font(.callout.weight(.medium))
+                    Menu {
+                        Button(L("اختر اتصالًا")) { profileID = "" }
+                        ForEach(profiles) { profile in
+                            Button { profileID = profile.id } label: {
+                                if profile.id == profileID { Label(profile.displayName, systemImage: "checkmark") }
+                                else { Text(profile.displayName) }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(profiles.first { $0.id == profileID }?.displayName ?? L("اختر اتصالًا"))
+                                .lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.up.chevron.down").font(.caption)
+                        }.padding(10).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 7))
+                    }.menuStyle(.borderlessButton).menuIndicator(.hidden).accessibilityLabel(L("الاتصال"))
+
                 }
             }
             if !profileID.isEmpty {
-                LabeledContent(L("النموذج")) {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(L("النموذج")).font(.callout.weight(.medium))
                     Button { choosingModel = true } label: {
                         HStack(spacing: 8) {
                             Text(loading ? L("جارٍ جلب النماذج…") : (result?.models.first { $0.id == modelID }?.name ?? L("اختر نموذجًا")))
@@ -179,8 +196,8 @@ struct ModelSettingsView: View {
                         Label(L("اللغة والمظهر"), systemImage: "globe").tag(SettingsSection.general)
                         Label(L("الصلاحيات والإعداد"), systemImage: "lock.shield").tag(SettingsSection.permissions)
                     }
-                }.listStyle(.sidebar)
-            }.frame(width: 250)
+                }.listStyle(.sidebar).padding(.horizontal, 10).padding(.top, 6)
+            }.frame(width: 240)
             Divider()
             // Keep each editor alive while navigating between settings sections.
             ZStack {
@@ -579,7 +596,7 @@ struct AgentModelAssignment: View {
     @State private var failed = false
     var body: some View {
         let _ = interfaceLanguage
-        Group {
+        VStack(alignment: .leading, spacing: 22) {
             Text(role == "writer" ? L("للمحادثة وإنشاء المسودات.") : L("لاستخراج تقنيات الكتابة من أمثلتك."))
                 .font(.caption).foregroundStyle(.secondary)
             ConnectionModelPicker(profileID: $profileID, modelID: $modelID, ready: $ready)
@@ -595,10 +612,10 @@ struct AgentModelAssignment: View {
                             try await model.refresh(); message = L("حُفظ اختيار {0}.", title)
                         } catch { failed = true; message = error.localizedDescription }
                     }
-                }.disabled(!ready || saving)
+                }.buttonStyle(.borderedProminent).disabled(!ready || saving || (model.snapshot?.assignments?.first { $0.role == role }.map { $0.profileId == profileID && $0.modelId == modelID } ?? false))
             }
             if let message { Text(L(message)).font(.caption).foregroundStyle(failed ? Color.red : Color.secondary) }
-        }.onAppear {
+        }.padding(22).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12)).onAppear {
             if let assignment = model.snapshot?.assignments?.first(where: { $0.role == role }) {
                 profileID = assignment.profileId; modelID = assignment.modelId
             } else if let first = model.snapshot?.profiles.first { profileID = first.id }

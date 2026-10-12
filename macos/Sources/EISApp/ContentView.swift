@@ -72,6 +72,7 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .importEditorialSource)) { _ in importing = true }
             .onReceive(NotificationCenter.default.publisher(for: .toggleEditorialReferences)) { _ in if compactWindow { compactReferences.toggle() } else { showReferences.toggle() } }
             .onReceive(NotificationCenter.default.publisher(for: .exportEditorialDraft)) { _ in if canSave { Task { await export() } } }
+            .onReceive(NotificationCenter.default.publisher(for: .openEditorialArticle)) { _ in compactPane = "articles"; compactReferences = false }
             .onReceive(NotificationCenter.default.publisher(for: .helpEditorialWriting)) { _ in compactPane = "conversation"; chat.includeDraft = !text.isEmpty }
     }
 
@@ -86,12 +87,15 @@ struct ContentView: View {
                 }.font(.callout).padding(12).background(Color(nsColor: .controlBackgroundColor))
             }
             GeometryReader { geometry in
-                let referencesVisible = showReferences && geometry.size.width >= 1180
+                let referencesVisible = compactPane != "articles" && showReferences && geometry.size.width >= 1180
                 let contentWidth = geometry.size.width - 220 - (referencesVisible ? 300 : 0)
-                let paired = sideBySideWorkspace && contentWidth >= 860
+                let paired = compactPane != "articles" && sideBySideWorkspace && contentWidth >= 860
                 HStack(spacing: 0) {
                     WorkspaceSidebar(chat: chat, pane: $compactPane, newConversation: beginConversation, openDrafts: { showDrafts = true })
                     Divider()
+                    ZStack {
+                        ArticlesWorkspace(selectedArticleIDs: $selectedArticleIDs)
+                            .accessibilityElement(children: .contain).disabled(compactPane != "articles").opacity(compactPane == "articles" ? 1 : 0).allowsHitTesting(compactPane == "articles").accessibilityHidden(compactPane != "articles")
                     VStack(spacing: 0) {
                         if paired {
                             HStack(spacing: 0) {
@@ -111,6 +115,7 @@ struct ContentView: View {
                             writingArea
                         }
                         if compactPane == "draft" || paired { Divider(); statusBar }
+                    }.accessibilityElement(children: .contain).disabled(compactPane == "articles").opacity(compactPane == "articles" ? 0 : 1).allowsHitTesting(compactPane != "articles").accessibilityHidden(compactPane == "articles")
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                     if referencesVisible {
                         Divider()
@@ -146,6 +151,7 @@ struct ContentView: View {
 
     @ToolbarContentBuilder private var workspaceToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            if compactPane != "articles" {
             Button { compactPane = compactPane == "draft" ? "conversation" : "draft" } label: {
                 Label(L(compactPane == "draft" ? "المحادثة" : "المسودة"), systemImage: compactPane == "draft" ? "bubble.left" : "doc.text")
             }.help(L("التبديل بين المحادثة والمسودة"))
@@ -161,6 +167,7 @@ struct ContentView: View {
             Button {
                 if compactWindow { compactReferences.toggle() } else { showReferences.toggle() }
             } label: { Label(L("المصادر"), systemImage: "sidebar.trailing") }.help(L("الأخبار والكتابات"))
+            }
             SettingsLink { Label(L("الإعدادات"), systemImage: "gearshape") }.help(L("الإعدادات (⌘,)"))
         }
     }
@@ -249,8 +256,6 @@ struct ContentView: View {
                 DraftReview(detail: detail).frame(maxHeight: 220)
             }
             HStack {
-                Button { compactPane = "conversation"; chat.includeDraft = !text.isEmpty } label: { Label(L("ناقش هذه المسودة"), systemImage: "bubble.left.and.bubble.right") }
-                    .buttonStyle(.bordered).disabled(model.health == nil || model.busy)
                 Spacer()
                 Text(draft == nil ? L("الكتابة والحفظ على جهازك") : L("الحفظ ينشئ نسخة جديدة"))
                     .font(.caption).foregroundStyle(.secondary)

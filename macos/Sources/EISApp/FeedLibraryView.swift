@@ -1,8 +1,6 @@
 import SwiftUI
 import AppKit
 
-private struct LibraryLocation: Decodable { let path: String }
-private struct FeedLibrary: Decodable { let version: Int; let feeds: [LibraryFeed]; let path: String }
 private struct DirectoryPage: Decodable {
     let feeds: [LibraryFeed]
     let nextCursor, provider, fetchedAt: String
@@ -17,7 +15,7 @@ struct FeedLibraryView: View {
     @EnvironmentObject private var model: StudioModel
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appLanguage") private var language = "ar"
-    @State private var catalog = "online"
+    @State private var sortAlphabetically = false
     @State private var submittedQuery = ""
     @State private var nextCursor = ""
     @State private var fetchedAt = ""
@@ -25,7 +23,6 @@ struct FeedLibraryView: View {
     @State private var requestID = UUID()
     @State private var feeds: [LibraryFeed] = []
     @State private var query = ""
-    @State private var libraryPath = ""
     @State private var category = "all"
     @State private var feedLanguage = "all"
     @State private var pending = Set<String>()
@@ -33,19 +30,14 @@ struct FeedLibraryView: View {
     @State private var loading = true
     @State private var adding = false
     @State private var followedOnly = false
-    @State private var fileOptions = false
     @State private var addedTitle: String?
-    private var categories: [String] {
-        let standard = ["general", "news", "technology", "ai", "science", "business", "sports", "podcasts"]
-        if catalog == "online" { return ["all", "news", "technology", "ai", "science", "business", "sports", "podcasts", "gaming", "design", "food", "travel"] }
-        let used = Set(feeds.map(\.category))
-        return ["all"] + standard.filter { used.contains($0) } + used.subtracting(standard).sorted()
-    }
+    private var categories: [String] { ["all", "news", "technology", "ai", "science", "business", "sports", "podcasts", "gaming", "design", "food", "travel"] }
     private var filtered: [LibraryFeed] {
-        feeds.filter { feed in
-            (!followedOnly || subscription(feed)?.enabled == true) && (catalog == "online" || category == "all" || feed.category == category) && (catalog == "online" || feedLanguage == "all" || feed.language == feedLanguage) &&
-            (catalog == "online" || query.isEmpty || [feed.title, feed.url, feed.descriptionAr, feed.descriptionEn].contains { $0.localizedCaseInsensitiveContains(query) })
+        let matches = feeds.filter { feed in
+            (!followedOnly || subscription(feed)?.enabled == true) &&
+            (feedLanguage == "all" || feed.language.hasPrefix(feedLanguage))
         }
+        return sortAlphabetically ? matches.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : matches
     }
     var body: some View {
         let _ = interfaceLanguage
@@ -59,31 +51,33 @@ struct FeedLibraryView: View {
                 Button { adding = true } label: { Label(L("إضافة رابط"), systemImage: "plus") }.buttonStyle(.borderedProminent)
                 Button(L("تم")) { dismiss() }.keyboardShortcut(.cancelAction)
             }.padding(24)
-            Picker(L("دليل المصادر"), selection: $catalog) {
-                Text(L("دليل الإنترنت · RSS.mobi")).tag("online")
-                Text(L("دليلي المحلي · YAML")).tag("local")
-            }.pickerStyle(.segmented).labelsHidden().padding(.horizontal, 24).padding(.bottom, 16)
-            HStack {
-                TextField(L("ابحث عن مصدر أو موضوع"), text: $query).textFieldStyle(.roundedBorder)
-                    .onSubmit { search() }
-                if catalog == "online" {
-                    Button(L("بحث")) { search() }.disabled(query.count > 100)
-                } else {
-                Picker(L("لغة المصادر"), selection: $feedLanguage) {
-                    Text(L("كل اللغات")).tag("all")
-                    Text(L("العربية")).tag("ar")
-                    Text(L("الإنجليزية")).tag("en")
-                }.frame(width: 220)
-                }
-            }.padding(.horizontal, 24).padding(.bottom, 16)
-            if catalog == "online", query.count > 100 {
-                Text(L("البحث بحد أقصى 100 حرف.")).font(.caption).foregroundStyle(.red).padding(.horizontal, 24).padding(.bottom, 8)
-            }
             HStack(spacing: 12) {
-                Toggle(L("مصادري فقط"), isOn: $followedOnly).toggleStyle(.switch).controlSize(.small)
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField(L("ابحث عن مصدر أو موضوع"), text: $query).textFieldStyle(.plain)
+                    .accessibilityLabel(L("ابحث عن مصدر أو موضوع"))
+                if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).help(L("مسح البحث")) }
+                if loading { ProgressView().controlSize(.small) }
+            }.padding(12).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 24).padding(.bottom, 12)
+            HStack(spacing: 16) {
+                Menu {
+                    Picker(L("لغة النتائج المحمّلة"), selection: $feedLanguage) {
+                        Text(L("كل اللغات")).tag("all")
+                        Text(L("العربية")).tag("ar")
+                        Text(L("الإنجليزية")).tag("en")
+                    }
+                    Toggle(L("مصادري فقط"), isOn: $followedOnly)
+                    Toggle(L("ترتيب أبجدي"), isOn: $sortAlphabetically)
+                } label: { Label(L("تصفية النتائج"), systemImage: "line.3.horizontal.decrease") }
+                .fixedSize()
+                if feedLanguage != "all" || followedOnly || sortAlphabetically {
+                    Button(L("مسح الفلاتر")) { feedLanguage = "all"; followedOnly = false; sortAlphabetically = false }.buttonStyle(.borderless)
+                }
                 Spacer()
-                Text(L(catalog == "online" ? "{0} مصدر محمّل" : "{0} مصدر", DisplayFormat.integer(filtered.count))).foregroundStyle(.secondary)
-            }.font(.callout).padding(.horizontal, 24).padding(.bottom, 16)
+                Text(L("{0} مصدر", DisplayFormat.integer(filtered.count))).foregroundStyle(.secondary)
+                Link("RSS.mobi", destination: URL(string: "https://rss.mobi/")!).font(.caption)
+                    .help(L("دليل مجتمعي؛ المتابعة تجلب الأخبار من الناشر مباشرة."))
+            }.padding(.horizontal, 24).padding(.bottom, 16)
             if let addedTitle {
                 Label(L("بدأت متابعة {0}. ستظهر أخباره في الأخبار.", addedTitle), systemImage: "checkmark.circle.fill")
                     .font(.callout).foregroundStyle(.green).padding(.horizontal, 24).padding(.bottom, 12)
@@ -106,49 +100,30 @@ struct FeedLibraryView: View {
                             feedRow(feed)
                             Divider().padding(.horizontal, 20)
                         }
-                        if catalog == "online", !nextCursor.isEmpty, !loading {
+                        if !nextCursor.isEmpty, !loading {
                             Button(L("تحميل المزيد")) { Task { await load(append: true) } }
                                 .frame(maxWidth: .infinity).padding(20)
                         }
                     }
                 }.frame(maxWidth: .infinity)
             }
-            Divider()
-            VStack(alignment: .leading, spacing: 8) {
-                if catalog == "online" {
-                    HStack {
-                        Link("RSS.mobi", destination: URL(string: "https://rss.mobi/")!)
-                        Text(L("دليل مجتمعي؛ المتابعة تجلب الأخبار من الناشر مباشرة.")).foregroundStyle(.secondary)
-                        Spacer()
-                        Button(L("تحديث")) { Task { await load(refresh: true) } }.disabled(loading)
-                    }
-                    if stale {
-                        Label(L("تعذّر الاتصال. نعرض نتائج محفوظة؛ أعد المحاولة للتحديث."), systemImage: "wifi.slash").foregroundStyle(.orange)
-                    }
-                    if !fetchedAt.isEmpty {
-                        Text(L("آخر تحديث: {0}", DisplayFormat.date(fetchedAt))).foregroundStyle(.secondary)
-                    }
-                    Text(L("يُرسل نص البحث إلى RSS.mobi عند الضغط على بحث. أوصاف المصادر بلغتها الأصلية.")).foregroundStyle(.secondary)
-                } else {
-                DisclosureGroup(L("إدارة دليل المصادر"), isExpanded: $fileOptions) {
-                    HStack {
-                        Button { openLibraryFile() } label: { Label(L("تعديل ملف المصادر"), systemImage: "doc.text") }.disabled(libraryPath.isEmpty)
-                        Button { Task { await load() } } label: { Label(L("إعادة تحميل"), systemImage: "arrow.clockwise") }.disabled(loading)
-                        Spacer()
-                        Text("sources.yml").environment(\.layoutDirection, .leftToRight).foregroundStyle(.secondary).help(libraryPath)
-                    }.padding(.vertical, 8)
-                }
-                }
-                if let error { Text(L(error)).foregroundStyle(.red) }
-                Text(L("المتابعة تحدّث الأخبار كل ساعة أثناء تشغيل التطبيق. لم تجد مصدرك؟ استخدم إضافة رابط."))
-                    .foregroundStyle(.secondary)
-            }.font(.caption).padding(16)
+            if stale || error != nil || query.count > 100 {
+                HStack {
+                    Text(L(query.count > 100 ? "البحث بحد أقصى 100 حرف." : error ?? "تعذّر الاتصال. نعرض نتائج محفوظة؛ أعد المحاولة للتحديث.")).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    if error != nil || stale { Button(L("إعادة المحاولة")) { Task { await load(refresh: true) } } }
+                }.padding(16)
+            }
         }.frame(width: 880, height: 700).editorialPresentation()
         .sheet(isPresented: $adding) { AddNewsSubscriptionSheet() }
-        .task(id: "\(catalog)|\(category)|\(submittedQuery)") { await load() }
-        .onChange(of: catalog) { _, _ in
-            query = ""; submittedQuery = ""; category = "all"; feedLanguage = "all"
-            followedOnly = false; addedTitle = nil
+        .task(id: query + "|" + category) {
+            // Cancellation plus request identity prevents older responses replacing newer searches.
+            requestID = UUID()
+            guard query.count <= 100 else { loading = false; return }
+            loading = true
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            submittedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            await load()
         }
     }
     private func categoryTitle(_ value: String) -> String {
@@ -174,10 +149,7 @@ struct FeedLibraryView: View {
     }
     private func feedRow(_ feed: LibraryFeed) -> some View {
         HStack(alignment: .top, spacing: 16) {
-            Text(String(feed.title.prefix(1))).font(.title2.weight(.semibold))
-                .frame(width: 46, height: 46)
-                .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
-                .accessibilityHidden(true)
+            SiteIcon(address: feed.publisherUrl.isEmpty ? feed.url : feed.publisherUrl, size: 38)
             VStack(alignment: .leading, spacing: 7) {
                 Text(verbatim: feed.title).font(.headline)
                 Text(verbatim: language == "en" ? feed.descriptionEn : feed.descriptionAr).font(.callout).foregroundStyle(.secondary)
@@ -200,41 +172,20 @@ struct FeedLibraryView: View {
             }
         }.padding(20)
     }
-    private func search() {
-        guard query.count <= 100 else { return }
-        let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if value == submittedQuery { Task { await load() } }
-        else { submittedQuery = value }
-    }
     private func load(append: Bool = false, refresh: Bool = false) async {
-        let token = UUID()
-        requestID = token
-        let requestedCatalog = catalog
+        let token = UUID(); requestID = token
         let requestedCursor = append ? nextCursor : ""
-        loading = true
-        if !append { feeds = []; nextCursor = ""; fetchedAt = ""; stale = false }
+        loading = true; error = nil
+        if !append { nextCursor = "" }
         defer { if requestID == token { loading = false } }
-        error = nil
         do {
-            if requestedCatalog == "online" {
-                let page = try await model.decoded("news.directory", ["query": submittedQuery, "category": category, "cursor": requestedCursor, "refresh": refresh], as: DirectoryPage.self)
-                guard !Task.isCancelled, requestID == token else { return }
-                let ids = Set(feeds.map(\.id))
-                feeds += page.feeds.filter { !ids.contains($0.id) }
-                nextCursor = page.nextCursor; fetchedAt = page.fetchedAt; stale = page.stale
-            } else {
-                libraryPath = try await model.decoded("news.library.path", as: LibraryLocation.self).path
-                let library = try await model.decoded("news.library", as: FeedLibrary.self)
-                guard !Task.isCancelled, requestID == token else { return }
-                feeds = library.feeds; libraryPath = library.path
-                if !categories.contains(category) { category = "all" }
-            }
-        }
-        catch { if !Task.isCancelled, requestID == token { self.error = error.localizedDescription } }
-    }
-    private func openLibraryFile() {
-        let url = URL(fileURLWithPath: libraryPath)
-        if !NSWorkspace.shared.open(url) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+            let page = try await model.decoded("news.directory", ["query": submittedQuery, "category": category, "cursor": requestedCursor, "refresh": refresh], as: DirectoryPage.self)
+            guard !Task.isCancelled, requestID == token else { return }
+            if !append { feeds = [] }
+            let ids = Set(feeds.map(\.id))
+            feeds += page.feeds.filter { !ids.contains($0.id) }
+            nextCursor = page.nextCursor; fetchedAt = page.fetchedAt; stale = page.stale
+        } catch { if !Task.isCancelled, requestID == token { feeds = []; self.error = error.localizedDescription } }
     }
     private func add(_ feed: LibraryFeed) async {
         guard !pending.contains(feed.id) else { return }

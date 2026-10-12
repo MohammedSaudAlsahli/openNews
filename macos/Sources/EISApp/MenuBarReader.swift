@@ -6,7 +6,11 @@ struct MenuBarReader: View {
     @EnvironmentObject private var model: StudioModel
     @Environment(\.openWindow) private var openWindow
     @State private var query = ""
-    @State private var unreadOnly = false
+    @State private var scope = "all"
+    @State private var articles: [NewsArticle] = []
+    @State private var loading = false
+    @State private var more = false
+    @State private var request = UUID()
     @State private var sourceID = ""
     @State private var selected: NewsArticle?
     @State private var refreshing = false
@@ -14,12 +18,6 @@ struct MenuBarReader: View {
     private var feeds: [NewsSubscription] { model.snapshot?.subscriptions ?? [] }
     private var unread: Int { feeds.reduce(0) { $0 + $1.unreadCount } }
     private var syncing: Bool { feeds.contains { $0.status == "syncing" } }
-    private var articles: [NewsArticle] {
-        (model.snapshot?.articles ?? []).filter {
-            (sourceID.isEmpty || $0.subscriptionId == sourceID) && (!unreadOnly || $0.isRead != true) &&
-            (query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || $0.sourceTitle.localizedCaseInsensitiveContains(query))
-        }
-    }
     var body: some View {
         let _ = interfaceLanguage
         VStack(spacing: 0) {
@@ -32,10 +30,12 @@ struct MenuBarReader: View {
                     Text(L("{0} غير مقروء", unread)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if selected == nil {
                 if syncing || refreshing { ProgressView().controlSize(.small) }
                 Button { Task { await refreshFeeds() } } label: { Image(systemName: "arrow.clockwise") }
                     .help(L("تحديث الأخبار")).accessibilityLabel(L("تحديث الأخبار"))
                     .disabled(syncing || refreshing || model.health == nil || feeds.isEmpty)
+                }
             }.padding(14)
             Divider()
             if let error { Text(L(error)).font(.caption).foregroundStyle(.red).padding(10) }
@@ -44,8 +44,12 @@ struct MenuBarReader: View {
                     Text(model.connecting ? L("جارٍ تشغيل المتابعة…") : L("المتابعة متوقفة"))
                     Button(L("إعادة الاتصال")) { Task { await model.start() } }.disabled(model.connecting)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let selected { ArticleReader(article: selected, compact: true).id(selected.id) }
-            else { articleList }
+            } else {
+                ZStack {
+                    articleList.accessibilityElement(children: .contain).opacity(selected == nil ? 1 : 0).allowsHitTesting(selected == nil).disabled(selected != nil).accessibilityHidden(selected != nil)
+                    if let selected { ArticleReader(article: selected, compact: true).id(selected.id) }
+                }
+            }
             Divider()
             HStack {
                 Button(L("فتح مساحة التحرير"), action: showStudio)
@@ -59,9 +63,25 @@ struct MenuBarReader: View {
                     .menuStyle(.borderlessButton).frame(width: 24).accessibilityLabel(L("خيارات التطبيق"))
             }.padding(14)
         }
-        .frame(width: 420, height: 580)
+        .frame(width: 470, height: 700)
         .background(Color(nsColor: .windowBackgroundColor))
-        .task { if model.health != nil { do { try await model.refresh() } catch { self.error = error.localizedDescription } } }
+        .task(id: query + sourceID + scope + (model.health?.workspaceId ?? "")) {
+            request = UUID()
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+            await load()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .editorialArticleRead)) { notification in
+            if let id = notification.object as? String, let index = articles.firstIndex(where: { $0.id == id }) { articles[index].isRead = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .editorialBookmarksChanged)) { _ in
+            guard let selected else { return }
+            Task {
+                if let updated = try? await model.decoded("news.preview", ["article_id": selected.id], as: NewsArticle.self), let index = articles.firstIndex(where: { $0.id == updated.id }) {
+                    articles[index] = updated
+                    if scope == "saved" && updated.isBookmarked != true { articles.remove(at: index) }
+                }
+            }
+        }
 
     }
 
@@ -73,7 +93,11 @@ struct MenuBarReader: View {
                     Text(L("كل المصادر")).tag("")
                     ForEach(feeds) { Text($0.title).tag($0.id) }
                 }.labelsHidden().accessibilityLabel(L("تصفية المصدر"))
-                Toggle(L("غير المقروء"), isOn: $unreadOnly).toggleStyle(.checkbox).font(.caption)
+                Picker(L("تصفية"), selection: $scope) {
+                    Text(L("الكل")).tag("all")
+                    Text(L("غير المقروء")).tag("unread")
+                    Text(L("المحفوظات")).tag("saved")
+                }.labelsHidden().frame(width: 135)
             }
             if feeds.contains(where: { $0.error != nil }) {
                 Text(L("تعذر تحديث بعض المصادر. الأخبار المحفوظة متاحة؛ راجع الاشتراكات في مساحة التحرير."))
@@ -82,27 +106,29 @@ struct MenuBarReader: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if articles.isEmpty {
-                        Text(feeds.isEmpty ? L("أضف RSS أو Reddit من مساحة التحرير لتبدأ المتابعة.") : L("لا توجد أخبار مطابقة في أحدث {0} مادة محفوظة.", 100))
+                        Text(feeds.isEmpty ? L("أضف RSS أو Reddit من مساحة التحرير لتبدأ المتابعة.") : L("لا توجد مقالات مطابقة"))
                             .foregroundStyle(.secondary).padding(.vertical, 24)
                     }
                     ForEach(articles) { article in
-                        Button { selected = article; error = nil } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(article.title).font(.system(size: 13, weight: article.isRead == true ? .regular : .semibold))
-                                    .foregroundStyle(.primary).multilineTextAlignment(.leading).lineLimit(3)
-                                Text(DisplayFormat.isolated(article.sourceTitle) + " · " + DisplayFormat.isolated(dateLabel(article.publishedAt)))
-                                    .font(.caption2).foregroundStyle(.secondary)
-                            }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12).contentShape(Rectangle())
-                        }.buttonStyle(.plain)
-                        Divider()
+                        ArticleCard(article: article, compact: true) { selected = article; error = nil }.padding(.bottom, 14)
                     }
+                    if more { Button(L("تحميل المزيد")) { Task { await load(append: true) } }.disabled(loading).padding(16) }
+                    if loading { ProgressView().padding(16) }
                 }
             }
         }.padding(.horizontal, 14).padding(.top, 12)
     }
-    private func dateLabel(_ value: String?) -> String {
-        guard let value else { return L("بلا تاريخ") }
-        return DisplayFormat.date(value)
+    private func load(append: Bool = false) async {
+        guard model.health != nil else { return }
+        let token = UUID(); request = token; loading = true
+        defer { if request == token { loading = false } }
+        do {
+            let page = try await model.decoded("news.list", ["query":query,"source_id":sourceID,"scope":scope,"offset":append ? articles.count : 0], as: NewsArticlePage.self)
+            guard !Task.isCancelled, request == token else { return }
+            if append { let known = Set(articles.map(\.id)); articles += page.articles.filter { !known.contains($0.id) } }
+            else { articles = page.articles }
+            more = page.hasMore
+        } catch { if !Task.isCancelled, request == token { self.error = error.localizedDescription } }
     }
     private func showStudio() {
         if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "editorial-studio" }) {
@@ -113,7 +139,7 @@ struct MenuBarReader: View {
     private func refreshFeeds() async {
         refreshing = true; error = nil
         defer { refreshing = false }
-        do { _ = try await model.call("news.sync"); try await model.refresh() }
+        do { _ = try await model.call("news.sync"); try await model.refresh(); await load() }
         catch { self.error = error.localizedDescription }
     }
 }

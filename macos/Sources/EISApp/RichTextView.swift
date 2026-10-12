@@ -28,9 +28,9 @@ struct RichTextView: View {
                         .environment(\.layoutDirection, RichTextDirection.detect(value))
                 case .quote(let value):
                     HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "quote.opening").font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+                        RoundedRectangle(cornerRadius: 2).fill(Color.accentColor.opacity(0.5)).frame(width: 3)
                         paragraphs(value).font(.system(size: fontSize)).foregroundStyle(.secondary)
-                    }.padding(.vertical, 4)
+                    }.padding(16).background(ReadingPalette.tint, in: RoundedRectangle(cornerRadius: 8))
                         .environment(\.layoutDirection, RichTextDirection.detect(value))
                 case .code(let value):
                     ScrollView(.horizontal) {
@@ -38,6 +38,20 @@ struct RichTextView: View {
                             .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                     }.padding(10).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
                         .environment(\.layoutDirection, .leftToRight)
+                case .table(let rows):
+                    ScrollView(.horizontal) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(rows.enumerated()), id: \.offset) { index, cells in
+                                HStack(alignment: .top, spacing: 0) {
+                                    ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
+                                        Text(RichTextLinks.attributed(cell)).font(.system(size: fontSize - 2, weight: index == 0 ? .semibold : .regular))
+                                            .frame(width: 150, alignment: .leading).padding(12)
+                                    }
+                                }.background(index == 0 ? ReadingPalette.tint : Color.clear)
+                                Divider()
+                            }
+                        }.overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.1)))
+                    }.environment(\.layoutDirection, RichTextDirection.detect(rows.flatMap { $0 }.joined(separator: " ")))
                 case .divider:
                     Divider().padding(.vertical, 4)
                 }
@@ -164,12 +178,20 @@ enum RichTextBlock: Equatable {
     case quote(String)
     case code(String)
     case divider
+    case table([[String]])
 
     static func parse(_ text: String) -> [RichTextBlock] {
         var result: [RichTextBlock] = []
         var paragraph: [String] = []
         var code: [String] = []
         var fence: String?
+        var table: [[String]] = []
+        func cells(_ line: String) -> [String] {
+            var value = line.trimmingCharacters(in: .whitespaces)
+            if value.hasPrefix("|") { value.removeFirst() }
+            if value.hasSuffix("|") { value.removeLast() }
+            return value.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
         func flush() {
             if !paragraph.isEmpty { result.append(.paragraph(paragraph.joined(separator: "\n"))); paragraph = [] }
         }
@@ -180,8 +202,16 @@ enum RichTextBlock: Equatable {
                 else { code.append(line) }
                 continue
             }
+            if !table.isEmpty {
+                if trimmed.contains("|") && !trimmed.isEmpty { table.append(cells(trimmed)); continue }
+                result.append(.table(table)); table = []
+            }
+            if trimmed.contains("|"), trimmed.range(of: #"^[| :\-]+$"#, options: .regularExpression) != nil,
+               let header = paragraph.last, header.contains("|") {
+                paragraph.removeLast(); flush(); table = [cells(header)]; continue
+            }
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
-                flush(); fence = String(trimmed.prefix(3)); continue
+                flush(); fence = String(trimmed.prefix { $0 == trimmed.first }); continue
             }
             if trimmed.isEmpty { flush(); continue }
             let hashes = trimmed.prefix { $0 == "#" }.count
@@ -190,7 +220,11 @@ enum RichTextBlock: Equatable {
             }
             if ["---", "***", "___"].contains(trimmed) { flush(); result.append(.divider); continue }
             if trimmed.hasPrefix(">") {
-                flush(); result.append(.quote(String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces))); continue
+                flush()
+                let value = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
+                if case .quote(let previous) = result.last { result[result.count - 1] = .quote(previous + "\n" + value) }
+                else { result.append(.quote(value)) }
+                continue
             }
             let depth = line.prefix { $0 == " " || $0 == "\t" }.reduce(0) { $0 + ($1 == "\t" ? 2 : 1) } / 2
             if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") || trimmed.hasPrefix("• ") {
@@ -203,6 +237,7 @@ enum RichTextBlock: Equatable {
             }
             paragraph.append(line)
         }
+        if !table.isEmpty { result.append(.table(table)) }
         if fence != nil { result.append(.code(code.joined(separator: "\n"))) }
         flush()
         return result
@@ -256,6 +291,8 @@ enum RichTextLinks {
             if intent.contains(.stronglyEmphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) }
             if intent.contains(.emphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
             native.addAttribute(.font, value: font, range: range)
+            if intent.contains(.code) { native.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: range) }
+            if intent.contains(.strikethrough) { native.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range) }
             if let link = run.link, allowed(link) { native.addAttribute(.foregroundColor, value: NSColor.linkColor, range: range) }
             location += length
         }

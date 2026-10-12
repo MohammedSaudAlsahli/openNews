@@ -28,3 +28,17 @@ import Testing
     try Data("<script>not an image</script>".utf8).write(to: url)
     #expect(ReaderImageDecoder.image(at: url.path) == nil)
 }
+
+@MainActor @Test func chatReturnSendsButShiftAndCompositionKeepEditing() {
+    #expect(MessageTextView.submits(keyCode: 36, modifiers: [], composing: false))
+    #expect(MessageTextView.submits(keyCode: 76, modifiers: .command, composing: false))
+    #expect(!MessageTextView.submits(keyCode: 36, modifiers: .shift, composing: false))
+    #expect(!MessageTextView.submits(keyCode: 36, modifiers: [], composing: true))
+    #expect(!MessageTextView.submits(keyCode: 0, modifiers: [], composing: false))
+}
+
+@Test func readerParsesTablesQuotesAndNestedFences() {
+    #expect(RichTextBlock.parse("| Name | Value |\n| --- | --- |\n| A | 2 |") == [.table([["Name", "Value"], ["A", "2"]])])
+    #expect(RichTextBlock.parse("> First\n>\n> Second") == [.quote("First\n\nSecond")])
+    #expect(RichTextBlock.parse("````\n```example\n    code\n````") == [.code("```example\n    code")])
+}

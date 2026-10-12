@@ -19,7 +19,7 @@ TTL = 3600
 MAX_STALE = 7 * 86400
 PAGE_SIZE = 30
 MAX_PAGES = 40
-UNAVAILABLE = "تعذّر تحميل دليل RSS.mobi. أعد المحاولة أو افتح دليلك المحلي."
+UNAVAILABLE = "تعذّر تحميل دليل RSS.mobi. أعد المحاولة أو أضف رابط المصدر مباشرة."
 
 
 def cursor(value):

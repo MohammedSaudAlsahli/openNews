@@ -320,6 +320,15 @@ class Service:
             return self.conversations.detail(p["conversation_id"],p.get("before_message_id"))
         if command == "chat.send":
             return self.conversations.submit(p)
+        if command == "news.icon":
+            return await self.news.site_icon(p.get("url", ""))
+        if command == "news.list":
+            return self.news.list_articles(p)
+        if command == "news.bookmark":
+            return self.news.bookmark(p)
+        if command == "news.summarize":
+            from .article_summary import summarize
+            return await summarize(self, p)
         if command == "news.directory":
             return await self.feed_directory.search(p)
         if command == "news.library.path":

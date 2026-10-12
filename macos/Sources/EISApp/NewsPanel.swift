@@ -41,9 +41,6 @@ struct NewsPanel: View {
                 }.disabled(syncing || feedsBusy || feeds.isEmpty).help(L("تحديث الأخبار")).accessibilityLabel(L("تحديث الأخبار"))
             }.padding(14)
         }
-        .sheet(item: $selected) { article in
-            ArticleReaderSheet(article: article, useInConversation: selection(article.id))
-        }
         .sheet(isPresented: $library) { FeedLibraryView() }
         .sheet(isPresented: $adding) { AddNewsSubscriptionSheet() }
         .task(id: (model.health?.workspaceId ?? "") + String(feedsBusy)) {
@@ -98,7 +95,7 @@ struct NewsPanel: View {
                             HStack(alignment: .top, spacing: 9) {
                                 Toggle(L("تحديد {0}", article.title), isOn: selection(article.id)).labelsHidden().toggleStyle(.checkbox)
                                     .disabled(selectedArticleIDs.count >= 12 && !selectedArticleIDs.contains(article.id))
-                                Button { selected = article } label: {
+                                Button { NotificationCenter.default.post(name: .openEditorialArticle, object: article.id) } label: {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(article.title).font(.body.weight(.medium)).foregroundStyle(.primary).lineLimit(3)
                                         Text(article.sourceTitle).font(.caption).foregroundStyle(.secondary)

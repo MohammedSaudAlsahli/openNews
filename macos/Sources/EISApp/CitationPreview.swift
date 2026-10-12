@@ -91,7 +91,7 @@ struct CitationPreview: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(L("معاينة المصدر"), systemImage: "doc.text.magnifyingglass").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 8) { SiteIcon(address: citation.url, size: 28); Text(L("معاينة المصدر")).font(.caption).foregroundStyle(.secondary) }.environmentObject(model)
             Text(citation.title).font(.headline).fixedSize(horizontal: false, vertical: true)
                 .environment(\.layoutDirection, RichTextDirection.detect(citation.title))
             if let url = URL(string: citation.url), RichTextLinks.allowed(url) {
@@ -104,7 +104,7 @@ struct CitationPreview: View {
                     Text(L(detail.bodyStatus == "full" ? "مقتطف من النص المحفوظ على جهازك." : "المتاح ملخص الخلاصة؛ لم تُقرأ صفحة المقال كاملة.")).font(.caption).foregroundStyle(.secondary)
                 } else { Text(L("لا يتوفر نص محفوظ لهذا المرجع. يمكنك فتح المصدر الأصلي.")).font(.callout).foregroundStyle(.secondary) }
                 if failed { Button(L("إعادة المحاولة")) { Task { await load() } } }
-                Link(destination: url) { Label(L("قراءة المصدر الأصلي"), systemImage: "arrow.up.right") }.font(.callout)
+                Button { NotificationCenter.default.post(name: .openEditorialArticle, object: citation.articleId) } label: { Label(L("المقالات"), systemImage: "newspaper") }.font(.callout)
             }
         }.padding(18).frame(width: 360, height: 450, alignment: .topLeading).editorialPresentation()
             .task(id: citation.id) { await load() }

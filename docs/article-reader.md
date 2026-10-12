@@ -1,39 +1,37 @@
-# Article reader and RSS discovery
+# Articles, reading and RSS discovery
 
-The reader was compared with the installed feeeed app on 2026-10-12: a centered reading column, prominent title and byline, full-width proportional photos, captions, readable spacing and a visible original-page action. OpenStudio implements these using SwiftUI/AppKit rather than embedding the publisher's active webpage.
+OpenStudio has a dedicated Articles destination in the main window. The conversation's news list and citation previews also open articles there. The menu-bar reader uses the same reader and article cards in a compact layout.
 
-## Reading behavior
+## Reading
 
-- Workspace articles open a dedicated reading sheet. The menu-bar reader uses the same content renderer in a compact layout.
-- Reading options change text size, show/hide images and reload a saved article. Photos open a larger preview on click. Sharing and opening the original page stay available in the toolbar.
-- Content direction is detected independently from interface language. The reading column stays centered in Arabic and English. Appearance follows the application's light/dark setting.
-- Article images preserve aspect ratios. Known captions and author metadata are retained. Lazy image attributes, picture/srcset, RSS images and media enclosures are supported; a publisher's Open Graph image is a fallback.
-- Old saved articles load their text immediately, then fetch reading content on first opening. An explicit reload retries failed enrichment. Failures preserve the saved text and reading content.
-- Images load through the engine's existing pinned public-network transport, without cookies, authentication or scripts. Only images attached to that workspace's article can be requested. Raster signatures are checked; native decoding bounds pixel counts and downsamples to 2048 pixels. Local image cache is capped at 100 MiB. Inaccessible or unsupported images have a retry state.
-- Reader content is separate from the plain/Markdown evidence sent to the model. Agno configuration, prompts, tools and authentication are unchanged.
+- Cards present a publisher image when available, the title, a short plain-text excerpt, publisher icon and date. Excerpts come from the feed; they are not presented as AI summaries.
+- Reader and Original website are separate tabs. Reader uses native SwiftUI/AppKit text and images. Original website lazily opens the publisher in WKWebView, supports back/forward navigation and keeps its page position when switching tabs. Media is suspended when switching back to the Reader tab. No app bridge or injected scripts are installed. Publisher login/paywall behavior is unchanged.
+- The main reading column is centered, with a warm light background and a matching dark appearance. Text direction follows the article content independently of the interface language. Reading options control font size and images.
+- Headings, links, lists, blockquotes, inline code, fenced code with indentation and Markdown tables have distinct presentation. The extractor upgrades previously cached reader content once to preserve code and quotes.
+- Articles support persistent bookmarks and a Bookmarks view. Opening an article marks it read. Returning to the feed preserves its mounted list and scroll position.
+- AI summary explicitly uses the configured Writer model through the existing Agno route and the existing model permission. It produces three short points in the interface language, caches by article content/language/model, and does not create a conversation. Feed-only summaries are identified. It never runs automatically on article opening.
+- Images retain proportions and captions. Lazy images, picture/srcset, RSS images and enclosures are supported; Open Graph is a fallback. Image requests use pinned public-network transport without cookies or scripts, validate raster signatures, and downsample before display. The image cache is bounded. Reader extraction errors preserve saved content.
+- Site icons are retrieved from each public site's favicon endpoint with the existing public transport, signature/size validation, single-flight requests and bounded caching. Unavailable icons fall back to the site's initial.
+- Conversation citations are grouped in an icon pill. Its popover lists each article and opens it inside the app. Inline citation previews remain available.
 
-## Source directories
+## Search and discovery
 
-Discover sources now connects directly to the public [RSS.mobi API](https://rss.mobi/api/v1/feeds), alongside the editable `sources.yml` catalog. It does not connect a Feedly or Inoreader account.
+- Article search runs after a 250 ms typing pause and searches titles, publishers, excerpts and saved full text. Quoted phrases stay together; all terms must match. Source, time range, unread/bookmarked state and date ordering are available. Pagination accesses articles beyond the initial snapshot.
+- Discover sources connects to the public [RSS.mobi directory](https://rss.mobi/api/v1/feeds). Search runs after a 350 ms typing pause and can be narrowed by category. Language, followed-only and alphabetical filters apply to the loaded results. Results can be followed directly through the existing subscription flow.
+- The local catalog tab and explanatory footer were removed. Existing `sources.yml` files and subscriptions are preserved; removing the UI does not delete user data. RSS.mobi is a community directory, not publisher verification.
+- Directory cache freshness is one hour, with up to seven-day stale fallback clearly labeled. Caches are bounded. Only search/category/pagination parameters are sent; model keys, writing and subscriptions are not sent to the directory.
+- [RSS.mobi API implementation](https://github.com/dstengine/rss-mobi/blob/main/src/pages/api/v1/feeds/index.ts) documents the endpoint parameters. [Directory terms](https://rss.mobi/terms/).
 
-- The default online tab searches the live directory by name/topic and category. Search is submitted explicitly (button or Return), with 30 results per page and a Load more action. RSS, Atom and RDF feeds are supported; JSON Feed entries are omitted because the subscription parser does not support them yet.
-- Follow uses the existing subscription path, fetches the publisher's feed directly, and shows saved subscriptions and paused sources without duplicates. Browsing does not subscribe automatically.
-- The local tab keeps the user's YAML unchanged and supports Arabic/English filtering and file editing. RSS.mobi descriptions stay in their source language; inclusion in the community directory is not publisher verification.
-- Cached pages remain fresh for one hour; on network failure they can be shown for up to seven days with an explicit saved-results notice and original timestamp. The workspace cache is bounded to 40 pages. Refresh bypasses freshness. A directory outage never blocks the local catalog or existing subscriptions.
-- Only the submitted query, selected topic and pagination timestamp are sent to RSS.mobi. Workspace content, model keys and subscriptions are not sent. Requests use the existing public-network transport with DNS pinning and response limits. Pagination never follows an untrusted next URL.
-- Endpoint parameters (`q`, `tag`, `limit`, `before`) are taken from the [provider's public API implementation](https://github.com/dstengine/rss-mobi/blob/main/src/pages/api/v1/feeds/index.ts). No provider source code is embedded. Attribution and a link to RSS.mobi appear in the interface; publisher links accompany each result. [Directory terms](https://rss.mobi/terms/).
+## Other interaction changes
+
+- Enter sends a chat message. Shift+Enter (or Option+Enter) inserts a newline. Active input-method composition is preserved.
+- Agent settings use a padded, bounded detail column and labeled controls. The connection menu uses one direction-safe indicator. The confusing Discuss draft action was removed; draft context remains available from the composer's context controls.
 
 ## Verification — 2026-10-12
 
-- 273 Python tests and 34 Swift tests passed (307 total), including ordered images/captions, image allowlists, cached access, old-article backfill, offline preservation, malformed image rejection and native downsampling.
-- Development app bundle passed signature verification, relocated runtime smoke and the existing four-format Agno conversation smoke against a mock provider.
-- A real subscribed The Verge article extracted five photos and the author. All five images were fetched and rendered. Image enlargement and Arabic/light plus English/dark reader layouts were checked in the native app. The final build was also opened on another article with previously uncached images.
-- Workspace reader received direct native UI verification. The compact menu-bar surface shares its renderer and builds successfully, but its menu-bar opening could not be independently automated in this pass.
-- No new model requests or subscription changes were made during reader verification. Reading an article marks it read, as before.
+- 291 Python tests and 36 Swift tests passed (327 total). Coverage includes bookmark persistence/workspace isolation, full-text/phrase/filter/pagination search, code and quote extraction, summary permission/model/cache behavior, icon validation, native keyboard routing, tables and variable-length code fences.
+- Direct native UI checks covered English/dark and Arabic/light; live source discovery without Return; article cards and hero images; full article code/tables; Reader/Original website switching; persistent bookmarks; grouped citation icons; and feed scroll restoration.
+- A real configured Writer produced a three-point article summary. A separate short test conversation verified Enter sends and Shift+Enter adds a newline. No authentication settings or source subscriptions were changed by these tests. The test conversation is retained in local history.
+- The compact menu-bar reader shares the verified renderer, supports the same tabs/bookmarks/summary, and compiles in the app. Opening its actual status-bar popover could not be independently automated in this pass; no claim of complete menu-bar UI verification is made.
 
-## Directory integration verification — 2026-10-12
-
-- 284 Python and 34 Swift tests passed (318 total). Directory coverage includes query encoding, page cursors, malicious/invalid next links, URL validation, unsupported formats, deduplication, bounded caching, offline/expired results, preserved YAML and the real subscribe dispatch path.
-- Live API checks returned 30 initial entries, a matching The Verge result and a technology page. An isolated temporary workspace saved the returned feed, queued sync and fetched/parsed ten real publisher articles. The user's subscription list was not changed.
-- Native UI checks covered English/dark and Arabic/light, searching, category selection, local catalog switching and the existing Following state. An accessibility scroll-to-end trap in SwiftUI's lazy rows was found during QA; the directory now uses eager rows. Scrolling to the end and loading the next live page succeeded (30 to 60 entries).
-- The development bundle passed code-signature, relocated-runtime and bundled conversation smoke checks.
+- Final packaged app passed signature verification, relocated bundled-runtime checks, the four-format Agno smoke test against a mock provider, and DMG checksum verification. Final native checks confirmed hidden reader/feed/web content is absent from the accessibility tree, the Arabic connection menu has a single indicator, and English tables keep their column order in Arabic UI.

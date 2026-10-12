@@ -404,8 +404,11 @@ class NewsManager:
         self.db.executescript(NEWS_SCHEMA)
         if 'reader_json' not in {row[1] for row in self.db.execute('PRAGMA table_info(news_articles)')}:
             self.db.execute("ALTER TABLE news_articles ADD COLUMN reader_json TEXT NOT NULL DEFAULT '{}'")
+        if 'is_bookmarked' not in {row[1] for row in self.db.execute('PRAGMA table_info(news_articles)')}:
+            self.db.execute("ALTER TABLE news_articles ADD COLUMN is_bookmarked INTEGER NOT NULL DEFAULT 0")
         self.reader_locks = {}
         self.image_slots = asyncio.Semaphore(3)
+        self.icon_results, self.icon_pending = {}, {}
         self.db.execute("UPDATE news_subscriptions SET status='pending' WHERE workspace_id=? AND status='syncing'", (self.ws,))
         self.db.commit()
 
@@ -414,10 +417,52 @@ class NewsManager:
             (SELECT count(*) FROM news_articles a WHERE a.subscription_id=s.id AND a.is_read=0) AS unread_count
             FROM news_subscriptions s WHERE workspace_id=? ORDER BY created_at DESC""", (self.ws,))
         for row in subscriptions: row["enabled"] = bool(row["enabled"])
-        articles = self.store.rows("""SELECT a.id,a.subscription_id,s.title AS source_title,a.title,a.url,a.published_at,a.discovered_at,substr(a.summary,1,350) AS summary,a.body_status,a.is_read
-            FROM news_articles a JOIN news_subscriptions s ON a.subscription_id=s.id WHERE a.workspace_id=? ORDER BY coalesce(a.published_at,a.discovered_at) DESC LIMIT 100""", (self.ws,))
-        for row in articles: row["is_read"] = bool(row["is_read"])
-        return {"subscriptions":subscriptions,"articles":articles}
+        return {"subscriptions":subscriptions,"articles":self.list_articles({"limit":100})["articles"]}
+
+    def list_articles(self, params):
+        query = params.get("query", "")
+        source = params.get("source_id", "")
+        scope = params.get("scope", "all")
+        order = params.get("order", "newest")
+        days = params.get("days", 0)
+        limit, offset = params.get("limit", 60), params.get("offset", 0)
+        if (not isinstance(query, str) or len(query) > 200 or not isinstance(source, str)
+                or scope not in {"all", "unread", "saved"} or order not in {"newest", "oldest"}
+                or type(days) is not int or days not in {0, 1, 7, 30}
+                or type(limit) is not int or not 1 <= limit <= 100
+                or type(offset) is not int or not 0 <= offset <= 100000):
+            raise Failure("VALIDATION_ERROR", "خيارات بحث المقالات غير صالحة.")
+        clauses, args = ["a.workspace_id=?"], [self.ws]
+        if source: clauses.append("a.subscription_id=?"); args.append(source)
+        if scope == "unread": clauses.append("a.is_read=0")
+        if scope == "saved": clauses.append("a.is_bookmarked=1")
+        if days:
+            clauses.append("coalesce(a.published_at,a.discovered_at)>=?")
+            args.append((datetime.now(timezone.utc)-timedelta(days=days)).isoformat())
+        # Every term must occur; quoted phrases remain together. Bound and parameterize all input.
+        terms = re.findall(r'"([^"\n]+)"|(\S+)', query.strip())
+        for phrase, word in terms[:20]:
+            term = (phrase or word).replace('\\','\\\\').replace('%','\\%').replace('_','\\_')
+            clauses.append("(a.title || ' ' || s.title || ' ' || a.summary || ' ' || a.text) LIKE ? ESCAPE '\\'")
+            args.append('%'+term+'%')
+        direction = "DESC" if order == "newest" else "ASC"
+        rows = self.store.rows("""SELECT a.id,a.subscription_id,s.title AS source_title,a.title,a.url,a.published_at,
+            a.discovered_at,substr(a.summary,1,500) AS summary,a.body_status,a.is_read,a.is_bookmarked,a.reader_json
+            FROM news_articles a JOIN news_subscriptions s ON a.subscription_id=s.id WHERE """ + " AND ".join(clauses) +
+            " ORDER BY coalesce(a.published_at,a.discovered_at) " + direction + ",a.id " + direction + " LIMIT ? OFFSET ?", (*args,limit+1,offset))
+        for row in rows:
+            row["is_read"], row["is_bookmarked"] = bool(row["is_read"]), bool(row["is_bookmarked"])
+            reader = json.loads(row.pop("reader_json", "{}"))
+            row["cover_image_id"] = next((b.get("id") for b in reader.get("blocks",[]) if b.get("type")=="image"), None)
+        return {"articles":rows[:limit], "has_more":len(rows)>limit}
+
+    def bookmark(self, params):
+        if type(params.get("saved")) is not bool:
+            raise Failure("VALIDATION_ERROR", "حالة الحفظ غير صالحة.")
+        row = self.article(params.get("article_id"), mark_read=False)
+        with self.db:
+            self.db.execute("UPDATE news_articles SET is_bookmarked=? WHERE id=? AND workspace_id=?", (int(params["saved"]),row["id"],self.ws))
+        return {"saved":params["saved"]}
 
     def article(self, identifier, mark_read=True):
         row = self.store.one("""SELECT a.*,s.title AS source_title FROM news_articles a JOIN news_subscriptions s ON a.subscription_id=s.id WHERE a.id=? AND a.workspace_id=?""", (identifier,self.ws))
@@ -425,6 +470,8 @@ class NewsManager:
         if mark_read:
             with self.db: self.db.execute("UPDATE news_articles SET is_read=1 WHERE id=? AND workspace_id=?", (identifier,self.ws))
             row["is_read"] = True
+        row["is_read"] = bool(row["is_read"])
+        row["is_bookmarked"] = bool(row["is_bookmarked"])
         row["reader"] = json.loads(row.pop("reader_json", "{}"))
         return row
 
@@ -433,7 +480,7 @@ class NewsManager:
         lock = self.reader_locks.setdefault(identifier, asyncio.Lock())
         async with lock:
             row = self.article(identifier, mark_read=False)
-            if not force and row["reader"].get("checked_at"): return row
+            if not force and row["reader"].get("checked_at") and row["reader"].get("version", 1) >= 2: return row
             if row["body_status"] == "media_summary": return row
             reader = row["reader"]
             try:
@@ -482,6 +529,47 @@ class NewsManager:
                 finally:
                     if os.path.exists(temporary.name): os.unlink(temporary.name)
         return {"path":str(path)}
+
+    async def site_icon(self, address):
+        try:
+            parts = urlsplit(canonical_url(address))
+            origin = urlunsplit((parts.scheme,parts.netloc,'/','',''))
+        except (NewsError,ValueError):
+            return {"path":""}
+        cached = self.icon_results.get(origin)
+        if cached and time.time()-cached[0] < 3600:
+            return cached[1]
+        if origin not in self.icon_pending:
+            self.icon_pending[origin] = asyncio.create_task(self._site_icon(origin))
+        task = self.icon_pending[origin]
+        result = await asyncio.shield(task)
+        self.icon_pending.pop(origin,None)
+        if len(self.icon_results) >= 300: self.icon_results.pop(next(iter(self.icon_results)))
+        self.icon_results[origin] = (time.time(),result)
+        return result
+
+    async def _site_icon(self, address):
+        try:
+            parts = urlsplit(canonical_url(address))
+            url = urlunsplit((parts.scheme,parts.netloc,'/favicon.ico','',''))
+            cache = self.store.path.parent / 'site-icons'
+            cache.mkdir(mode=0o700, exist_ok=True)
+            path = cache / (hashlib.sha256(url.encode()).hexdigest()+'.image')
+            async with self.image_slots:
+                if not path.exists() or time.time()-path.stat().st_mtime > 7*86400:
+                    response = await asyncio.wait_for(self.fetch(url,None),timeout=8)
+                    body = response['body']
+                    if len(body)>512*1024 or not body.startswith((b'\x00\x00\x01\x00',b'\x89PNG',b'\xff\xd8\xff',b'GIF8',b'RIFF')):
+                        return {'path':''}
+                    with tempfile.NamedTemporaryFile(dir=cache,suffix='.tmp',delete=False) as temporary:
+                        temporary.write(body)
+                    try: os.replace(temporary.name,path)
+                    finally:
+                        if os.path.exists(temporary.name): os.unlink(temporary.name)
+                    for old in sorted(cache.glob('*.image'),key=lambda f:f.stat().st_mtime)[:-300]: old.unlink(missing_ok=True)
+            return {'path':str(path)}
+        except (NewsError,ValueError,OSError,TimeoutError):
+            return {'path':''}
 
     async def add(self, payload, sync=True):
         try:

@@ -350,25 +350,7 @@ struct ConversationPanel: View {
                     }.buttonStyle(.bordered).disabled(model.busy)
                 }
                 if let citations = message.citations, !citations.isEmpty {
-                    DisclosureGroup(L("المراجع ({0})", citations.count)) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(Array(citations.enumerated()), id: \.element.id) { index, citation in
-                                if let url = URL(string: citation.url), RichTextLinks.allowed(url) {
-                                    Link(destination: url) {
-                                        HStack(alignment: .top, spacing: 8) {
-                                            Text(DisplayFormat.integer(index + 1)).monospacedDigit()
-                                            VStack(alignment: .leading, spacing: 3) {
-                                                Text(citation.title).multilineTextAlignment(.leading)
-                                                Text(url.host ?? "").font(.caption).foregroundStyle(.secondary)
-                                            }
-                                            Spacer()
-                                            Image(systemName: "arrow.up.right")
-                                        }.padding(10).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-                                    }
-                                }
-                            }
-                        }.padding(.top, 8)
-                    }.font(.callout)
+                    CitationSources(citations: citations)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -448,9 +430,9 @@ struct ConversationPanel: View {
                     if session.composer.isEmpty {
                         Text(L("اكتب طلبك أو ناقش فكرة…")).foregroundStyle(.secondary).padding(5).allowsHitTesting(false)
                     }
-                    TextEditor(text: $session.composer).font(.body).scrollContentBackground(.hidden)
-                        .focused($composerFocused)
-                        .task(id: session.composerRevision) { await Task.yield(); composerFocused = true }
+                    ChatComposer(text: $session.composer, canSend: canSend) {
+                        Task { await session.send(model, articleIDs: selectedArticleIDs, draftText: draftText, draftTitle: draftTitle) }
+                    }
                         .accessibilityLabel(L("رسالة المحادثة"))
                         .frame(height: isWelcome ? 96 : 72)
                 }
@@ -468,7 +450,7 @@ struct ConversationPanel: View {
                         Button { Task { await session.send(model, articleIDs: selectedArticleIDs, draftText: draftText, draftTitle: draftTitle) } } label: {
                             Image(systemName: "arrow.up").font(.body.weight(.semibold)).frame(width: 22, height: 22)
                         }.buttonStyle(.borderedProminent).disabled(!canSend)
-                            .accessibilityLabel(L("إرسال")).help(L("إرسال (⌘↩)"))
+                            .accessibilityLabel(L("إرسال")).help(L("إرسال (Enter) · سطر جديد (Shift+Enter)"))
                             .keyboardShortcut(.return, modifiers: .command)
                     }
                 }

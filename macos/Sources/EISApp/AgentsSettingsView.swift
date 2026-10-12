@@ -102,7 +102,7 @@ struct AgentsSettingsView: View {
                     }
                 }
                 Button { navigate("new") } label: { Label(L("وكيل جديد"), systemImage: "plus") }
-            }.frame(width: 170).padding()
+            }.frame(width: 175).padding(22).background(Color.primary.opacity(0.025))
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -110,13 +110,16 @@ struct AgentsSettingsView: View {
                         Text(selection == "writer" ? L("الكاتب") : L("المحلل")).font(.title2.bold())
                         AgentModelAssignment(role: selection, title: selection == "writer" ? L("الكاتب") : L("المحلل"))
                             .id(selection)
+                        Divider().padding(.vertical, 10)
+                        Text(L("الدور والأسلوب")).font(.headline)
+                        Text(L("خصص تعليمات هذا الوكيل وطريقة إجابته.")).font(.callout).foregroundStyle(.secondary)
                         AssistantCustomizationButton(scope: "agent", targetID: selection).id(selection)
                     } else {
                         editor
                     }
                     if let failure { Text(L(failure)).foregroundStyle(.red).textSelection(.enabled) }
                     if let notice { Text(L(notice)).foregroundStyle(.secondary) }
-                }.padding().frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxWidth: 640, alignment: .leading).padding(32).frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
         .disabled(saving)
@@ -166,7 +169,7 @@ struct AgentsSettingsView: View {
     private func selectionButton(_ title: String, id: String, icon: String) -> some View {
         Button { navigate(id) } label: {
             Label(title, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading)
-                .padding(7).background(selection == id ? Color.accentColor.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                .padding(12).background(selection == id ? Color.accentColor.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
         }.buttonStyle(.plain)
     }
 
