@@ -30,8 +30,11 @@ struct EditorialTheme {
     static func resolve(_ palette: String, dark: Bool) -> Self {
         switch (palette, dark) {
         case ("catppuccin", false):
-            return Self(page: Color(hex: 0xe6e9ef), paper: Color(hex: 0xeff1f5), surface: Color(hex: 0xdce0e8), foreground: Color(hex: 0x4c4f69), accent: Color(hex: 0x1e66f5))
+            // Catppuccin Latte: Mantle, Base, Surface 0, Text, Blue.
+            // https://github.com/catppuccin/catppuccin#palette
+            return Self(page: Color(hex: 0xe6e9ef), paper: Color(hex: 0xeff1f5), surface: Color(hex: 0xccd0da), foreground: Color(hex: 0x4c4f69), accent: Color(hex: 0x1e66f5))
         case ("catppuccin", true):
+            // Catppuccin Mocha uses the same semantic roles in dark mode.
             return Self(page: Color(hex: 0x181825), paper: Color(hex: 0x1e1e2e), surface: Color(hex: 0x313244), foreground: Color(hex: 0xcdd6f4), accent: Color(hex: 0x89b4fa))
         case ("nord", false):
             return Self(page: Color(hex: 0xe5e9f0), paper: Color(hex: 0xeceff4), surface: Color(hex: 0xd8dee9), foreground: Color(hex: 0x2e3440), accent: Color(hex: 0x5e81ac))

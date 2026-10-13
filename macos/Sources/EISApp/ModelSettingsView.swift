@@ -247,7 +247,7 @@ struct ModelSettingsView: View {
                 }.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
                 Picker(L("لوحة الألوان"), selection: $colorPalette) {
                     Text(L("ورقي")).tag("paper")
-                    Text("Catppuccin").tag("catppuccin")
+                    Text("Catppuccin · Latte / Mocha").tag("catppuccin")
                     Text("Nord").tag("nord")
                 }.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
             }
