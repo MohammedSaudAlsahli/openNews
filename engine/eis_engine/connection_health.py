@@ -9,11 +9,14 @@ from .providers import read_credentials, LOCAL, ollama_cloud
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS provider_connection_health(
  profile_id TEXT PRIMARY KEY REFERENCES provider_profiles(id), state TEXT NOT NULL,
- checked_at TEXT, last_success_at TEXT, checked_epoch REAL NOT NULL DEFAULT 0);"""
+ checked_at TEXT, last_success_at TEXT, checked_epoch REAL NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS removed_provider_profiles(profile_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL);"""
 
 class ConnectionHealth:
     def __init__(self, service):
         self.s = service
+        service.db.execute("CREATE TABLE IF NOT EXISTS removed_provider_profiles(profile_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL)")
+        service.db.commit()
         self.generations = {}
 
     def generation(self, pid):
@@ -97,3 +100,16 @@ class ConnectionHealth:
         with self.s.db:
             self.s.db.execute("DELETE FROM model_catalogs WHERE profile_id=?", (pid,))
         return self.status(profile)
+
+    async def delete(self, pid):
+        profile = self.s.profile(pid)
+        await self.disconnect(pid)
+        from .chatgpt_auth import credential_path, write_record, _locks
+        path = credential_path(profile)
+        async with _locks.setdefault(str(path), asyncio.Lock()):
+            write_record(path, {})
+        with self.s.db:
+            self.s.db.execute("DELETE FROM agent_assignments WHERE workspace_id=? AND profile_id=?", (self.s.ws,pid))
+            self.s.db.execute("DELETE FROM provider_preferences WHERE profile_id=?", (pid,))
+            self.s.db.execute("INSERT INTO removed_provider_profiles VALUES(?,?)", (pid,self.s.ws))
+        return {"deleted": True}

@@ -121,3 +121,25 @@ def test_callback_pages_arabic_failure_and_no_reflected_data():
     page = callback_page(True,'ar').decode()
     assert 'dir="rtl"' in page and 'تم تسجيل الدخول بنجاح' in page
     assert 'Authorization successful' not in callback_page(False).decode()
+
+def test_delete_connection_hides_it_revokes_credentials_and_preserves_other_profiles(service):
+    async def run():
+        s = service
+        saved = await s.dispatch("providers.save", {"provider_key":"ollama", "model_id":"", "config":{"host":"http://localhost:11434"}})
+        other = await s.dispatch("providers.save", {"provider_key":"ollama", "model_id":"", "config":{"host":"http://localhost:11434"}})
+        pid = saved["profile_id"]
+        profile = s.profile(pid)
+        auth.write_record(auth.credential_path(profile), {"api_key":"test-only-secret"})
+        with s.db:
+            s.db.execute("INSERT INTO agent_assignments VALUES(?,?,?,?)", (s.ws,"writer",pid,"test-model"))
+        assert await s.dispatch("providers.delete", {"profile_id":pid}) == {"deleted":True}
+        assert auth.read_record(auth.credential_path(profile)) == {}
+        assert [p['id'] for p in s.snapshot()['profiles']] == [other['profile_id']]
+        assert not s.snapshot()['assignments']
+        with pytest.raises(Failure): s.profile(pid)
+        s.connections.set(pid, 'connected', 0)
+        assert s.connections.status(profile)['state'] == 'disconnected'
+        reopened = Service(Store(s.store.path.parent))
+        assert [p['id'] for p in reopened.snapshot()['profiles']] == [other['profile_id']]
+        reopened.store.close()
+    asyncio.run(run())

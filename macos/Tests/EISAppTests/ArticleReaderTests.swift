@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import ImageIO
 import Testing
 @testable import EISApp
@@ -41,4 +42,27 @@ import Testing
     #expect(RichTextBlock.parse("| Name | Value |\n| --- | --- |\n| A | 2 |") == [.table([["Name", "Value"], ["A", "2"]])])
     #expect(RichTextBlock.parse("> First\n>\n> Second") == [.quote("First\n\nSecond")])
     #expect(RichTextBlock.parse("````\n```example\n    code\n````") == [.code("```example\n    code")])
+}
+
+@MainActor @Test func menuReaderFitsInBothInterfaceDirections() throws {
+    let original = UserDefaults.standard.object(forKey: "appLanguage")
+    if let language = ProcessInfo.processInfo.environment["EIS_QA_LANGUAGE"] { UserDefaults.standard.set(language, forKey: "appLanguage") }
+    defer {
+        if let original { UserDefaults.standard.set(original, forKey: "appLanguage") }
+        else { UserDefaults.standard.removeObject(forKey: "appLanguage") }
+    }
+    let model = StudioModel()
+    for direction: LayoutDirection in [.leftToRight, .rightToLeft] {
+        let host = NSHostingView(rootView: MenuBarReader().environmentObject(model).environment(\.layoutDirection, direction))
+        host.frame = NSRect(x: 0, y: 0, width: 470, height: 700)
+        host.layoutSubtreeIfNeeded()
+        #expect(host.fittingSize.width <= 470.5)
+        #expect(host.fittingSize.height <= 700.5)
+        if let output = ProcessInfo.processInfo.environment["EIS_QA_OUTPUT_DIR"] {
+            let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let data = try #require(bitmap.representation(using: .png, properties: [:]))
+            try data.write(to: URL(fileURLWithPath: output).appendingPathComponent("menu-reader-" + AppLanguage.current.rawValue + (direction == .leftToRight ? "-ltr.png" : "-rtl.png")))
+        }
+    }
 }

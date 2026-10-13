@@ -74,7 +74,7 @@ class Service:
         return dict(workspace_id=self.ws, sources=sources, techniques=techniques, drafts=drafts,
                     rules=self.store.rows("SELECT * FROM dna_rules WHERE workspace_id=? ORDER BY created_at", (self.ws,)),
                     dna_version=self.store.one("SELECT * FROM dna_versions WHERE workspace_id=? ORDER BY rowid DESC LIMIT 1", (self.ws,)),
-                    profiles=[row | {"auto_refresh":bool(row["auto_refresh"]), "connection":self.connections.status(self.profile(row["id"]))} for row in self.store.rows("SELECT p.*,coalesce(v.label,'') AS label,coalesce(v.auto_refresh,1) AS auto_refresh FROM provider_profiles p LEFT JOIN provider_preferences v ON v.profile_id=p.id WHERE p.workspace_id=? ORDER BY p.created_at", (self.ws,))],
+                    profiles=[row | {"auto_refresh":bool(row["auto_refresh"]), "connection":self.connections.status(self.profile(row["id"]))} for row in self.store.rows("SELECT p.*,coalesce(v.label,'') AS label,coalesce(v.auto_refresh,1) AS auto_refresh FROM provider_profiles p LEFT JOIN provider_preferences v ON v.profile_id=p.id WHERE p.workspace_id=? AND p.id NOT IN (SELECT profile_id FROM removed_provider_profiles) ORDER BY p.created_at", (self.ws,))],
                     assignments=self.store.rows("SELECT role,profile_id,model_id FROM agent_assignments WHERE workspace_id=?", (self.ws,)),
                     jobs=self.store.rows("SELECT id,type,state,error_code,updated_at FROM jobs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 30", (self.ws,)), **self.news.snapshot())
 
@@ -113,6 +113,8 @@ class Service:
 
     def profile(self, identifier):
         profile = self.require("provider_profiles", identifier)
+        if self.store.one("SELECT profile_id FROM removed_provider_profiles WHERE profile_id=?", (profile["id"],)):
+            raise Failure("NOT_FOUND", "الاتصال محذوف. اختر اتصالًا آخر من الإعدادات.")
         profile["credential_path"] = str(self.store.path.parent / ".providers" / (profile["id"] + ".json"))
         return profile
 
@@ -394,6 +396,8 @@ class Service:
             return self.chatgpt_auth.cancel(p["auth_id"])
         if command == "providers.check":
             return await self.connections.check(p["profile_id"])
+        if command == "providers.delete":
+            return await self.connections.delete(p["profile_id"])
         if command == "providers.disconnect":
             return await self.connections.disconnect(p["profile_id"])
         if command == "providers.reconnect":
@@ -607,7 +611,7 @@ class Service:
 
     async def refresh_catalogs(self):
         while True:
-            profiles = self.store.rows("SELECT p.id FROM provider_profiles p LEFT JOIN provider_preferences v ON v.profile_id=p.id WHERE p.workspace_id=? AND (coalesce(v.auto_refresh,1)=1 OR p.provider_key='openai-chatgpt')",(self.ws,))
+            profiles = self.store.rows("SELECT p.id FROM provider_profiles p LEFT JOIN provider_preferences v ON v.profile_id=p.id WHERE p.workspace_id=? AND p.id NOT IN (SELECT profile_id FROM removed_provider_profiles) AND (coalesce(v.auto_refresh,1)=1 OR p.provider_key='openai-chatgpt')",(self.ws,))
             for profile in profiles:
                 try:
                     current = self.profile(profile["id"])

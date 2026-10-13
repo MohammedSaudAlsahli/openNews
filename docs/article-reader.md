@@ -35,3 +35,14 @@ OpenStudio has a dedicated Articles destination in the main window. The conversa
 - The compact menu-bar reader shares the verified renderer, supports the same tabs/bookmarks/summary, and compiles in the app. Opening its actual status-bar popover could not be independently automated in this pass; no claim of complete menu-bar UI verification is made.
 
 - Final packaged app passed signature verification, relocated bundled-runtime checks, the four-format Agno smoke test against a mock provider, and DMG checksum verification. Final native checks confirmed hidden reader/feed/web content is absent from the accessibility tree, the Arabic connection menu has a single indicator, and English tables keep their column order in Arabic UI.
+
+## Card and provider polish — 2026-10-13
+
+- Every card reserves the same image area while loading, on failure and when no image exists. A neutral photo placeholder explicitly identifies missing images. Titles and excerpts reserve consistent line heights, and bookmarks are independent controls on the card.
+- Card bookmark changes update both the main Articles page and the compact reader immediately, including removing entries from the Bookmarks filter.
+- Agent assignment details and the settings sidebar no longer have inset rectangular background blocks. Connection controls, headings and spacing remain native.
+- New and existing provider credentials use labeled secure input fields. Provider-specific multi-field credentials and Google service-account JSON remain supported; unrelated saved fields are preserved. Local and Ollama Cloud setup choices remain available.
+- Delete connection clears its local credentials and removes it from selectable profiles and automatic refresh. Built-in assignments are cleared; custom agent definitions and conversation history remain, with a removed connection rejected until another is selected. Non-secret registration rows are archived internally to preserve historical references.
+- The menu-bar options control suppresses the automatic menu indicator and reserves a 32×28 pt target, preventing the chevron/ellipsis overlap.
+- 292 Python and 37 Swift tests passed (329 total). Direct packaged-app checks covered English/dark and Arabic/light card bookmarks, missing-image cards, credential editors, local/cloud switching, and creating/deleting temporary local connections in each language. Temporary bookmarks and connections were removed, and the original English/dark preferences restored.
+- Native NSHostingView rendering checked the complete 470×700 compact reader in Arabic and English with both layout directions. Rendered footer icons have no extra chevron or overlap. This verifies the menu content layout; status-bar popover opening remains outside the automated interaction coverage.

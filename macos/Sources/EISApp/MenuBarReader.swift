@@ -60,7 +60,7 @@ struct MenuBarReader: View {
                     Divider()
                     Button(L("إنهاء التطبيق")) { NSApp.terminate(nil) }
                 } label: { Image(systemName: "ellipsis.circle") }
-                    .menuStyle(.borderlessButton).frame(width: 24).accessibilityLabel(L("خيارات التطبيق"))
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 32, height: 28).accessibilityLabel(L("خيارات التطبيق"))
             }.padding(14)
         }
         .frame(width: 470, height: 700)
@@ -73,10 +73,10 @@ struct MenuBarReader: View {
         .onReceive(NotificationCenter.default.publisher(for: .editorialArticleRead)) { notification in
             if let id = notification.object as? String, let index = articles.firstIndex(where: { $0.id == id }) { articles[index].isRead = true }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .editorialBookmarksChanged)) { _ in
-            guard let selected else { return }
+        .onReceive(NotificationCenter.default.publisher(for: .editorialBookmarksChanged)) { notification in
+            guard let id = (notification.object as? String) ?? selected?.id else { return }
             Task {
-                if let updated = try? await model.decoded("news.preview", ["article_id": selected.id], as: NewsArticle.self), let index = articles.firstIndex(where: { $0.id == updated.id }) {
+                if let updated = try? await model.decoded("news.preview", ["article_id": id], as: NewsArticle.self), let index = articles.firstIndex(where: { $0.id == updated.id }) {
                     articles[index] = updated
                     if scope == "saved" && updated.isBookmarked != true { articles.remove(at: index) }
                 }

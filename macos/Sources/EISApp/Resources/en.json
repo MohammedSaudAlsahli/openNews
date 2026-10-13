@@ -971,5 +971,16 @@
   "لا يتوفر نص لتلخيصه.": "There is no article text to summarize.",
   "اختر اتصالًا ونموذجًا للكاتب من الإعدادات أولًا.": "Choose a Writer connection and model in Settings first.",
   "انتظر اكتمال الطلب الحالي ثم أعد المحاولة.": "Wait for the current request to finish, then try again.",
-  "تعذّر تحميل دليل RSS.mobi. أعد المحاولة أو أضف رابط المصدر مباشرة.": "Could not load RSS.mobi. Try again or add a source URL directly."
+  "تعذّر تحميل دليل RSS.mobi. أعد المحاولة أو أضف رابط المصدر مباشرة.": "Could not load RSS.mobi. Try again or add a source URL directly.",
+  "لا توجد صورة": "No image available",
+  "تعذّر حفظ المقال": "Could not save article",
+  "ألصق المفتاح هنا": "Paste your key here",
+  "حفظ المفتاح": "Save key",
+  "ألصق بيانات الدخول لهذا المزوّد. تُحفظ على جهازك فقط.": "Paste credentials for this provider. They are saved only on your device.",
+  "حذف الاتصال…": "Delete connection…",
+  "حذف هذا الاتصال؟": "Delete this connection?",
+  "حذف الاتصال": "Delete connection",
+  "حُذف الاتصال.": "Connection deleted.",
+  "ستُزال بيانات الدخول والاتصال من القائمة. ستحتاج الوكلاء المرتبطة به إلى اختيار اتصال آخر. تبقى المحادثات والمسودات محفوظة.": "Credentials and the connection will be removed from the list. Linked agents will need another connection. Conversations and drafts stay saved.",
+  "الاتصال محذوف. اختر اتصالًا آخر من الإعدادات.": "This connection was deleted. Choose another connection in Settings."
 }

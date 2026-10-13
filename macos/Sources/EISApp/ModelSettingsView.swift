@@ -196,8 +196,8 @@ struct ModelSettingsView: View {
                         Label(L("اللغة والمظهر"), systemImage: "globe").tag(SettingsSection.general)
                         Label(L("الصلاحيات والإعداد"), systemImage: "lock.shield").tag(SettingsSection.permissions)
                     }
-                }.listStyle(.sidebar).padding(.horizontal, 10).padding(.top, 6)
-            }.frame(width: 240)
+                }.listStyle(.sidebar).scrollContentBackground(.hidden).padding(.horizontal, 10).padding(.top, 6)
+            }.frame(width: 240).background(Color(nsColor: .windowBackgroundColor))
             Divider()
             // Keep each editor alive while navigating between settings sections.
             ZStack {
@@ -492,9 +492,10 @@ struct AddConnectionView: View {
                                         .accessibilityLabel(L("بيانات حساب الخدمة JSON"))
                                 }
                             } else {
-                                LabeledContent(credentialLabel(field)) {
-                                    SecureField("", text: Binding(get: { credentials[field] ?? "" }, set: { credentials[field] = $0 }))
-                                        .labelsHidden()
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(credentialLabel(field)).font(.callout.weight(.medium))
+                                    SecureField("", text: Binding(get: { credentials[field] ?? "" }, set: { credentials[field] = $0 }), prompt: Text(L("ألصق المفتاح هنا")))
+                                        .labelsHidden().textFieldStyle(.roundedBorder).controlSize(.large)
                                         .environment(\.layoutDirection, .leftToRight)
                                         .accessibilityLabel(credentialLabel(field))
                                         .help(field)
@@ -615,7 +616,7 @@ struct AgentModelAssignment: View {
                 }.buttonStyle(.borderedProminent).disabled(!ready || saving || (model.snapshot?.assignments?.first { $0.role == role }.map { $0.profileId == profileID && $0.modelId == modelID } ?? false))
             }
             if let message { Text(L(message)).font(.caption).foregroundStyle(failed ? Color.red : Color.secondary) }
-        }.padding(22).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12)).onAppear {
+        }.padding(.vertical, 12).onAppear {
             if let assignment = model.snapshot?.assignments?.first(where: { $0.role == role }) {
                 profileID = assignment.profileId; modelID = assignment.modelId
             } else if let first = model.snapshot?.profiles.first { profileID = first.id }
@@ -637,6 +638,7 @@ private struct ConnectionSettingsDetail: View {
     @State private var editing = false
     @State private var signingIn = false
     @State private var disconnecting = false
+    @State private var deleting = false
     @State private var checking = false
     @State private var credentialText = ""
     @State private var message: String?
@@ -658,6 +660,8 @@ private struct ConnectionSettingsDetail: View {
                             }
                         }.disabled(checking || profile.connection?.state == "disconnected" || model.health == nil)
                         Spacer()
+                        Button(L("حذف الاتصال…"), role: .destructive) { deleting = true }
+                            .disabled(checking || model.health == nil)
                         Button(L("فصل الاتصال…"), role: .destructive) { disconnecting = true }
                             .disabled(profile.connection?.state == "disconnected" || checking || model.health == nil)
                     }
@@ -704,6 +708,10 @@ private struct ConnectionSettingsDetail: View {
             }.padding(18)
         }
         .onAppear { profileID = profile.id; modelID = profile.modelId; label = profile.label ?? ""; autoRefresh = profile.autoRefresh ?? true }
+        .confirmationDialog(L("حذف هذا الاتصال؟"), isPresented: $deleting, titleVisibility: .visible) {
+            Button(L("حذف الاتصال"), role: .destructive) { perform("providers.delete", ["profile_id": profile.id], success: L("حُذف الاتصال.")) }
+            Button(L("إلغاء"), role: .cancel) {}
+        } message: { Text(L("ستُزال بيانات الدخول والاتصال من القائمة. ستحتاج الوكلاء المرتبطة به إلى اختيار اتصال آخر. تبقى المحادثات والمسودات محفوظة.")) }
         .confirmationDialog(L("فصل هذا الاتصال؟"), isPresented: $disconnecting, titleVisibility: .visible) {
             Button(L("فصل الاتصال"), role: .destructive) { perform("providers.disconnect", ["profile_id": profile.id], success: L("تم فصل الاتصال على هذا الجهاز.")) }
             Button(L("إلغاء"), role: .cancel) {}
@@ -751,30 +759,61 @@ private struct ConnectionSettingsDetail: View {
 }
 
 private struct CredentialEditor: View {
-    @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @Environment(\.dismiss) private var dismiss
     @Binding var text: String
     let profile: ProviderProfile
     let fields: [String]
     let save: () throws -> Void
+    @State private var values: [String: String] = [:]
     @State private var failure: String?
     var body: some View {
-        let _ = interfaceLanguage
-        VStack(alignment: .leading, spacing: 16) {
-            Text(L("بيانات اتصال {0}", profile.displayName)).font(.title2)
-            Text(L("ملف JSON لهذا الاتصال فقط. حقول اعتماد هذا المزوّد: ") + fields.joined(separator: ", ")).font(.callout).foregroundStyle(.secondary)
-            TextEditor(text: $text).font(.body.monospaced()).environment(\.layoutDirection, .leftToRight)
-                .accessibilityLabel(L("بيانات الاتصال بصيغة JSON")).frame(minHeight: 280)
+        VStack(alignment: .leading, spacing: 20) {
+            Text(L("بيانات اتصال {0}", profile.displayName)).font(.title2.weight(.semibold))
+            Text(L("ألصق بيانات الدخول لهذا المزوّد. تُحفظ على جهازك فقط.")).font(.callout).foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(fields, id: \.self) { field in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(credentialLabel(field)).font(.callout.weight(.medium))
+                            if field == "service_account_info" {
+                                TextEditor(text: binding(field)).font(.body.monospaced()).frame(height: 160)
+                                    .environment(\.layoutDirection, .leftToRight)
+                            } else {
+                                SecureField(L("ألصق المفتاح هنا"), text: binding(field)).textFieldStyle(.roundedBorder).controlSize(.large)
+                                    .environment(\.layoutDirection, .leftToRight).accessibilityLabel(credentialLabel(field))
+                            }
+                        }
+                    }
+                }.padding(2)
+            }
             if let failure { Text(L(failure)).foregroundStyle(.red).font(.callout) }
             HStack {
                 Button(L("إلغاء"), role: .cancel) { text = ""; dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button(L("حفظ الملف")) {
-                    do { try save(); text = ""; dismiss() } catch { failure = error.localizedDescription }
+                Button(L("حفظ المفتاح")) {
+                    do {
+                        var object = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] ?? [:]
+                        for field in fields {
+                            let value = values[field] ?? ""
+                            if field == "service_account_info", !value.isEmpty {
+                                object[field] = try JSONSerialization.jsonObject(with: Data(value.utf8))
+                            } else { object[field] = value }
+                        }
+                        text = String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+                        try save(); text = ""; dismiss()
+                    } catch { failure = error.localizedDescription }
                 }.buttonStyle(.borderedProminent)
             }
-        }.padding(24).frame(width: 620, height: 470).editorialPresentation()
+        }.padding(28).frame(width: 500, height: 380).editorialPresentation()
+        .onAppear {
+            let object = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] ?? [:]
+            for field in fields {
+                if let value = object[field] as? String { values[field] = value }
+                else if let value = object[field], let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted]) { values[field] = String(decoding: data, as: UTF8.self) }
+            }
+        }
     }
+    private func binding(_ field: String) -> Binding<String> { Binding(get: { values[field] ?? "" }, set: { values[field] = $0 }) }
 }
 
 private func settingsHeading(_ title: String, subtitle: String) -> some View {
