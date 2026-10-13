@@ -31,7 +31,10 @@ import AppKit
     @AppStorage("appLanguage") private var appLanguage = "ar"
     @AppStorage(ModelPermission.key) private var modelPermission = false
     private var direction: LayoutDirection { appLanguage == "en" ? .leftToRight : .rightToLeft }
-    private var colorScheme: ColorScheme { appearance == "light" ? .light : appearance == "dark" ? .dark : (systemAppearance.isDark ? .dark : .light) }
+    private var colorScheme: ColorScheme {
+        EditorialTheme.preferredColorScheme(for: colorPalette)
+            ?? (appearance == "light" ? .light : appearance == "dark" ? .dark : (systemAppearance.isDark ? .dark : .light))
+    }
     private var theme: EditorialTheme { .resolve(colorPalette, dark: colorScheme == .dark) }
     var body: some Scene {
         Window(L("مساحة التحرير"), id: "studio") {

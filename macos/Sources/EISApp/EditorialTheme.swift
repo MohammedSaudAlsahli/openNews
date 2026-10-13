@@ -20,6 +20,26 @@ import AppKit
     }
 }
 
+enum CatppuccinFlavor: String, CaseIterable {
+    case latte = "catppuccin-latte"
+    case frappe = "catppuccin-frappe"
+    case macchiato = "catppuccin-macchiato"
+    case mocha = "catppuccin-mocha"
+
+    // Official Catppuccin Mantle, Base, Surface0, Text, and Blue values.
+    // https://github.com/catppuccin/catppuccin#palette
+    var colors: (page: UInt32, paper: UInt32, surface: UInt32, foreground: UInt32, accent: UInt32) {
+        switch self {
+        case .latte: return (0xe6e9ef, 0xeff1f5, 0xccd0da, 0x4c4f69, 0x1e66f5)
+        case .frappe: return (0x292c3c, 0x303446, 0x414559, 0xc6d0f5, 0x8caaee)
+        case .macchiato: return (0x1e2030, 0x24273a, 0x363a4f, 0xcad3f5, 0x8aadf4)
+        case .mocha: return (0x181825, 0x1e1e2e, 0x313244, 0xcdd6f4, 0x89b4fa)
+        }
+    }
+
+    var colorScheme: ColorScheme { self == .latte ? .light : .dark }
+}
+
 struct EditorialTheme {
     let page: Color
     let paper: Color
@@ -27,15 +47,19 @@ struct EditorialTheme {
     let foreground: Color
     let accent: Color
 
+    static func preferredColorScheme(for palette: String) -> ColorScheme? {
+        CatppuccinFlavor(rawValue: palette)?.colorScheme
+    }
+
     static func resolve(_ palette: String, dark: Bool) -> Self {
+        let flavor = CatppuccinFlavor(rawValue: palette)
+            ?? (palette == "catppuccin" ? (dark ? .mocha : .latte) : nil)
+        if let flavor {
+            let colors = flavor.colors
+            return Self(page: Color(hex: colors.page), paper: Color(hex: colors.paper), surface: Color(hex: colors.surface),
+                        foreground: Color(hex: colors.foreground), accent: Color(hex: colors.accent))
+        }
         switch (palette, dark) {
-        case ("catppuccin", false):
-            // Catppuccin Latte: Mantle, Base, Surface 0, Text, Blue.
-            // https://github.com/catppuccin/catppuccin#palette
-            return Self(page: Color(hex: 0xe6e9ef), paper: Color(hex: 0xeff1f5), surface: Color(hex: 0xccd0da), foreground: Color(hex: 0x4c4f69), accent: Color(hex: 0x1e66f5))
-        case ("catppuccin", true):
-            // Catppuccin Mocha uses the same semantic roles in dark mode.
-            return Self(page: Color(hex: 0x181825), paper: Color(hex: 0x1e1e2e), surface: Color(hex: 0x313244), foreground: Color(hex: 0xcdd6f4), accent: Color(hex: 0x89b4fa))
         case ("nord", false):
             return Self(page: Color(hex: 0xe5e9f0), paper: Color(hex: 0xeceff4), surface: Color(hex: 0xd8dee9), foreground: Color(hex: 0x2e3440), accent: Color(hex: 0x5e81ac))
         case ("nord", true):

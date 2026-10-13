@@ -245,11 +245,21 @@ struct ModelSettingsView: View {
                     Text(L("فاتح")).tag("light")
                     Text(L("داكن")).tag("dark")
                 }.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
+                    .disabled(EditorialTheme.preferredColorScheme(for: colorPalette) != nil)
                 Picker(L("لوحة الألوان"), selection: $colorPalette) {
                     Text(L("ورقي")).tag("paper")
-                    Text("Catppuccin · Latte / Mocha").tag("catppuccin")
                     Text("Nord").tag("nord")
-                }.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
+                    Divider()
+                    Text(L("Catppuccin تلقائي (Latte / Mocha)")).tag("catppuccin")
+                    Text("Catppuccin Latte").tag(CatppuccinFlavor.latte.rawValue)
+                    Text("Catppuccin Frappé").tag(CatppuccinFlavor.frappe.rawValue)
+                    Text("Catppuccin Macchiato").tag(CatppuccinFlavor.macchiato.rawValue)
+                    Text("Catppuccin Mocha").tag(CatppuccinFlavor.mocha.rawValue)
+                }.pickerStyle(.menu)
+                if EditorialTheme.preferredColorScheme(for: colorPalette) != nil {
+                    Text(L("النكهة الثابتة تحدد المظهر تلقائيًا. اختر Catppuccin تلقائي لاتباع إعداد المظهر."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section(L("مساحة العمل")) {
                 LabeledContent(L("حفظ النصوص"), value: L("محليًا على جهازك"))
