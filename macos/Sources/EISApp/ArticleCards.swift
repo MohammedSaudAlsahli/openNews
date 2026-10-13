@@ -1,19 +1,6 @@
 import SwiftUI
 import AppKit
 
-enum ReadingPalette {
-    static let paper = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(calibratedWhite: 0.10, alpha: 1)
-            : NSColor(red: 0.982, green: 0.973, blue: 0.95, alpha: 1)
-    })
-    static let tint = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(calibratedWhite: 0.16, alpha: 1)
-            : NSColor(red: 0.935, green: 0.934, blue: 0.897, alpha: 1)
-    })
-}
-
 enum ArticleExcerpt {
     static func plain(_ text: String) -> String {
         let clean = RichTextLinks.attributed(text).characters
@@ -23,6 +10,7 @@ enum ArticleExcerpt {
 }
 
 struct SiteIcon: View {
+    @Environment(\.editorialTheme) private var theme
     @EnvironmentObject private var model: StudioModel
     let address: String
     var size: CGFloat = 24
@@ -30,7 +18,7 @@ struct SiteIcon: View {
     private var host: String { URL(string: address)?.host?.replacingOccurrences(of: "www.", with: "") ?? "" }
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24).fill(Color(nsColor: .controlBackgroundColor))
+            RoundedRectangle(cornerRadius: size * 0.24).fill(theme.surface)
             if let icon { Image(nsImage: icon).resizable().aspectRatio(contentMode: .fit).padding(size * 0.15) }
             else { Text(String(host.prefix(1)).uppercased()).font(.system(size: size * 0.5, weight: .semibold)).foregroundStyle(.secondary) }
         }.frame(width: size, height: size).accessibilityHidden(true)
@@ -44,6 +32,7 @@ struct SiteIcon: View {
 }
 
 struct ArticleCard: View {
+    @Environment(\.editorialTheme) private var theme
     @EnvironmentObject private var model: StudioModel
     @State private var saved = false
     @State private var saving = false
@@ -73,7 +62,7 @@ struct ArticleCard: View {
                     Text(DisplayFormat.date(article.publishedAt ?? article.discoveredAt)).font(.caption2).foregroundStyle(.tertiary)
                 }.padding(compact ? 14 : 18)
             }.frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
-                .background(ReadingPalette.paper, in: RoundedRectangle(cornerRadius: 14))
+                .background(theme.paper, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
                 .clipShape(RoundedRectangle(cornerRadius: 14)).contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityLabel(article.title)
@@ -102,6 +91,7 @@ struct ArticleCard: View {
 }
 
 private struct ArticleThumbnail: View {
+    @Environment(\.editorialTheme) private var theme
     @EnvironmentObject private var model: StudioModel
     let articleID: String
     let imageID: String?
@@ -110,7 +100,7 @@ private struct ArticleThumbnail: View {
     @State private var loading = false
     var body: some View {
         ZStack {
-            ReadingPalette.tint
+            theme.surface
             if let image {
                 GeometryReader { geometry in
                     Image(nsImage: image).resizable().scaledToFill().frame(width: geometry.size.width, height: height).clipped()

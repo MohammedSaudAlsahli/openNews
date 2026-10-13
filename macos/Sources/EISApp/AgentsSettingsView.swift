@@ -16,7 +16,7 @@ struct AgentEditorState {
     var failure: String? = nil
     var notice: String? = nil
     var hasUnsavedChanges: Bool {
-        selection != "writer" && selection != "analyst" && [name, instructions, profileID, modelID] != baseline
+        selection != "writer" && selection != "analyst" && selection != "news" && [name, instructions, profileID, modelID] != baseline
     }
 }
 
@@ -77,7 +77,14 @@ struct AgentsSettingsView: View {
         nonmutating set { model.agentEditor.notice = newValue }
     }
 
-    private var isBuiltin: Bool { selection == "writer" || selection == "analyst" }
+    private var isBuiltin: Bool { selection == "writer" || selection == "analyst" || selection == "news" }
+    private var builtinTitle: String {
+        switch selection {
+        case "writer": return L("الكاتب")
+        case "analyst": return L("المحلل")
+        default: return L("ملخّص الأخبار")
+        }
+    }
     private var values: [String] { [name, instructions, profileID, modelID] }
     private var dirty: Bool { !isBuiltin && values != baseline }
     private var canSave: Bool {
@@ -92,6 +99,7 @@ struct AgentsSettingsView: View {
                 Text(L("الوكلاء الأساسيون")).font(.caption).foregroundStyle(.secondary)
                 selectionButton(L("الكاتب"), id: "writer", icon: "pencil")
                 selectionButton(L("المحلل"), id: "analyst", icon: "text.magnifyingglass")
+                selectionButton(L("ملخّص الأخبار"), id: "news", icon: "newspaper")
                 Divider()
                 Text(L("وكلاؤك")).font(.caption).foregroundStyle(.secondary)
                 ScrollView {
@@ -107,8 +115,8 @@ struct AgentsSettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if isBuiltin {
-                        Text(selection == "writer" ? L("الكاتب") : L("المحلل")).font(.title2.bold())
-                        AgentModelAssignment(role: selection, title: selection == "writer" ? L("الكاتب") : L("المحلل"))
+                        Text(builtinTitle).font(.title2.bold())
+                        AgentModelAssignment(role: selection, title: builtinTitle)
                             .id(selection)
                         Divider().padding(.vertical, 10)
                         Text(L("الدور والأسلوب")).font(.headline)

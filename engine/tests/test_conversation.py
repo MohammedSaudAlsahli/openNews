@@ -291,6 +291,17 @@ def test_weekly_selection_is_not_limited_by_ui_snapshot_and_deduplicates_urls(se
     asyncio.run(scenario())
 
 
+def test_saved_older_story_can_be_found_by_title_when_discussing_news(service):
+    async def scenario():
+        identifier = article(service, (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
+                             title="إطلاق قمر بحثي جديد")
+        payload = await setup(service, include_news=True, message="اشرح لي إطلاق قمر بحثي جديد")
+        context = service.conversations.source_context(ChatSend.model_validate(payload))
+        assert [item["id"] for item in context["news"]] == [identifier]
+        assert context["news"][0]["text"] == "مادة الخبر الأصلية"
+    asyncio.run(scenario())
+
+
 def test_chat_pagination_is_ordered_bounded_and_rejects_other_conversation_cursor(service):
     async def scenario():
         cid = (await service.dispatch("chat.create", {}))["conversation_id"]

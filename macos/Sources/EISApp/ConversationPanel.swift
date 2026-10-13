@@ -100,11 +100,13 @@ import SwiftUI
     }
     func update(_ model: StudioModel) async {
         guard let id = jobID, let job = model.snapshot?.jobs.first(where: { $0.id == id }), !job.active else { return }
-        jobID = nil; sending = false; progress = nil
         if !conversationID.isEmpty {
             do { detail = try await model.decoded("chat.detail", ["conversation_id": conversationID], as: ConversationDetail.self) }
             catch { self.error = error.localizedDescription }
         }
+        // Keep the streamed answer visible until the persisted message is ready.
+        // Clearing progress first makes a completed reply disappear and reappear.
+        jobID = nil; sending = false; progress = nil
         await refreshList(model)
         if job.state != "completed" { error = Self.failureMessage(job.errorCode) }
     }
@@ -233,6 +235,10 @@ struct ConversationPanel: View {
                 Text(session.detail?.title ?? L("محادثة جديدة")).font(.headline).lineLimit(1)
                 Text(L(session.loading ? "جارٍ تحميل المحادثة…" : session.sending ? "جارٍ إعداد الرد…" : session.error != nil ? "تحتاج المحادثة انتباهك" : session.conversationID.isEmpty ? "لم تبدأ المحادثة بعد" : "محفوظة على جهازك"))
                     .font(.caption).foregroundStyle(.secondary)
+                if let digest = model.digestStatus, digest.enabled, !digest.currentTitle.isEmpty {
+                    Label(L("يلخّص الآن: {0}", digest.currentTitle), systemImage: "sparkles")
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
             }
             Spacer()
             Button {

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CitationSources: View {
+    @Environment(\.editorialTheme) private var theme
     let citations: [ConversationCitation]
     @State private var expanded = false
     private var sites: [ConversationCitation] {
@@ -12,7 +13,7 @@ struct CitationSources: View {
             HStack(spacing: 10) {
                 HStack(spacing: -7) {
                     ForEach(Array(sites.prefix(4))) { site in
-                        SiteIcon(address: site.url, size: 26).overlay(RoundedRectangle(cornerRadius: 7).stroke(ReadingPalette.paper, lineWidth: 2))
+                        SiteIcon(address: site.url, size: 26).overlay(RoundedRectangle(cornerRadius: 7).stroke(theme.paper, lineWidth: 2))
                     }
                 }.environment(\.layoutDirection, .leftToRight)
                 Text(L("المصادر · {0}", citations.count)).font(.callout.weight(.medium))

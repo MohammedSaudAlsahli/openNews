@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct MenuBarReader: View {
+    @Environment(\.editorialTheme) private var theme
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @EnvironmentObject private var model: StudioModel
     @Environment(\.openWindow) private var openWindow
@@ -64,7 +65,7 @@ struct MenuBarReader: View {
             }.padding(14)
         }
         .frame(width: 470, height: 700)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(theme.page)
         .task(id: query + sourceID + scope + (model.health?.workspaceId ?? "")) {
             request = UUID()
             do { try await Task.sleep(for: .milliseconds(250)) } catch { return }

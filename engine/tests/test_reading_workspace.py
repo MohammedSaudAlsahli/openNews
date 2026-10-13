@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from datetime import datetime, timedelta, timezone
 import pytest
@@ -102,4 +103,20 @@ def test_site_icon_never_returns_html_or_private_url(manager):
     assert asyncio.run(manager.site_icon('http://127.0.0.1/secret')) == {'path':''}
     assert not calls
     assert asyncio.run(manager.site_icon('https://example.com/story?private-query=yes')) == {'path':''}
-    assert calls == ['https://example.com/favicon.ico']
+    assert calls == ['https://example.com/favicon.ico','https://example.com/']
+
+
+def test_site_icon_is_reused_from_disk_after_restart(manager):
+    image = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlU8AAAAABJRU5ErkJggg==')
+    calls = []
+    async def fetch(url, conditional):
+        calls.append(url)
+        return {'body':image}
+    manager.fetch = fetch
+    original = asyncio.run(manager.site_icon('https://example.com/article'))
+    assert len(calls) == 1 and original['path']
+    restarted = NewsManager(manager.store)
+    async def unexpected_fetch(url, conditional):
+        raise AssertionError('cached icon should not be downloaded again')
+    restarted.fetch = unexpected_fetch
+    assert asyncio.run(restarted.site_icon('https://example.com/older-article')) == original

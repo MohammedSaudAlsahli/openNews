@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct WorkspaceSidebar: View {
+    @Environment(\.editorialTheme) private var theme
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @EnvironmentObject private var model: StudioModel
     @ObservedObject var chat: ChatSession
@@ -85,6 +86,6 @@ struct WorkspaceSidebar: View {
                     Label(L("الإعدادات"), systemImage: "gearshape").frame(maxWidth: .infinity, alignment: .leading).padding(8).contentShape(Rectangle())
                 }.buttonStyle(.plain).help(L("الإعدادات (⌘,)"))
             }.padding(10)
-        }.frame(width: 220).background(Color(nsColor: .windowBackgroundColor))
+        }.frame(width: 220).background(theme.page)
     }
 }

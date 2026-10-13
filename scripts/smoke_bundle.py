@@ -38,10 +38,11 @@ with tempfile.TemporaryDirectory(prefix='eis-smoke-') as temporary:
         assert response['event']!='failed',response
         return response['result']
     try:
-        for _ in range(200):
+        for _ in range(600):
             if sock.exists(): break
             if child.poll() is not None: raise RuntimeError(child.stderr.read().decode())
             time.sleep(.05)
+        if not sock.exists(): raise RuntimeError('Bundled engine socket did not appear within 30 seconds')
         health=request('runtime.health')
         assert health['sqlite_vec']
         library=request('news.library')

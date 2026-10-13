@@ -7,8 +7,10 @@ extension Notification.Name {
 }
 
 struct ArticlesWorkspace: View {
+    @Environment(\.editorialTheme) private var theme
     @EnvironmentObject private var model: StudioModel
     @Binding var selectedArticleIDs: Set<String>
+    var onDiscuss: (() -> Void)? = nil
     @State private var query = ""
     @State private var sourceID = ""
     @State private var scope = "all"
@@ -29,9 +31,12 @@ struct ArticlesWorkspace: View {
                 ArticleReader(article: article, useInConversation: Binding(get: { selectedArticleIDs.contains(article.id) }, set: { value in
                     if value && selectedArticleIDs.count < 12 { selectedArticleIDs.insert(article.id) }
                     else { selectedArticleIDs.remove(article.id) }
-                }), onClose: { selected = nil }).id(article.id)
+                }), onClose: { selected = nil }, onDiscuss: {
+                    selectedArticleIDs = [article.id]
+                    onDiscuss?()
+                }).id(article.id)
             }
-        }.background(ReadingPalette.paper)
+        }.background(theme.page)
             .sheet(isPresented: $discover) { FeedLibraryView() }
             .task(id: filters + (model.health?.workspaceId ?? "")) {
                 request = UUID()

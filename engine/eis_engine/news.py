@@ -200,13 +200,15 @@ async def fetch_public(url, conditional=None):
 class HTMLInfo(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.parts, self.feeds, self.links = [], [], []
+        self.parts, self.feeds, self.links, self.icons = [], [], [], []
         self.ignored = 0
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
         if tag in {"script","style","noscript"}: self.ignored += 1
         if tag == "link" and "alternate" in attributes.get("rel", "").lower().split() and attributes.get("type", "").lower() in {"application/rss+xml","application/atom+xml"}:
             self.feeds.append(attributes.get("href", ""))
+        if tag == "link" and "icon" in attributes.get("rel", "").lower().split():
+            self.icons.append(attributes.get("href", ""))
         if tag == "a" and attributes.get("href"): self.links.append(attributes["href"])
     def handle_endtag(self, tag):
         if tag in {"script","style","noscript"} and self.ignored: self.ignored -= 1
@@ -364,8 +366,15 @@ def parse_feed(body, base, kind="rss"):
         try: link = canonical_url(urljoin(base, link))
         except NewsError: continue
         guid = node_text(entry, {"guid", "id"})[:2000] or link
+        description = summary_markdown(summary, link)
+        # Hacker News descriptions often contain only a link to its comment
+        # thread. That link is not an excerpt of the publisher's article.
+        if urlsplit(base).hostname == "news.ycombinator.com" and re.fullmatch(
+            r"\[Comments\]\(https://news\.ycombinator\.com/item\?id=\d+\)", description, re.I
+        ):
+            description = ""
         from .article_reader import extract_reader
-        try: reader = extract_reader(summary or '<p></p>', link, fragment=True)
+        try: reader = extract_reader(summary if description else '<p></p>', link, fragment=True)
         except Exception: reader = {}
         # RSS media/enclosure thumbnails may exist outside the HTML description.
         if not any(b.get('type') == 'image' for b in reader.get('blocks', [])):
@@ -379,7 +388,7 @@ def parse_feed(body, base, kind="rss"):
                         reader.setdefault('blocks', []).insert(0, {'type':'image','id':'feed-cover','url':cover,'alt':'','caption':''})
                         break
         result.append({"reader":reader,"guid":guid,"title":plain(node_text(entry,{"title"}))[:500] or "خبر بلا عنوان", "url":link,
-                       "published_at":date_value(node_text(entry,{"pubdate","published","date"})), "summary":("وصف الحلقة من الخلاصة، وليس تفريغًا للصوت أو الفيديو.\n\n" if media_only else "") + summary_markdown(summary, link), "media_only":media_only})
+                       "published_at":date_value(node_text(entry,{"pubdate","published","date"})), "summary":("وصف الحلقة من الخلاصة، وليس تفريغًا للصوت أو الفيديو.\n\n" if media_only else "") + description, "media_only":media_only})
     return title, result
 
 
@@ -480,9 +489,18 @@ class NewsManager:
         lock = self.reader_locks.setdefault(identifier, asyncio.Lock())
         async with lock:
             row = self.article(identifier, mark_read=False)
-            if not force and row["reader"].get("checked_at") and row["reader"].get("version", 1) >= 2: return row
+            checked = row["reader"].get("checked_at")
+            if not force and checked and row["reader"].get("version", 1) >= 2:
+                if row["reader"].get("origin") == "article" or row["body_status"] == "full":
+                    return row
+                try:
+                    if datetime.now(timezone.utc) - datetime.fromisoformat(checked) < timedelta(hours=6):
+                        return row
+                except (ValueError, TypeError):
+                    pass
             if row["body_status"] == "media_summary": return row
             reader = row["reader"]
+            full_text = ""
             try:
                 response = await self.fetch(row["url"], None)
                 content_type = response["headers"].get("content-type", "").lower()
@@ -490,8 +508,11 @@ class NewsManager:
                     raise NewsError("المقال ليس نصًا مقروءًا.")
                 from .article_reader import extract_reader
                 candidate = await asyncio.to_thread(extract_reader, response["body"], response["url"])
-                if sum(len(b.get("text", "")) for b in candidate["blocks"]) >= 80:
+                full_text = "\n\n".join(b["text"] for b in candidate["blocks"] if b.get("type") == "text" and b.get("text"))[:MAX_TEXT]
+                if len(full_text.strip()) >= 80:
                     reader = candidate
+                else:
+                    full_text = ""
                 reader.pop("refresh_failed", None)
             except asyncio.CancelledError: raise
             except Exception:
@@ -499,7 +520,26 @@ class NewsManager:
             reader["checked_at"] = now()
             with self.db:
                 self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=? AND workspace_id=?", (json.dumps(reader), identifier, self.ws))
+                if full_text:
+                    self.db.execute("UPDATE news_articles SET text=?,body_status='full' WHERE id=? AND workspace_id=?", (full_text, identifier, self.ws))
             return self.article(identifier, mark_read=False)
+
+    def capture_public_reader(self, identifier, html):
+        """Cache a rendered public article when ordinary HTTP extraction was incomplete."""
+        row = self.article(identifier, mark_read=False)
+        if row["body_status"] == "full": return row
+        if row["body_status"] == "media_summary" or not isinstance(html, str) or len(html.encode("utf-8")) > 512 * 1024:
+            raise Failure("VALIDATION_ERROR", "نص الصفحة غير صالح.")
+        from .article_reader import extract_reader
+        reader = extract_reader(html.encode("utf-8"), row["url"])
+        full_text = "\n\n".join(block["text"] for block in reader["blocks"] if block.get("type") == "text" and block.get("text"))[:MAX_TEXT]
+        if len(full_text.strip()) < 80:
+            raise Failure("VALIDATION_ERROR", "لم يتوفر نص عام كافٍ في الصفحة.")
+        reader["checked_at"] = now()
+        with self.db:
+            self.db.execute("UPDATE news_articles SET text=?,body_status='full',reader_json=? WHERE id=? AND workspace_id=?",
+                            (full_text,json.dumps(reader),identifier,self.ws))
+        return self.article(identifier, mark_read=False)
 
     async def image(self, identifier, image_id):
         row = self.article(identifier, mark_read=False)
@@ -555,19 +595,48 @@ class NewsManager:
             cache = self.store.path.parent / 'site-icons'
             cache.mkdir(mode=0o700, exist_ok=True)
             path = cache / (hashlib.sha256(url.encode()).hexdigest()+'.image')
+            missing = cache / (hashlib.sha256(url.encode()).hexdigest()+'.missing')
+            # A verified icon is durable; opening Discover never waits for a
+            # network refresh merely because the file is a week old.
+            if path.exists(): return {'path':str(path)}
+            if missing.exists() and time.time()-missing.stat().st_mtime < 86400:
+                return {'path':''}
             async with self.image_slots:
-                if not path.exists() or time.time()-path.stat().st_mtime > 7*86400:
-                    response = await asyncio.wait_for(self.fetch(url,None),timeout=8)
-                    body = response['body']
-                    if len(body)>512*1024 or not body.startswith((b'\x00\x00\x01\x00',b'\x89PNG',b'\xff\xd8\xff',b'GIF8',b'RIFF')):
-                        return {'path':''}
+                async def icon_bytes(candidate):
+                    try:
+                        response = await asyncio.wait_for(self.fetch(candidate,None),timeout=6)
+                        body = response['body']
+                        if len(body)<=512*1024 and body.startswith((b'\x00\x00\x01\x00',b'\x89PNG',b'\xff\xd8\xff',b'GIF8',b'RIFF')):
+                            return body
+                    except (NewsError, ValueError, OSError, TimeoutError):
+                        pass
+                    return None
+                body = await icon_bytes(url)
+                candidates = []
+                try:
+                    if body is None:
+                        homepage = await asyncio.wait_for(self.fetch(address,None), timeout=6)
+                    if body is None and 'html' in homepage.get('headers',{}).get('content-type','text/html').lower() and len(homepage['body']) <= 512*1024:
+                        page = HTMLInfo(); page.feed(homepage['body'].decode('utf-8','replace'))
+                        for item in page.icons[:5]:
+                            try: candidates.append(canonical_url(urljoin(address,item)))
+                            except NewsError: pass
+                except (NewsError, ValueError, OSError, TimeoutError):
+                    pass
+                for candidate in dict.fromkeys(candidates):
+                    body = await icon_bytes(candidate)
+                    if body is not None: break
+                if body is not None:
                     with tempfile.NamedTemporaryFile(dir=cache,suffix='.tmp',delete=False) as temporary:
                         temporary.write(body)
                     try: os.replace(temporary.name,path)
                     finally:
                         if os.path.exists(temporary.name): os.unlink(temporary.name)
+                    missing.unlink(missing_ok=True)
                     for old in sorted(cache.glob('*.image'),key=lambda f:f.stat().st_mtime)[:-300]: old.unlink(missing_ok=True)
-            return {'path':str(path)}
+                    return {'path':str(path)}
+                missing.touch()
+                return {'path':''}
         except (NewsError,ValueError,OSError,TimeoutError):
             return {'path':''}
 
@@ -638,10 +707,17 @@ class NewsManager:
                 title, entries = parse_feed(body,response["url"],row["kind"])
                 with self.db:
                     for entry in entries:
-                        existing = self.store.one("SELECT id FROM news_articles WHERE subscription_id=? AND (url=? OR guid=?) LIMIT 1", (row["id"],entry["url"],entry["guid"]))
+                        existing = self.store.one("SELECT id,summary,text,body_status,reader_json FROM news_articles WHERE subscription_id=? AND (url=? OR guid=?) LIMIT 1", (row["id"],entry["url"],entry["guid"]))
                         if existing:
                             # Existing unread/read state and body remain; a feed refresh is not a new article.
                             self.db.execute("UPDATE news_articles SET title=?,summary=?,published_at=coalesce(?,published_at) WHERE id=?", (entry["title"],entry["summary"],entry["published_at"],existing["id"]))
+                            if existing["body_status"] == "summary_only" and existing["text"] == existing["summary"]:
+                                self.db.execute("UPDATE news_articles SET text=? WHERE id=?", (entry["summary"],existing["id"]))
+                            try: previous_reader = json.loads(existing["reader_json"])
+                            except (TypeError, ValueError): previous_reader = {}
+                            if previous_reader.get("origin") == "feed":
+                                fresh_reader = entry["reader"] | {k:previous_reader[k] for k in ("checked_at", "refresh_failed") if k in previous_reader}
+                                self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=?", (json.dumps(fresh_reader), existing["id"]))
                         else:
                             self.db.execute("INSERT INTO news_articles(id,workspace_id,subscription_id,guid,title,url,published_at,discovered_at,summary) VALUES(?,?,?,?,?,?,?,?,?)", (uid(),self.ws,row["id"],entry["guid"],entry["title"],entry["url"],entry["published_at"],now(),entry["summary"]))
                         self.db.execute("UPDATE news_articles SET reader_json=? WHERE subscription_id=? AND guid=? AND reader_json='{}'", (json.dumps(entry['reader']), row['id'], entry['guid']))
@@ -649,6 +725,7 @@ class NewsManager:
                             # Never download or pretend to transcribe an enclosure.
                             self.db.execute("UPDATE news_articles SET text=?,body_status='media_summary' WHERE subscription_id=? AND guid=?", (entry["summary"],row["id"],entry["guid"]))
                     self.db.execute("UPDATE news_subscriptions SET feed_url=?,title=?,etag=?,last_modified=? WHERE id=?", (response["url"],title if row["title"] == urlsplit(row["url"]).hostname and title else row["title"],response["headers"].get("etag"),response["headers"].get("last-modified"),row["id"]))
+            # Feed refreshes never re-download already saved full articles.
             await self._fetch_bodies(row["id"], refresh_full=refresh_full)
             with self.db:
                 self.db.execute("UPDATE news_subscriptions SET last_success=?,status='ready',error=NULL WHERE id=?", (now(),row["id"]))
@@ -662,8 +739,12 @@ class NewsManager:
             return False
 
     async def _fetch_bodies(self, identifier, refresh_full=False):
-        eligibility = "body_status!='media_summary'" if refresh_full else "body_status NOT IN ('full','media_summary') AND body_attempts<3"
-        rows = self.store.rows("SELECT * FROM news_articles WHERE subscription_id=? AND " + eligibility + " ORDER BY discovered_at DESC LIMIT 50", (identifier,))
+        retry_before = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+        rows = self.store.rows("""SELECT * FROM news_articles
+            WHERE subscription_id=? AND body_status!='media_summary'
+              AND ((? AND body_status='full') OR (body_status!='full' AND (body_attempts=0 OR last_body_attempt<?)))
+            ORDER BY CASE WHEN body_attempts=0 THEN 0 ELSE 1 END,
+                     discovered_at DESC LIMIT 20""", (identifier, int(refresh_full), retry_before))
         semaphore = asyncio.Semaphore(3)
         async def fetch_article(row):
             async with semaphore:

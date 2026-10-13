@@ -4,6 +4,7 @@ import NaturalLanguage
 
 /// Read-only Markdown and plain-text rendering. No HTML, web views, image loading or scripts.
 struct RichTextView: View {
+    @Environment(\.editorialTheme) private var theme
     let text: String
     var fontSize: CGFloat = 16
     var lineSpacing: CGFloat = 6
@@ -30,7 +31,7 @@ struct RichTextView: View {
                     HStack(alignment: .top, spacing: 10) {
                         RoundedRectangle(cornerRadius: 2).fill(Color.accentColor.opacity(0.5)).frame(width: 3)
                         paragraphs(value).font(.system(size: fontSize)).foregroundStyle(.secondary)
-                    }.padding(16).background(ReadingPalette.tint, in: RoundedRectangle(cornerRadius: 8))
+                    }.padding(16).background(theme.surface, in: RoundedRectangle(cornerRadius: 8))
                         .environment(\.layoutDirection, RichTextDirection.detect(value))
                 case .code(let value):
                     ScrollView(.horizontal) {
@@ -47,7 +48,7 @@ struct RichTextView: View {
                                         Text(RichTextLinks.attributed(cell)).font(.system(size: fontSize - 2, weight: index == 0 ? .semibold : .regular))
                                             .frame(width: 150, alignment: .leading).padding(12)
                                     }
-                                }.background(index == 0 ? ReadingPalette.tint : Color.clear)
+                                }.background(index == 0 ? theme.surface : Color.clear)
                                 Divider()
                             }
                         }.overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.1)))

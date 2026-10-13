@@ -3,6 +3,7 @@ import AppKit
 
 @MainActor final class StudioModel: ObservableObject {
     @Published var snapshot: Snapshot?
+    @Published var digestStatus: NewsDigestStatus?
     @Published var customAgents: [CustomAgent] = []
     @Published var agentEditor = AgentEditorState()
     @Published var catalog: ProviderCatalog?
@@ -54,14 +55,21 @@ import AppKit
             child.standardError = FileHandle.nullDevice
             try child.run()
             process = child
-            for _ in 0..<100 {
+            for _ in 0..<300 {
                 if !child.isRunning { throw EngineError(message: L("توقف المحرك عند الإقلاع. قد تكون مساحة العمل مفتوحة في نسخة أخرى.")) }
                 if FileManager.default.fileExists(atPath: socketPath) { break }
                 try await Task.sleep(nanoseconds: 100_000_000)
             }
+            guard FileManager.default.fileExists(atPath: socketPath) else {
+                throw EngineError(message: L("تأخر تشغيل المحرك. حاول فتح التطبيق مجددًا."))
+            }
             health = try await decoded("runtime.health", as: Health.self)
             catalog = try await decoded("providers.catalog", as: ProviderCatalog.self)
             try await refresh()
+            if !ModelPermission.allowed(in: permissionDefaults), snapshot?.newsDigest?.enabled == true {
+                _ = try await call("news.digest.set", ["enabled": false, "language": snapshot?.newsDigest?.language ?? "ar"])
+                try await refresh()
+            }
             polling = Task { [weak self] in
                 var ticks = 0
                 while !Task.isCancelled {
@@ -74,8 +82,10 @@ import AppKit
                     }
                     ticks += 1
                     let syncing = self.snapshot?.subscriptions?.contains { $0.status == "syncing" } == true
-                    if self.snapshot?.jobs.contains(where: \.active) == true || (syncing && ticks % 2 == 0) || ticks % 60 == 0 {
+                    if (self.snapshot?.jobs.contains(where: \.active) == true && ticks % 3 == 0) || (syncing && ticks % 4 == 0) || ticks % 60 == 0 {
                         try? await self.refresh()
+                    } else if self.digestStatus?.enabled == true && ticks % 5 == 0 {
+                        self.digestStatus = try? await self.decoded("news.digest.status", as: NewsDigestStatus.self)
                     }
                 }
             }
@@ -93,6 +103,9 @@ import AppKit
     func call(_ command: String, _ payload: [String: Any] = [:]) async throws -> Data {
         // Recheck at dispatch, including actions from sheets opened before permission was revoked.
         if payload["consent"] as? Bool == true && !ModelPermission.allowed(in: permissionDefaults) {
+            throw EngineError(message: L("فعّل استخدام النماذج من إعدادات الصلاحيات للمتابعة."))
+        }
+        if command == "news.digest.set" && payload["enabled"] as? Bool == true && !ModelPermission.allowed(in: permissionDefaults) {
             throw EngineError(message: L("فعّل استخدام النماذج من إعدادات الصلاحيات للمتابعة."))
         }
         let request = UUID().uuidString
@@ -116,6 +129,7 @@ import AppKit
     }
     func refresh() async throws {
         snapshot = try await decoded("workspace.snapshot",as: Snapshot.self)
+        digestStatus = snapshot?.newsDigest
         customAgents = try await decoded("agents.list", as: CustomAgentList.self).agents
     }
 

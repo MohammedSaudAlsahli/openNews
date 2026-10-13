@@ -176,9 +176,11 @@ private enum SettingsSection: String, CaseIterable {
 }
 
 struct ModelSettingsView: View {
+    @Environment(\.editorialTheme) private var theme
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @EnvironmentObject private var model: StudioModel
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("colorPalette") private var colorPalette = "paper"
     @AppStorage("appLanguage") private var appLanguage = "ar"
     @AppStorage("settingsSection") private var section: SettingsSection = .general
     var body: some View {
@@ -197,7 +199,7 @@ struct ModelSettingsView: View {
                         Label(L("الصلاحيات والإعداد"), systemImage: "lock.shield").tag(SettingsSection.permissions)
                     }
                 }.listStyle(.sidebar).scrollContentBackground(.hidden).padding(.horizontal, 10).padding(.top, 6)
-            }.frame(width: 240).background(Color(nsColor: .windowBackgroundColor))
+            }.frame(width: 240).background(theme.page)
             Divider()
             // Keep each editor alive while navigating between settings sections.
             ZStack {
@@ -228,6 +230,7 @@ struct ModelSettingsView: View {
         .frame(minWidth: 900, idealWidth: 1000, minHeight: 680, idealHeight: 740)
         .textFieldStyle(.roundedBorder)
         .navigationTitle(L("الإعدادات"))
+        .background(theme.page)
     }
     private var general: some View {
         Form {
@@ -242,11 +245,42 @@ struct ModelSettingsView: View {
                     Text(L("فاتح")).tag("light")
                     Text(L("داكن")).tag("dark")
                 }.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
+                Picker(L("لوحة الألوان"), selection: $colorPalette) {
+                    Text(L("ورقي")).tag("paper")
+                    Text("Catppuccin").tag("catppuccin")
+                    Text("Nord").tag("nord")
+                }.pickerStyle(.segmented).fixedSize(horizontal: true, vertical: false)
             }
             Section(L("مساحة العمل")) {
                 LabeledContent(L("حفظ النصوص"), value: L("محليًا على جهازك"))
                 Text(L("تُرسل البيانات عند طلب الكتابة أو التحليل بعد تفعيل إذن استخدام النماذج. يمكنك تغيير الإذن من الصلاحيات والإعداد."))
                     .font(.callout).foregroundStyle(.secondary)
+            }
+            Section(L("تلخيص الأخبار في الخلفية")) {
+                Toggle(L("جهّز ملخصات الأخبار تلقائيًا"), isOn: Binding(
+                    get: { model.digestStatus?.enabled == true },
+                    set: { enabled in
+                        Task {
+                            do {
+                                _ = try await model.call("news.digest.set", ["enabled": enabled, "language": appLanguage])
+                                try await model.refresh()
+                            } catch { model.error = error.localizedDescription }
+                        }
+                    }))
+                    .disabled(!ModelPermission.allowed() || model.snapshot?.assignments?.contains(where: { $0.role == "news" }) != true)
+                if model.snapshot?.assignments?.contains(where: { $0.role == "news" }) != true {
+                    Button(L("اختر نموذج ملخّص الأخبار")) { section = .agents }
+                }
+                if let digest = model.digestStatus {
+                    Text(L("الملخصات الجاهزة: {0}، المتبقية: {1}", DisplayFormat.integer(digest.prepared), DisplayFormat.integer(digest.pending)))
+                        .font(.caption).foregroundStyle(.secondary)
+                    if !digest.currentTitle.isEmpty {
+                        Label(L("يلخّص الآن: {0}", digest.currentTitle), systemImage: "sparkles")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Text(L("يستخدم النموذج الذي تختاره لملخّص الأخبار، على المقالات المتاحة فقط. قد تُحتسب تكلفة من مزودك."))
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
     }
@@ -598,7 +632,7 @@ struct AgentModelAssignment: View {
     var body: some View {
         let _ = interfaceLanguage
         VStack(alignment: .leading, spacing: 22) {
-            Text(role == "writer" ? L("للمحادثة وإنشاء المسودات.") : L("لاستخراج تقنيات الكتابة من أمثلتك."))
+            Text(role == "writer" ? L("للمحادثة وإنشاء المسودات.") : role == "news" ? L("لتلخيص الأخبار الجديدة في الخلفية؛ اختر نموذجًا اقتصاديًا يناسبك.") : L("لاستخراج تقنيات الكتابة من أمثلتك."))
                 .font(.caption).foregroundStyle(.secondary)
             ConnectionModelPicker(profileID: $profileID, modelID: $modelID, ready: $ready)
             HStack {

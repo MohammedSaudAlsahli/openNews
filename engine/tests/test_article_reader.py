@@ -61,10 +61,11 @@ def saved(tmp_path):
     store.close()
 
 
-def test_reader_backfills_old_articles_without_changing_evidence_or_read_state(saved):
+def test_reader_backfills_old_articles_and_caches_full_text_without_marking_read(saved):
     manager,store,calls=saved
     row=asyncio.run(manager.reader('article'))
-    assert row['text']=='Original evidence' and row['is_read']==0
+    assert 'Article evidence with useful context' in row['text'] and row['is_read']==0
+    assert row['body_status']=='full'
     assert row['reader']['blocks'][1]['type']=='image'
     asyncio.run(manager.reader('article'))
     assert calls==[BASE]

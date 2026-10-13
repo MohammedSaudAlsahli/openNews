@@ -1,6 +1,7 @@
 """Persistent editorial conversation with frozen evidence and independently saved draft outputs."""
 import asyncio
 import json
+import re
 import time
 from .streaming import MessagePreview
 from datetime import datetime, timedelta, timezone
@@ -68,22 +69,40 @@ class ConversationManager:
         elif data.article_ids:
             articles = [self.service.news.article(str(identifier), mark_read=False) for identifier in dict.fromkeys(data.article_ids)]
         else:
-            rows = self.store.rows("SELECT id,published_at FROM news_articles WHERE workspace_id=? AND published_at IS NOT NULL ORDER BY published_at DESC",(self.ws,))
+            # Include relevant saved stories even when they predate the recent-news window.
+            # Bound both the local search and the evidence sent to the model.
+            words = [word.casefold() for word in re.findall(r"[\w\u0600-\u06ff]{3,}", data.message) if word.casefold() not in
+                     {"what","with","about","this","that","news","from","the","and","هل","عن","وش","ايش","الأخبار","الخبر","آخر","ابي","هذا","هذي","فيه"}][:8]
+            rows = self.store.rows("""SELECT id,title,summary,substr(text,1,1800) AS excerpt,published_at,url
+                FROM news_articles WHERE workspace_id=? ORDER BY discovered_at DESC LIMIT 500""",(self.ws,))
             identifiers = []
             seen_urls = set()
-            for row in rows:
+            if words:
+                ranked = sorted(rows, key=lambda row: sum(
+                    (4 if word in row["title"].casefold() else 0) +
+                    (2 if word in (row["summary"] or "").casefold() else 0) +
+                    (1 if word in (row["excerpt"] or "").casefold() else 0)
+                    for word in words), reverse=True)
+                for row in ranked:
+                    score = sum(word in (row["title"] + " " + (row["summary"] or "") + " " + (row["excerpt"] or "")).casefold() for word in words)
+                    if not score or len(identifiers) == 6: break
+                    if row["url"] in seen_urls: continue
+                    identifiers.append(row["id"]); seen_urls.add(row["url"])
+            for row in sorted(rows, key=lambda item: item.get("published_at") or "", reverse=True):
                 try:
                     stamp = datetime.fromisoformat((row.get("published_at") or "").replace("Z","+00:00"))
                     if stamp.tzinfo is not None and since <= stamp <= current:
-                        article = self.service.news.article(row["id"],mark_read=False)
-                        if article["url"] in seen_urls: continue
-                        seen_urls.add(article["url"])
+                        if row["url"] in seen_urls: continue
+                        seen_urls.add(row["url"])
                         identifiers.append(row["id"])
                 except (ValueError,TypeError):
                     continue
                 if len(identifiers) == 12: break
             articles = [self.service.news.article(identifier, mark_read=False) for identifier in identifiers]
-        evidence = [{k:article.get(k) for k in ("id","title","url","source_title","published_at","discovered_at","body_status")} | {"text":(article.get("text") or article.get("summary") or "")[:10000]} for article in articles]
+        evidence = [{k:article.get(k) for k in ("id","title","url","source_title","published_at","discovered_at","body_status")} |
+                    {"text":(article.get("text") or article.get("summary") or "")[:8000],
+                     "prepared_summary":(self.service.news_digest.preview(article["id"]) or {}).get("summary", "")}
+                    for article in articles]
         samples = self.store.rows("""SELECT i.id,v.id AS version_id,s.title,v.text FROM source_roles r
             JOIN source_items i ON i.id=r.item_id JOIN sources s ON s.id=i.source_id JOIN item_versions v ON v.id=i.current_version_id
             WHERE r.workspace_id=? AND i.workspace_id=? AND r.purpose='style' AND s.rights_status IN ('owned','licensed')
@@ -108,6 +127,7 @@ class ConversationManager:
         profile = self.service.profile(data.profile_id)
         self.service.validate_model(profile["id"],data.model_id)
         profile["model_id"] = data.model_id
+        self.service.news_digest.interrupt_for_user()
         context = self.source_context(data)
         history = self.detail(conversation["id"])["messages"][-16:]
         # Freeze context and route once, before any async request or future feed refresh.

@@ -5,7 +5,7 @@ import SwiftUI
 struct ConversationActivity: View {
     let progress: ConversationProgress
     @ObservedObject var model: StudioModel
-    @State private var expanded = true
+    @State private var expanded = false
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
             VStack(alignment: .leading, spacing: 10) {
@@ -26,7 +26,7 @@ struct ConversationActivity: View {
                     .font(.caption).foregroundStyle(.secondary)
             }.font(.callout).padding(.top, 10)
         } label: {
-            Label(L("نشاط المساعد"), systemImage: "list.bullet.rectangle")
+            Label(L("نشاط المساعد") + (progress.citations.isEmpty ? "" : " · " + L("{0} مصادر", DisplayFormat.integer(progress.citations.count))), systemImage: "list.bullet.rectangle")
                 .font(.callout.weight(.medium))
         }.padding(14).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
     }

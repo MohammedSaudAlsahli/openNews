@@ -25,16 +25,21 @@ import AppKit
 @main struct EditorialIntelligenceStudioApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var model = StudioModel()
+    @Environment(\.colorScheme) private var systemScheme
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("colorPalette") private var colorPalette = "paper"
     @AppStorage("appLanguage") private var appLanguage = "ar"
+    @AppStorage(ModelPermission.key) private var modelPermission = false
     private var direction: LayoutDirection { appLanguage == "en" ? .leftToRight : .rightToLeft }
-    private var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
+    private var colorScheme: ColorScheme { appearance == "light" ? .light : appearance == "dark" ? .dark : systemScheme }
+    private var theme: EditorialTheme { .resolve(colorPalette, dark: colorScheme == .dark) }
     var body: some Scene {
         Window(L("مساحة التحرير"), id: "studio") {
-            ContentView().environmentObject(model).preferredColorScheme(colorScheme)
+            ContentView().environmentObject(model).preferredColorScheme(colorScheme).environment(\.editorialTheme, theme).tint(theme.accent)
                 .environment(\.layoutDirection, direction).environment(\.locale, AppLanguage.current.locale)
                 .frame(minWidth: 900, minHeight: 640)
                 .onChange(of: appLanguage) { _, _ in model.objectWillChange.send() }
+                .onChange(of: modelPermission) { _, allowed in if !allowed { Task { await model.perform("news.digest.set", ["enabled": false, "language": appLanguage]) } } }
                 .task { delegate.model = model; if model.health == nil { await model.start() } }
         }
         .defaultSize(width: 1400, height: 850)
@@ -56,7 +61,7 @@ import AppKit
             }
         }
         MenuBarExtra {
-            MenuBarReader().environmentObject(model).preferredColorScheme(colorScheme)
+            MenuBarReader().environmentObject(model).preferredColorScheme(colorScheme).environment(\.editorialTheme, theme).tint(theme.accent)
                 .environment(\.layoutDirection, direction).environment(\.locale, AppLanguage.current.locale)
                 .task { delegate.model = model; if model.health == nil { await model.start() } }
         } label: {
@@ -68,7 +73,10 @@ import AppKit
                 .accessibilityLabel(L("أخبار Editorial Intelligence Studio"))
         }.menuBarExtraStyle(.window)
         Settings {
-            ModelSettingsView().environmentObject(model).preferredColorScheme(colorScheme).environment(\.layoutDirection, direction).environment(\.locale, AppLanguage.current.locale)
+            ModelSettingsView().environmentObject(model).preferredColorScheme(colorScheme).environment(\.editorialTheme, theme).tint(theme.accent)
+                .environment(\.layoutDirection, direction).environment(\.locale, AppLanguage.current.locale)
+                .background(SettingsWindowHost(dark: colorScheme == .dark))
+                .onChange(of: modelPermission) { _, allowed in if !allowed { Task { await model.perform("news.digest.set", ["enabled": false, "language": appLanguage]) } } }
         }
     }
     private func command(_ title: String, _ name: Notification.Name, _ key: KeyEquivalent, _ modifiers: EventModifiers = .command) -> some View {

@@ -14,6 +14,7 @@ extension Notification.Name {
 }
 
 struct ContentView: View {
+    @Environment(\.editorialTheme) private var theme
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @EnvironmentObject private var model: StudioModel
     @AppStorage("setupCompleted") private var setupCompleted = false
@@ -94,7 +95,10 @@ struct ContentView: View {
                     WorkspaceSidebar(chat: chat, pane: $compactPane, newConversation: beginConversation, openDrafts: { showDrafts = true })
                     Divider()
                     ZStack {
-                        ArticlesWorkspace(selectedArticleIDs: $selectedArticleIDs)
+                        ArticlesWorkspace(selectedArticleIDs: $selectedArticleIDs, onDiscuss: {
+                            chat.useNews = true
+                            compactPane = "conversation"
+                        })
                             .accessibilityElement(children: .contain).disabled(compactPane != "articles").opacity(compactPane == "articles" ? 1 : 0).allowsHitTesting(compactPane == "articles").accessibilityHidden(compactPane != "articles")
                     VStack(spacing: 0) {
                         if paired {
@@ -126,7 +130,7 @@ struct ContentView: View {
                 .onChange(of: geometry.size.width) { _, width in compactWindow = width < 1180 }
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(theme.page)
         .navigationTitle("OpenStudio")
         .toolbar { workspaceToolbar }
         .popover(isPresented: $compactReferences) {

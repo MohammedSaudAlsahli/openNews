@@ -15,10 +15,15 @@ async def summarize(service, params):
     if language not in {"ar", "en"}:
         raise Failure("VALIDATION_ERROR", "لغة غير صالحة.")
     article = service.news.article(params.get("article_id"), mark_read=False)
+    prepared = service.news_digest.preview(article["id"], language)
+    if prepared:
+        return prepared
     evidence = article["text"] or article["summary"]
     if not evidence.strip():
         raise Failure("VALIDATION_ERROR", "لا يتوفر نص لتلخيصه.")
-    assignment = service.store.one("SELECT profile_id,model_id FROM agent_assignments WHERE workspace_id=? AND role='writer'", (service.ws,))
+    assignment = service.store.one("SELECT profile_id,model_id FROM agent_assignments WHERE workspace_id=? AND role='news'", (service.ws,))
+    if not assignment:
+        assignment = service.store.one("SELECT profile_id,model_id FROM agent_assignments WHERE workspace_id=? AND role='writer'", (service.ws,))
     if not assignment:
         raise Failure("VALIDATION_ERROR", "اختر اتصالًا ونموذجًا للكاتب من الإعدادات أولًا.")
     profile = service.profile(assignment["profile_id"])

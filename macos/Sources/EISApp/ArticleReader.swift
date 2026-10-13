@@ -3,6 +3,7 @@ import AppKit
 import ImageIO
 
 struct ArticleReader: View {
+    @Environment(\.editorialTheme) private var theme
     @EnvironmentObject private var model: StudioModel
     @Environment(\.openSettings) private var openSettings
     @AppStorage("readerFontSize") private var preferredSize = 18.0
@@ -11,6 +12,7 @@ struct ArticleReader: View {
     var compact = false
     var useInConversation: Binding<Bool>? = nil
     var onClose: (() -> Void)? = nil
+    var onDiscuss: (() -> Void)? = nil
     @State private var detail: NewsArticleDetail?
     @State private var loading = true
     @State private var enriching = false
@@ -22,6 +24,7 @@ struct ArticleReader: View {
     @State private var summarizing = false
     @State private var summary: ArticleAISummary?
     @State private var summaryError: String?
+    @State private var publicCapture = PublicPageCapture()
     private var size: CGFloat { compact ? min(preferredSize, 18) : preferredSize }
     private var text: String { detail?.text.isEmpty == false ? detail!.text : article.summary }
     private var content: [ArticleReadingBlock] { detail?.reader?.blocks ?? [] }
@@ -40,6 +43,10 @@ struct ArticleReader: View {
                 }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 230)
                 Spacer(minLength: 0)
                 if enriching { ProgressView().controlSize(.small).help(L("جارٍ تجهيز الصور وتنسيق المقال…")) }
+                if let onDiscuss {
+                    Button(action: onDiscuss) { Label(L("ناقش الخبر"), systemImage: "bubble.left") }
+                        .help(L("ناقش هذا الخبر مع المساعد"))
+                }
                 Button { Task { await bookmark() } } label: { Image(systemName: bookmarked ? "bookmark.fill" : "bookmark") }
                     .disabled(saving).help(L(bookmarked ? "إزالة من المحفوظات" : "حفظ المقال"))
                     .accessibilityLabel(L(bookmarked ? "إزالة من المحفوظات" : "حفظ المقال"))
@@ -63,7 +70,7 @@ struct ArticleReader: View {
                         .allowsHitTesting(tab == "website").accessibilityHidden(tab != "website")
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }.background(ReadingPalette.paper)
+        }.background(theme.paper)
             .task(id: article.id) { bookmarked = article.isBookmarked == true; await load() }
             .onChange(of: tab) { _, value in if value == "website" { openedWebsite = true } }
     }
@@ -101,7 +108,7 @@ struct ArticleReader: View {
                         if !ModelPermission.allowed() { Button(L("الإعدادات")) { openSettings() } }
                     }
                 }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(ReadingPalette.tint, in: RoundedRectangle(cornerRadius: 12))
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 12))
                 if status != "full" {
                     Label(L(status == "media_summary" ? "وصف الحلقة فقط؛ لم يُفرّغ الصوت أو الفيديو." : "ملخص الخلاصة فقط؛ النص الكامل غير متاح."), systemImage: "doc.text").font(.caption).foregroundStyle(.secondary)
                 }
@@ -153,6 +160,7 @@ struct ArticleReader: View {
         loading = true; failure = nil
         do {
             detail = try await model.decoded("news.article", ["article_id":article.id], as: NewsArticleDetail.self)
+            summary = detail?.preparedSummary
             bookmarked = detail?.isBookmarked == true
             NotificationCenter.default.post(name: .editorialArticleRead, object: article.id)
             try? await model.refresh()
@@ -166,6 +174,16 @@ struct ArticleReader: View {
                 guard !Task.isCancelled else { return }
                 detail = next
                 failure = next.reader?.refreshFailed == true ? "تعذّر تحديث المقال؛ نعرض النسخة المحفوظة." : nil
+                if next.bodyStatus != "full", next.bodyStatus != "media_summary", let url = URL(string: article.url) {
+                    publicCapture.load(url) { html in
+                        Task {
+                            if let rendered = try? await model.decoded("news.reader.capture", ["article_id": article.id, "html": html], as: NewsArticleDetail.self) {
+                                detail = rendered
+                                failure = nil
+                            }
+                        }
+                    }
+                }
             } catch { if !Task.isCancelled { failure = error.localizedDescription } }
         }
     }

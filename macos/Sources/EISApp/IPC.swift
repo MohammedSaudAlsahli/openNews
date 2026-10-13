@@ -105,7 +105,14 @@ struct Snapshot: Decodable {
     let assignments: [AgentAssignment]?
     let subscriptions: [NewsSubscription]?
     let articles: [NewsArticle]?
+    let newsDigest: NewsDigestStatus?
     let jobs: [Job]
+}
+struct NewsDigestStatus: Decodable {
+    let enabled: Bool
+    let language: String
+    let prepared, pending: Int
+    let currentTitle: String
 }
 struct Provider: Decodable, Identifiable {
     let id, name, status, defaultModel, credential, note: String
@@ -203,6 +210,7 @@ struct NewsArticleDetail: Decodable {
     let text: String
     let title, url, bodyStatus, summary: String?
     let reader: ArticleReadingContent?
+    let preparedSummary: ArticleAISummary?
 }
 struct ArticleReadingContent: Decodable {
     let blocks: [ArticleReadingBlock]?

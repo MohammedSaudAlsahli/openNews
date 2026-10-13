@@ -35,10 +35,13 @@ class Service:
         self.catalog_locks = {}
         self.catalog_task = None
         self.news_task = None
+        self.digest_task = None
         self.feed_tasks = set()
         from .news import NewsManager
         from .conversation import ConversationManager
         self.news = NewsManager(store)
+        from .news_digest import NewsDigest
+        self.news_digest = NewsDigest(self)
         from .feed_directory import FeedDirectory
         self.feed_directory = FeedDirectory(store)
         self.conversations = ConversationManager(self)
@@ -76,7 +79,8 @@ class Service:
                     dna_version=self.store.one("SELECT * FROM dna_versions WHERE workspace_id=? ORDER BY rowid DESC LIMIT 1", (self.ws,)),
                     profiles=[row | {"auto_refresh":bool(row["auto_refresh"]), "connection":self.connections.status(self.profile(row["id"]))} for row in self.store.rows("SELECT p.*,coalesce(v.label,'') AS label,coalesce(v.auto_refresh,1) AS auto_refresh FROM provider_profiles p LEFT JOIN provider_preferences v ON v.profile_id=p.id WHERE p.workspace_id=? AND p.id NOT IN (SELECT profile_id FROM removed_provider_profiles) ORDER BY p.created_at", (self.ws,))],
                     assignments=self.store.rows("SELECT role,profile_id,model_id FROM agent_assignments WHERE workspace_id=?", (self.ws,)),
-                    jobs=self.store.rows("SELECT id,type,state,error_code,updated_at FROM jobs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 30", (self.ws,)), **self.news.snapshot())
+                    jobs=self.store.rows("SELECT id,type,state,error_code,updated_at FROM jobs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 30", (self.ws,)),
+                    news_digest=self.news_digest.status(), **self.news.snapshot())
 
     def import_text(self, data):
         if data.purpose == "style" and data.rights_status not in {"owned","licensed"}:
@@ -331,6 +335,10 @@ class Service:
         if command == "news.summarize":
             from .article_summary import summarize
             return await summarize(self, p)
+        if command == "news.digest.status":
+            return self.news_digest.status()
+        if command == "news.digest.set":
+            return self.news_digest.configure(p)
         if command == "news.directory":
             return await self.feed_directory.search(p)
         if command == "news.library.path":
@@ -358,7 +366,9 @@ class Service:
         if command == "news.preview":
             return self.news.article(p["article_id"], mark_read=False)
         if command == "news.article":
-            return self.news.article(p["article_id"])
+            return self.news.article(p["article_id"]) | {"prepared_summary":self.news_digest.preview(p["article_id"])}
+        if command == "news.reader.capture":
+            return self.news.capture_public_reader(p["article_id"],p.get("html"))
         if command == "news.snapshot":
             return self.news.snapshot()
         if command == "sources.set_purpose":
@@ -454,7 +464,7 @@ class Service:
             return self.custom_agents.delete(p["agent_id"])
         if command == "agents.assign":
             profile = self.profile(p["profile_id"])
-            if p.get("role") not in {"writer","analyst"}:
+            if p.get("role") not in {"writer","analyst","news"}:
                 raise Failure("VALIDATION_ERROR", "وكيل غير معروف.")
             self.validate_model(profile["id"], p["model_id"])
             with self.db:
@@ -634,6 +644,9 @@ class Service:
 
     async def close(self):
         await self.chatgpt_auth.close()
+        if self.digest_task:
+            self.digest_task.cancel()
+            await asyncio.gather(self.digest_task,return_exceptions=True)
         if self.news_task:
             self.news_task.cancel()
             await asyncio.gather(self.news_task,return_exceptions=True)

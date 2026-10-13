@@ -126,6 +126,9 @@ def test_304_retries_pending_body_without_losing_summary(store):
     article=manager.snapshot()["articles"][0]
     assert article["body_status"]=="summary_only"
     assert manager.article(article["id"])["text"]=="Feed summary remains available."
+    # Failed bodies retry after the cooldown, including when the feed replies 304.
+    with store.db:
+        store.db.execute("UPDATE news_articles SET last_body_attempt='2020-01-01T00:00:00+00:00' WHERE id=?",(article["id"],))
     asyncio.run(manager.sync(identifier))
     assert manager.snapshot()["articles"][0]["body_status"]=="full"
 
