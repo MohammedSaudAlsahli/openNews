@@ -47,6 +47,8 @@ The engine refreshes connected catalogs when due on startup and every minute che
 
 ## Writing-workspace redesign
 
+The current Swift package and executable are named `OpenStudio` / `OpenStudioApp`. Views are split by feature: settings and provider selection, conversation session and presentation, article reading, source analysis, and workspace support. The Python engine keeps the existing `eis_engine` import path for persisted-workspace compatibility while feed parsing, article retrieval, background synchronization, job handlers, and model dispatch live in separate modules. Compact selection controls use SwiftUI `Picker` with the native macOS menu style. Segmented selections use SwiftUI's segmented picker style; action buttons use system button styles. No custom-drawn drop-down indicator is used.
+
 The native main window is a persistent editor plus SourcePanel, not a feature-page router. Settings is a native SwiftUI Settings scene. SourcePanel reads `sources.detail` for the complete current source version and its contextual techniques; snapshot previews must never be treated as authoritative editable text. `drafts.create` accepts the strict ManualDraft schema to create a local version with the current frozen DNA snapshot and explicit review warning, without a provider. `drafts.detail` remains authoritative for editing. Manual save, dirty-state transitions, and generated-job completion are separate: a generated result is identified through its submitted job ID and `jobs.get.result_json`, never by any newly appearing draft. Reimporting identical source text updates user-supplied metadata/rights without duplicating its immutable content version.
 
 

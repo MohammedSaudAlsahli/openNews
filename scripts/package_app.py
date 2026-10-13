@@ -11,13 +11,13 @@ import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 staging=tempfile.TemporaryDirectory(prefix='eis-package-',dir='/tmp')
-app=Path(staging.name)/'Editorial Intelligence Studio.app'
+app=Path(staging.name)/'OpenStudio.app'
 resources=app/'Contents/Resources'
 (app/'Contents/MacOS').mkdir(parents=True)
 resources.mkdir()
-shutil.copy2(sys.argv[1],app/'Contents/MacOS/EditorialIntelligenceStudio')
+shutil.copy2(sys.argv[1],app/'Contents/MacOS/OpenStudio')
 # SwiftPM localization resources must travel with the standalone executable.
-localization_bundle = Path(sys.argv[1]).parent / 'EditorialIntelligenceStudio_EISApp.bundle'
+localization_bundle = Path(sys.argv[1]).parent / 'OpenStudio_OpenStudioApp.bundle'
 if not localization_bundle.is_dir():
     raise RuntimeError('Missing SwiftPM localization resource bundle')
 shutil.copytree(localization_bundle, resources / localization_bundle.name)
@@ -36,8 +36,8 @@ shutil.copy2(ROOT/'engine/bootstrap.py',resources/'engine/bootstrap.py')
 shutil.copy2(ROOT/'engine/uv.lock',resources/'uv.lock')
 shutil.copy2(ROOT/'build/requirements.lock',resources/'requirements.lock')
 with (app/'Contents/Info.plist').open('wb') as f:
-    plistlib.dump(dict(CFBundleIdentifier='com.editorialintelligence.studio',CFBundleExecutable='EditorialIntelligenceStudio',
-                      CFBundleName='Editorial Intelligence Studio',CFBundleDisplayName='Editorial Intelligence Studio',
+    plistlib.dump(dict(CFBundleIdentifier='com.editorialintelligence.studio',CFBundleExecutable='OpenStudio',
+                      CFBundleName='OpenStudio',CFBundleDisplayName='OpenStudio',
                       CFBundleShortVersionString='0.1.0',CFBundleVersion='1',CFBundlePackageType='APPL',
                       CFBundleIconFile='OpenStudio.icns',
                       LSMinimumSystemVersion='14.0',NSHighResolutionCapable=True,
@@ -76,8 +76,8 @@ if os.environ.get('EIS_APP_OUTPUT_DIR'):
     destination=Path(os.environ['EIS_APP_OUTPUT_DIR'])/app.name
     shutil.copytree(app,destination,symlinks=True,copy_function=shutil.copy)
     subprocess.run(['codesign','--verify','--deep','--strict',str(destination)],check=True)
-image=ROOT/'dist/Editorial Intelligence Studio-development.dmg'
-subprocess.run(['hdiutil','create','-volname','Editorial Intelligence Studio','-srcfolder',str(Path(staging.name)),'-ov','-format','UDZO',str(image)],check=True)
+image=ROOT/'dist/OpenStudio-development.dmg'
+subprocess.run(['hdiutil','create','-volname','OpenStudio','-srcfolder',str(Path(staging.name)),'-ov','-format','UDZO',str(image)],check=True)
 subprocess.run(['hdiutil','verify',str(image)],check=True)
 print(image)
 staging.cleanup()

@@ -1,5 +1,5 @@
 ---
-name: Editorial Intelligence Studio
+name: OpenStudio
 description: A native Arabic editorial workspace for conversation, writing, news and personal style.
 colors:
   document-surface: Canvas
@@ -26,7 +26,7 @@ spacing:
   canvas: 32px
 ---
 
-# Design System: Editorial Intelligence Studio
+# Design System: OpenStudio
 
 ## Overview
 

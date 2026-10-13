@@ -1,7 +1,7 @@
 {
   "sources": {
     "branding/source/openstudio.svg": "c89612442ba607b8da889fdc28239d415706e4942f265bdfbb8d5ce8a3e94b19",
-    "scripts/generate_brand_assets.py": "65a158f0a0e107e8fe2ed3a7c13b77adc18a43e1164c02938a4cbd8dd17e17de"
+    "scripts/generate_brand_assets.py": "1a6125d93e04e6fb7eeff649c6501ff13e1648af774c5115ae9fdd0fec0ef638"
   },
   "outputs": {
     "branding/macos/OpenStudio.icns": "1101d5f540e2d23536e4a80f084f74266f31e19306fa0301a5c6ff25510e2f92",
@@ -79,7 +79,7 @@
     "macos/Assets.xcassets/MenuBarIcon.imageset/Contents.json": "ce264980afc9cc490c8773e3c59b33862f032de01bf43369120d1a294cc04fe5",
     "macos/Assets.xcassets/MenuBarIcon.imageset/OpenStudioMenuBar.png": "f35b5c31f759b6f112f5d75278f78f3a616ebd3311aff736cc57cbf30611241a",
     "macos/Assets.xcassets/MenuBarIcon.imageset/OpenStudioMenuBar@2x.png": "7dbba72eb0fb4fd27e4602ad4776258f077971876b3093808dc9e79d1299ef70",
-    "macos/Sources/EISApp/Resources/Brand/OpenStudioMenuBar.png": "f35b5c31f759b6f112f5d75278f78f3a616ebd3311aff736cc57cbf30611241a",
-    "macos/Sources/EISApp/Resources/Brand/OpenStudioMenuBar@2x.png": "7dbba72eb0fb4fd27e4602ad4776258f077971876b3093808dc9e79d1299ef70"
+    "macos/Sources/OpenStudioApp/Resources/Brand/OpenStudioMenuBar.png": "f35b5c31f759b6f112f5d75278f78f3a616ebd3311aff736cc57cbf30611241a",
+    "macos/Sources/OpenStudioApp/Resources/Brand/OpenStudioMenuBar@2x.png": "7dbba72eb0fb4fd27e4602ad4776258f077971876b3093808dc9e79d1299ef70"
   }
 }

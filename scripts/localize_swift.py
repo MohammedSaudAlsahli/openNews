@@ -56,7 +56,7 @@ def transform(src,apply=False):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--apply',action='store_true');parser.add_argument('--inventory',type=Path);parser.add_argument('--exclude',action='append',default=[]);args=parser.parse_args()
     keys=set()
-    for path in sorted((ROOT/'macos/Sources/EISApp').glob('*.swift')):
+    for path in sorted((ROOT/'macos/Sources/OpenStudioApp').glob('*.swift')):
         if path.name in {'Localization.swift','LocalizationCatalog.swift', *args.exclude}:continue
         transformed,found=transform(path.read_text(),args.apply);keys.update(found)
         if args.apply:

@@ -23,7 +23,7 @@ import resvg_py
 ROOT = Path(__file__).resolve().parents[1]
 BRAND = ROOT / "branding"
 CATALOG = ROOT / "macos/Assets.xcassets"
-RESOURCES = ROOT / "macos/Sources/EISApp/Resources/Brand"
+RESOURCES = ROOT / "macos/Sources/OpenStudioApp/Resources/Brand"
 NS = "{http://www.w3.org/2000/svg}"
 ET.register_namespace("", NS[1:-1])
 SOURCE = ET.parse(BRAND / "source/openstudio.svg").getroot()

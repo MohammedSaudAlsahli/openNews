@@ -11,15 +11,15 @@ fi
 RELEASE_STAGE="$(mktemp -d /tmp/eis-release.XXXXXX)"
 trap 'rm -rf "$RELEASE_STAGE"' EXIT
 EIS_APP_OUTPUT_DIR="$RELEASE_STAGE" bash scripts/build_app.sh
-APP="$RELEASE_STAGE/Editorial Intelligence Studio.app"
+APP="$RELEASE_STAGE/OpenStudio.app"
 codesign --verify --deep --strict "$APP"
 ditto -c -k --keepParent "$APP" build/notarization.zip
 xcrun notarytool submit build/notarization.zip --keychain-profile "$EIS_NOTARY_PROFILE" --wait
 xcrun stapler staple "$APP"
 xcrun stapler validate "$APP"
 spctl --assess --type execute --verbose=2 "$APP"
-hdiutil create -volname 'Editorial Intelligence Studio' -srcfolder "$APP" -ov -format UDZO 'dist/Editorial Intelligence Studio.dmg'
-codesign --sign "$EIS_SIGN_IDENTITY" --timestamp 'dist/Editorial Intelligence Studio.dmg'
-xcrun notarytool submit 'dist/Editorial Intelligence Studio.dmg' --keychain-profile "$EIS_NOTARY_PROFILE" --wait
-xcrun stapler staple 'dist/Editorial Intelligence Studio.dmg'
-xcrun stapler validate 'dist/Editorial Intelligence Studio.dmg'
+hdiutil create -volname 'OpenStudio' -srcfolder "$APP" -ov -format UDZO 'dist/OpenStudio.dmg'
+codesign --sign "$EIS_SIGN_IDENTITY" --timestamp 'dist/OpenStudio.dmg'
+xcrun notarytool submit 'dist/OpenStudio.dmg' --keychain-profile "$EIS_NOTARY_PROFILE" --wait
+xcrun stapler staple 'dist/OpenStudio.dmg'
+xcrun stapler validate 'dist/OpenStudio.dmg'

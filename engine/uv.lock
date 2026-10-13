@@ -478,79 +478,6 @@ wheels = [
 ]
 
 [[package]]
-name = "eis-engine"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "agno" },
-    { name = "anthropic" },
-    { name = "azure-ai-inference" },
-    { name = "azure-identity" },
-    { name = "boto3" },
-    { name = "cerebras-cloud-sdk" },
-    { name = "cohere" },
-    { name = "google-genai" },
-    { name = "groq" },
-    { name = "httpx" },
-    { name = "huggingface-hub" },
-    { name = "ibm-watsonx-ai" },
-    { name = "litellm" },
-    { name = "llama-api-client" },
-    { name = "mistralai" },
-    { name = "ollama" },
-    { name = "openai" },
-    { name = "portkey-ai" },
-    { name = "pydantic" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "pyyaml" },
-    { name = "sqlite-vec" },
-    { name = "trafilatura" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "fastapi" },
-    { name = "pytest" },
-    { name = "python-multipart" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "agno", specifier = "==3.1.2" },
-    { name = "anthropic", specifier = "==1.13.0" },
-    { name = "azure-ai-inference", specifier = ">=1.0.0b9" },
-    { name = "azure-identity", specifier = ">=1.26.0" },
-    { name = "boto3", specifier = ">=1.43.111" },
-    { name = "cerebras-cloud-sdk", specifier = ">=1.91.0" },
-    { name = "cohere", specifier = ">=7.2.0" },
-    { name = "google-genai", specifier = ">=2.29.0" },
-    { name = "groq", specifier = ">=1.7.0" },
-    { name = "httpx", specifier = "==0.28.1" },
-    { name = "huggingface-hub", specifier = ">=2.2.0" },
-    { name = "ibm-watsonx-ai", specifier = ">=1.8.0" },
-    { name = "litellm", specifier = ">=1.83.0" },
-    { name = "llama-api-client", specifier = ">=0.6.0" },
-    { name = "mistralai", specifier = ">=3.2.0" },
-    { name = "ollama", specifier = ">=0.6.3" },
-    { name = "openai", specifier = "==3.28.0" },
-    { name = "portkey-ai", specifier = ">=2.3.4" },
-    { name = "pydantic", specifier = "==2.14.0" },
-    { name = "pyjwt", extras = ["crypto"], specifier = "==2.15.1" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "sqlite-vec", specifier = "==0.1.9" },
-    { name = "trafilatura", specifier = ">=2.3.1" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "fastapi", specifier = "==0.143.0" },
-    { name = "pytest", specifier = "==9.1.1" },
-    { name = "python-multipart", specifier = "==0.0.32" },
-    { name = "uvicorn", specifier = "==0.54.0" },
-]
-
-[[package]]
 name = "eval-type-backport"
 version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1320,6 +1247,79 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b7/a3/3b5576af9c4b8cb7eef1383d33c48a9431b292983fe4b78cbffb31d0aeeb/openai-3.28.0.tar.gz", hash = "sha256:cf0509d32d7bd8eb6a3db02417957cb455212b6629d071826b9ea1f61659e2a4", size = 1827445, upload-time = "2026-10-09T20:50:14.477Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5b/4a/5c807ade1a86ab8accad20dc993ca7de5d1f7b2e78d4674c300c2e6a47b9/openai-3.28.0-py3-none-any.whl", hash = "sha256:1ea40a084ffe2f9f16fd3bea6e870f757853b536b18d8e737c518ef849a2920c", size = 2171532, upload-time = "2026-10-09T20:50:12.282Z" },
+]
+
+[[package]]
+name = "openstudio-engine"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "agno" },
+    { name = "anthropic" },
+    { name = "azure-ai-inference" },
+    { name = "azure-identity" },
+    { name = "boto3" },
+    { name = "cerebras-cloud-sdk" },
+    { name = "cohere" },
+    { name = "google-genai" },
+    { name = "groq" },
+    { name = "httpx" },
+    { name = "huggingface-hub" },
+    { name = "ibm-watsonx-ai" },
+    { name = "litellm" },
+    { name = "llama-api-client" },
+    { name = "mistralai" },
+    { name = "ollama" },
+    { name = "openai" },
+    { name = "portkey-ai" },
+    { name = "pydantic" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "pyyaml" },
+    { name = "sqlite-vec" },
+    { name = "trafilatura" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "fastapi" },
+    { name = "pytest" },
+    { name = "python-multipart" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agno", specifier = "==3.1.2" },
+    { name = "anthropic", specifier = "==1.13.0" },
+    { name = "azure-ai-inference", specifier = ">=1.0.0b9" },
+    { name = "azure-identity", specifier = ">=1.26.0" },
+    { name = "boto3", specifier = ">=1.43.111" },
+    { name = "cerebras-cloud-sdk", specifier = ">=1.91.0" },
+    { name = "cohere", specifier = ">=7.2.0" },
+    { name = "google-genai", specifier = ">=2.29.0" },
+    { name = "groq", specifier = ">=1.7.0" },
+    { name = "httpx", specifier = "==0.28.1" },
+    { name = "huggingface-hub", specifier = ">=2.2.0" },
+    { name = "ibm-watsonx-ai", specifier = ">=1.8.0" },
+    { name = "litellm", specifier = ">=1.83.0" },
+    { name = "llama-api-client", specifier = ">=0.6.0" },
+    { name = "mistralai", specifier = ">=3.2.0" },
+    { name = "ollama", specifier = ">=0.6.3" },
+    { name = "openai", specifier = "==3.28.0" },
+    { name = "portkey-ai", specifier = ">=2.3.4" },
+    { name = "pydantic", specifier = "==2.14.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = "==2.15.1" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "sqlite-vec", specifier = "==0.1.9" },
+    { name = "trafilatura", specifier = ">=2.3.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "fastapi", specifier = "==0.143.0" },
+    { name = "pytest", specifier = "==9.1.1" },
+    { name = "python-multipart", specifier = "==0.0.32" },
+    { name = "uvicorn", specifier = "==0.54.0" },
 ]
 
 [[package]]

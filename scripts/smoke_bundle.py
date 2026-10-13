@@ -19,10 +19,12 @@ with tempfile.TemporaryDirectory(prefix='eis-smoke-') as temporary:
     shutil.copytree(app,relocated,symlinks=True)
     resources=relocated/'Contents/Resources'
     info=plistlib.loads((relocated/'Contents/Info.plist').read_bytes())
+    assert info['CFBundleExecutable']=='OpenStudio'
+    assert info['CFBundleDisplayName']=='OpenStudio'
     assert info['CFBundleIconFile']=='OpenStudio.icns'
     assert (resources/info['CFBundleIconFile']).read_bytes()[:4]==b'icns'
     for name in ('OpenStudioMenuBar.png', 'OpenStudioMenuBar@2x.png'):
-        assert list((resources/'EditorialIntelligenceStudio_EISApp.bundle').rglob(name)), name
+        assert list((resources/'OpenStudio_OpenStudioApp.bundle').rglob(name)), name
     sock=directory/'e.sock'
     env={'PATH':'/usr/bin:/bin','HOME':str(directory),'AGNO_TELEMETRY':'false'}
     child=subprocess.Popen([str(resources/'python/bin/python3.12'),'-I','-B',str(resources/'engine/bootstrap.py'),'--workspace',str(directory/'workspace'),'--socket',str(sock)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
@@ -48,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='eis-smoke-') as temporary:
         library=request('news.library')
         assert len(library['feeds']) == 12
         for language in ('ar','en'):
-            localized=resources/'EditorialIntelligenceStudio_EISApp.bundle'/f'{language}.json'
+            localized=resources/'OpenStudio_OpenStudioApp.bundle'/f'{language}.json'
             if not localized.exists():
                 localized=localized.parent/'Contents/Resources'/f'{language}.json'
             assert localized.exists(), localized

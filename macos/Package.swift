@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "EditorialIntelligenceStudio",
+    name: "OpenStudio",
     platforms: [.macOS(.v14)],
-    products: [.executable(name: "EditorialIntelligenceStudio", targets: ["EISApp"])],
+    products: [.executable(name: "OpenStudio", targets: ["OpenStudioApp"])],
     targets: [
-        .executableTarget(name: "EISApp", resources: [.process("Resources")]),
-        .testTarget(name: "EISAppTests", dependencies: ["EISApp"])
+        .executableTarget(name: "OpenStudioApp", resources: [.process("Resources")]),
+        .testTarget(name: "OpenStudioAppTests", dependencies: ["OpenStudioApp"])
     ],
     swiftLanguageModes: [.v5]
 )

@@ -17,4 +17,4 @@ else
     swift build --package-path macos --scratch-path "$SCRATCH" -c release
     BIN="$(swift build --package-path macos --scratch-path "$SCRATCH" -c release --show-bin-path)"
 fi
-engine/.venv/bin/python scripts/package_app.py "$BIN/EditorialIntelligenceStudio"
+engine/.venv/bin/python scripts/package_app.py "$BIN/OpenStudio"

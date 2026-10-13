@@ -107,7 +107,7 @@ def main():
     for entry in menu["images"]:
         path = catalog / "MenuBarIcon.imageset" / entry["filename"]
         check_png(path, 18 * int(entry["scale"][0]), True, 0)
-        assert path.read_bytes() == (ROOT / "macos/Sources/EISApp/Resources/Brand" / entry["filename"]).read_bytes()
+        assert path.read_bytes() == (ROOT / "macos/Sources/OpenStudioApp/Resources/Brand" / entry["filename"]).read_bytes()
     icns = (BRAND / "macos/OpenStudio.icns").read_bytes()
     assert icns[:4] == b"icns" and struct.unpack_from(">I", icns, 4)[0] == len(icns)
     sizes = {"icp4": 16, "icp5": 32, "icp6": 64, "ic07": 128, "ic08": 256, "ic09": 512, "ic10": 1024, "ic11": 32, "ic12": 64, "ic13": 256, "ic14": 512}

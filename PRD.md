@@ -1,4 +1,4 @@
-# وثيقة متطلبات المنتج — Editorial Intelligence Studio
+# وثيقة متطلبات المنتج — OpenStudio
 
 **الإصدار:** 1.0  
 **التاريخ:** 11 أكتوبر 2026  
@@ -7,7 +7,7 @@
 
 ## 1. الملخص والقرار المعماري
 
-Editorial Intelligence Studio استوديو شخصي للبحث والتخطيط والكتابة. يحلل أمثلة مصرّحًا بالوصول إليها من صناع المحتوى، يستخلص منها **تقنيات تحريرية عامة**، ويكوّن مع المستخدم هوية كتابة أصلية تسمى **Editorial DNA**. يستورد مواد مرجعية، وينتج محتوى مناسبًا لـ X وLinkedIn وفيديو YouTube الطويل وShorts وReels وTikTok، مع إدارة السلاسل والأدلة والتعديلات.
+OpenStudio استوديو شخصي للبحث والتخطيط والكتابة. يحلل أمثلة مصرّحًا بالوصول إليها من صناع المحتوى، يستخلص منها **تقنيات تحريرية عامة**، ويكوّن مع المستخدم هوية كتابة أصلية تسمى **Editorial DNA**. يستورد مواد مرجعية، وينتج محتوى مناسبًا لـ X وLinkedIn وفيديو YouTube الطويل وShorts وReels وTikTok، مع إدارة السلاسل والأدلة والتعديلات.
 
 التطبيق واجهته **SwiftUI**، ويشغّل **Python مضمّنًا داخل حزمة `.app`** لتنسيق Agents وWorkflows باستخدام **Agno**. تبقى SQLite المصدر الدائم للحقيقة، ويستخدم `sqlite-vec` للبحث الدلالي عند توفر تضمين مناسب. **Jev اختياري** لقرارات التصنيف والترتيب والتقييم المحددة مسبقًا؛ تعطل Jev أو عدم توافره لا يعطل الوظائف الأساسية. **AgentOS / Agno OS** خيار لتنفيذ المحرك المحلي إذا أثبت اختبار مبكر أنه يبسّط التشغيل والرصد؛ لا يُشترط تثبيت خدمة أو Docker أو Terminal لدى المستخدم النهائي.
 
@@ -570,7 +570,7 @@ Content Graph، Opportunity Engine، تحليلات أداء مأذون بها،
 ## 17. هيكل المستودع المقترح
 
 ```text
-EditorialIntelligenceStudio/
+OpenStudio/
 ├── PRD.md
 ├── README.md
 ├── docs/
@@ -580,7 +580,7 @@ EditorialIntelligenceStudio/
 │   ├── packaging.md
 │   └── adr/ADR-001-runtime.md
 ├── macos/
-│   ├── EditorialIntelligenceStudio.xcodeproj/
+│   ├── OpenStudio.xcodeproj/
 │   ├── App/                 # SwiftUI, app lifecycle, Keychain
 │   ├── Features/            # Creators, Library, DNA, Studio, Series
 │   ├── IPC/                 # Codable contracts and job stream
