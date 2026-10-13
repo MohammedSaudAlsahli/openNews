@@ -10,9 +10,46 @@ from urllib.parse import urlsplit, urlunsplit, urljoin
 from .contracts import Failure
 from .news_urls import MAX_BYTES, MAX_TEXT, NewsError, canonical_url
 from .feed_parser import HTMLInfo
-from .storage import now
+from .storage import now, uid
 
 class NewsReaderMixin:
+    async def import_article(self, address):
+        """Attach a public article to chat without subscribing to its entire site."""
+        url = canonical_url(address)
+        existing = self.store.one("SELECT id FROM news_articles WHERE workspace_id=? AND url=?", (self.ws,url))
+        if existing:
+            saved = await self.reader(existing["id"])
+            if saved["body_status"] != "full":
+                raise Failure("VALIDATION_ERROR", "لم أتمكن من قراءة نص المقالة الكامل من هذا الرابط. جرّب رابطًا آخر.")
+            return {"article_id":saved["id"], "title":saved["title"]}
+        response = await self.fetch(url, None)
+        if "html" not in response["headers"].get("content-type", "text/html").lower():
+            raise Failure("VALIDATION_ERROR", "الرابط لا يشير إلى مقالة قابلة للقراءة.")
+        from lxml import html
+        from .article_reader import extract_reader
+        tree = html.fromstring(response["body"], parser=html.HTMLParser(no_network=True))
+        title = (tree.xpath('//meta[@property="og:title"]/@content') or tree.xpath('//title/text()') or tree.xpath('//h1/text()') or [""])[0].strip()[:500]
+        if not title: raise Failure("VALIDATION_ERROR", "تعذّر العثور على عنوان المقالة.")
+        reader = await asyncio.to_thread(extract_reader, response["body"], response["url"])
+        body = "\n\n".join(block["text"] for block in reader["blocks"] if block.get("type") == "text" and block.get("text"))[:MAX_TEXT]
+        if len(body.strip()) < 80:
+            raise Failure("VALIDATION_ERROR", "لم يتوفر نص عام كافٍ في المقالة. جرّب رابطًا آخر.")
+        date = (tree.xpath('//meta[@property="article:published_time"]/@content') or [None])[0]
+        from .feed_parser import date_value
+        published = date_value(date)
+        source = self.store.one("SELECT id FROM news_subscriptions WHERE workspace_id=? AND kind='manual'", (self.ws,))
+        source_id = source["id"] if source else uid()
+        article_id = uid()
+        with self.db:
+            if source is None:
+                self.db.execute("INSERT INTO news_subscriptions(id,workspace_id,title,url,feed_url,kind,enabled,created_at) VALUES(?,?,?,?,?,?,0,?)",
+                                (source_id,self.ws,"Attached articles","https://openstudio.invalid/attached/"+self.ws,
+                                 "https://openstudio.invalid/attached/"+self.ws,"manual",now()))
+            self.db.execute("INSERT OR IGNORE INTO news_articles(id,workspace_id,subscription_id,guid,title,url,published_at,discovered_at,summary,text,body_status,reader_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (article_id,self.ws,source_id,response["url"],title,response["url"],published,now(),"",body,"full",json.dumps(reader)))
+        saved = self.store.one("SELECT id FROM news_articles WHERE workspace_id=? AND url=?", (self.ws,response["url"]))
+        return {"article_id":saved["id"], "title":title}
+
     async def reader(self, identifier, force=False):
         # Upgrade older saved text on first reading, without touching model context.
         lock = self.reader_locks.setdefault(identifier, asyncio.Lock())

@@ -14,6 +14,7 @@ import SwiftUI
     @Published var format = "discussion"
     @Published var seconds = 60
     @Published var useNews = true
+    @Published var researchWeb = false
     @Published var includeDraft = false
     @Published var loading = false
     @Published var loadingOlder = false
@@ -87,7 +88,8 @@ import SwiftUI
                 let created = try await model.decoded("chat.create", ["title": String(message.prefix(80))], as: CreatedConversation.self)
                 conversationID = created.conversationId
             }
-            var payload: [String: Any] = ["conversation_id": conversationID, "message": message, "profile_id": profileID, "model_id": modelID, "consent": true, "idempotency_key": UUID().uuidString, "article_ids": useNews ? Array(articleIDs) : [], "format": format, "days": 7, "include_news": useNews]
+            let needsWeb = researchWeb || ChatResearchIntent.requiresCurrentNews(message)
+            var payload: [String: Any] = ["conversation_id": conversationID, "message": message, "profile_id": profileID, "model_id": modelID, "consent": true, "idempotency_key": UUID().uuidString, "article_ids": useNews ? Array(articleIDs) : [], "format": format, "days": 7, "include_news": useNews, "research_web": useNews && needsWeb]
             if !agentID.isEmpty { payload["agent_id"] = agentID }
             if includeDraft && !draftText.isEmpty { payload["draft_text"] = draftText; payload["draft_title"] = draftTitle }
             if ["youtube_long", "tiktok"].contains(format) { payload["target_seconds"] = seconds }

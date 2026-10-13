@@ -302,6 +302,44 @@ def test_saved_older_story_can_be_found_by_title_when_discussing_news(service):
     asyncio.run(scenario())
 
 
+def test_current_news_request_does_not_fall_back_to_unrelated_saved_article(service):
+    async def scenario():
+        article(service, now(), title="Unrelated local feed story")
+        payload = await setup(service, include_news=True, research_web=True,
+                              message="عطني آخر خبر عن ChatGPT عشان أنزله في تويتر", format="x_posts")
+        async def unavailable(url, conditional):
+            from eis_engine.news_urls import NewsError
+            raise NewsError("search unavailable")
+        service.news.fetch = unavailable
+        job = await finish(service, payload)
+        assert job["state"] == "completed"
+        assert service.factory.calls == []
+        messages = (await service.dispatch("chat.detail", {"conversation_id":payload["conversation_id"]}))["messages"]
+        assert "لن أكتب منشورًا" in messages[-1]["content"]
+        assert messages[-1]["outputs"] == []
+    asyncio.run(scenario())
+
+
+def test_attached_article_can_search_related_coverage_without_losing_primary_story(service, monkeypatch):
+    async def scenario():
+        aid = article(service, now(), title="ChatGPT feature announcement")
+        payload = await setup(service, include_news=True, research_web=True,
+                              article_ids=[aid], message="اشرح المقالة وابحث عن خبر سابق مرتبط")
+        searched = []
+        async def related(fetch, query):
+            searched.append(query)
+            return [{"id": uid(), "title": "Earlier related report", "url": "https://publisher.example/earlier",
+                     "source_title": "Publisher", "published_at": now(), "discovered_at": now(),
+                     "body_status": "full", "text": "Earlier coverage about the same feature", "origin": "web"}]
+        monkeypatch.setattr("eis_engine.news_search.research", related)
+        job = await finish(service, payload)
+        assert job["state"] == "completed"
+        assert searched == ["ChatGPT feature announcement"]
+        evidence = service.factory.calls[0][2]["news"]
+        assert [item["title"] for item in evidence] == ["ChatGPT feature announcement", "Earlier related report"]
+    asyncio.run(scenario())
+
+
 def test_chat_pagination_is_ordered_bounded_and_rejects_other_conversation_cursor(service):
     async def scenario():
         cid = (await service.dispatch("chat.create", {}))["conversation_id"]

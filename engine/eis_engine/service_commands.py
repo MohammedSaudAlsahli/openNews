@@ -27,6 +27,8 @@ class ServiceCommandsMixin:
             return self.news.list_articles(p)
         if command == "news.bookmark":
             return self.news.bookmark(p)
+        if command == "news.import":
+            return await self.news.import_article(p.get("url", ""))
         if command == "news.summarize":
             from .article_summary import summarize
             return await summarize(self, p)

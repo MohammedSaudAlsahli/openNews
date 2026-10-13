@@ -98,18 +98,29 @@ struct CitationPreview: View {
                 Text(url.host ?? "").font(.caption).foregroundStyle(.secondary).environment(\.layoutDirection, .leftToRight)
                 if let date = citation.publishedAt { Text(DisplayFormat.date(date)).font(.caption).foregroundStyle(.secondary) }
                 Divider()
-                if loading { ProgressView(L("جارٍ فتح النص…")).controlSize(.small) }
+                if loading && citation.origin != "web" { ProgressView(L("جارٍ فتح النص…")).controlSize(.small) }
+                else if citation.origin == "web", let excerpt = citation.excerpt, !excerpt.isEmpty {
+                    ScrollView { ProseText(text: excerpt, fontSize: 14, lineSpacing: 4) }.frame(height: 170)
+                    Text(L("مقتطف من المقالة المقروءة أثناء البحث.")).font(.caption).foregroundStyle(.secondary)
+                }
                 else if let detail, !excerpt.isEmpty {
                     ScrollView { ProseText(text: String(excerpt.prefix(1800)), fontSize: 14, lineSpacing: 4) }.frame(height: 170)
                     Text(L(detail.bodyStatus == "full" ? "مقتطف من النص المحفوظ على جهازك." : "المتاح ملخص الخلاصة؛ لم تُقرأ صفحة المقال كاملة.")).font(.caption).foregroundStyle(.secondary)
                 } else { Text(L("لا يتوفر نص محفوظ لهذا المرجع. يمكنك فتح المصدر الأصلي.")).font(.callout).foregroundStyle(.secondary) }
                 if failed { Button(L("إعادة المحاولة")) { Task { await load() } } }
-                Button { NotificationCenter.default.post(name: .openEditorialArticle, object: citation.articleId) } label: { Label(L("المقالات"), systemImage: "newspaper") }.font(.callout)
+                if citation.origin == "web" {
+                    if let url = URL(string: citation.url), RichTextLinks.allowed(url) {
+                        Link(L("فتح المصدر الأصلي"), destination: url)
+                    }
+                } else {
+                    Button { NotificationCenter.default.post(name: .openEditorialArticle, object: citation.articleId) } label: { Label(L("المقالات"), systemImage: "newspaper") }.font(.callout)
+                }
             }
         }.padding(18).frame(width: 360, height: 450, alignment: .topLeading).editorialPresentation()
             .task(id: citation.id) { await load() }
     }
     private func load() async {
+        if citation.origin == "web" { loading = false; return }
         loading = true; failed = false
         defer { loading = false }
         do { detail = try await model.decoded("news.preview", ["article_id": citation.articleId], as: NewsArticleDetail.self) }

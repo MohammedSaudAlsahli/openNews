@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct CitationSources: View {
     @Environment(\.editorialTheme) private var theme
@@ -29,7 +30,11 @@ struct CitationSources: View {
                             ForEach(Array(citations.enumerated()), id: \.element.id) { index, citation in
                                 Button {
                                     expanded = false
-                                    NotificationCenter.default.post(name: .openEditorialArticle, object: citation.articleId)
+                                    if citation.origin == "web", let url = URL(string: citation.url), RichTextLinks.allowed(url) {
+                                        NSWorkspace.shared.open(url)
+                                    } else {
+                                        NotificationCenter.default.post(name: .openEditorialArticle, object: citation.articleId)
+                                    }
                                 } label: {
                                     HStack(alignment: .top, spacing: 12) {
                                         SiteIcon(address: citation.url, size: 32)

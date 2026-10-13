@@ -18,6 +18,19 @@ import Testing
     #expect(ConversationPresentation.markdown("خبر [88a3ed40-542", citations: [citation], partial: true) == "خبر ")
 }
 
+@Test func currentNewsIntentAndDraftPayloadRemainVisibleInArabicAndEnglish() throws {
+    #expect(ChatResearchIntent.requiresCurrentNews("عطني آخر خبر عن ChatGPT"))
+    #expect(ChatResearchIntent.requiresCurrentNews("اشرح المقالة وابحث عن خبر سابق مرتبط"))
+    #expect(ChatResearchIntent.requiresCurrentNews("Latest news about ChatGPT"))
+    #expect(!ChatResearchIntent.requiresCurrentNews("اشرح لي هذا المقال"))
+    let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let output = try decoder.decode(ConversationOutput.self, from: Data(#"{"draft_id":"draft","title":"Post","format":"x_post","text":"نص قابل للتعديل"}"#.utf8))
+    #expect(output.text == "نص قابل للتعديل")
+    let source = try decoder.decode(ConversationCitation.self, from: Data(#"{"article_id":"story","title":"Source","url":"https://openai.com/news","published_at":null,"origin":"web","excerpt":"Official article"}"#.utf8))
+    #expect(source.origin == "web")
+    #expect(source.excerpt == "Official article")
+}
+
 @MainActor @Test func nativeParagraphGeometryFollowsContentLanguage() throws {
     // Check real glyph placement, not just a paragraph-style property.
     for (text, rightAligned) in [("مرحبا بالعالم", true), ("Hello world", false)] {

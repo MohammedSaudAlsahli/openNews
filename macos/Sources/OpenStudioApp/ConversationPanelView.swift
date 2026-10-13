@@ -15,6 +15,11 @@ struct ConversationPanel: View {
     @State private var modelOptions = false
     @State private var contextOptions = false
     @State private var customization = false
+    @State private var attachArticle = false
+    @State private var articleURL = ""
+    @State private var attaching = false
+    @State private var attachmentError: String?
+    @State private var attachedArticle: ImportedArticle?
     @FocusState private var composerFocused: Bool
     private var canSend: Bool {
         !session.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && session.composer.count <= 12000 &&
@@ -47,6 +52,7 @@ struct ConversationPanel: View {
             .sheet(isPresented: $customization) {
                 AssistantCustomizationEditor(scope: "conversation", targetID: session.conversationID).editorialPresentation()
             }
+            .sheet(isPresented: $attachArticle) { articleAttachmentSheet.editorialPresentation() }
             .task(id: session.profileID + "|" + session.modelID) { await validateModelSelection() }
             .onChange(of: agentRevision) { _, _ in updateAgentConfiguration() }
             .onChange(of: jobRevision) { _, _ in Task { await session.update(model) } }
@@ -174,6 +180,7 @@ struct ConversationPanel: View {
     }
     private var progressTitle: String {
         switch session.progress?.stage {
+        case "researching": return L("يبحث عن أخبار حديثة ويقرأ المقالات…")
         case "waiting_model", "queued": return L("بانتظار النموذج…")
         case "validating": return L("جارٍ مراجعة التنسيق والمراجع…")
         default: return L(session.progress?.message.isEmpty == false ? "جارٍ كتابة الرد…" : "النموذج يجهّز الرد…")
@@ -203,9 +210,7 @@ struct ConversationPanel: View {
                 Label(L("المساعد التحريري"), systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
                 RichTextView(text: ConversationPresentation.markdown(message.content, citations: message.citations ?? []), fontSize: 16, lineSpacing: 7, citationPreview: preview(for: message.citations ?? []))
                 ForEach(message.outputs ?? []) { output in
-                    Button { openDraft(output.draftId) } label: {
-                        Label(L("فتح المسودة: ") + output.title, systemImage: "doc.text").multilineTextAlignment(.leading)
-                    }.buttonStyle(.bordered).disabled(model.busy)
+                    ConversationDraftCard(output: output, openDraft: openDraft).disabled(model.busy)
                 }
                 if let citations = message.citations, !citations.isEmpty {
                     CitationSources(citations: citations)
@@ -318,7 +323,18 @@ struct ConversationPanel: View {
             if session.useNews || session.includeDraft {
                 HStack(spacing: 12) {
                     if session.useNews { Label(selectedArticleIDs.isEmpty ? L("أخبار آخر 7 أيام") : L("الأخبار المحددة ({0})", selectedArticleIDs.count), systemImage: "newspaper") }
+                    if session.useNews && (session.researchWeb || ChatResearchIntent.requiresCurrentNews(session.composer)) {
+                        Label(L("بحث مباشر عن أخبار حديثة"), systemImage: "magnifyingglass")
+                    }
                     if session.includeDraft { Label(L("المسودة الحالية"), systemImage: "doc.text") }
+                }.font(.caption).foregroundStyle(.secondary)
+            }
+            if let attachedArticle, selectedArticleIDs.contains(attachedArticle.articleId) {
+                HStack(spacing: 8) {
+                    Label(attachedArticle.title, systemImage: "link").lineLimit(1)
+                    Button { selectedArticleIDs.remove(attachedArticle.articleId); self.attachedArticle = nil } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }.buttonStyle(.borderless).accessibilityLabel(L("إزالة المقالة المرفقة"))
                 }.font(.caption).foregroundStyle(.secondary)
             }
             if session.composer.count > 12000 { Text(L("اختصر الرسالة إلى {0} حرف.", 12000)).font(.caption).foregroundStyle(.red) }
@@ -328,12 +344,54 @@ struct ConversationPanel: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(L("المراجع وخيارات الكتابة")).font(.headline)
             Toggle(selectedArticleIDs.isEmpty ? L("استخدم أخبار آخر {0} أيام من اشتراكاتي", 7) : L("استخدم الأخبار المحددة ({0})", selectedArticleIDs.count), isOn: $session.useNews)
+            Toggle(L("ابحث عن تقارير حديثة على الويب"), isOn: $session.researchWeb)
+                .disabled(!session.useNews)
+            Text(L("عند طلب «آخر خبر»، يبحث التطبيق تلقائيًا. الأبحاث العامة ليست بديلًا عن التحقق من المصدر الأصلي."))
+                .font(.caption).foregroundStyle(.secondary)
             if !draftText.isEmpty { Toggle(L("إرفاق المسودة الحالية للنقاش أو إعادة الصياغة"), isOn: $session.includeDraft) }
             agentPicker
             if ["youtube_long", "tiktok"].contains(session.format) {
                 Stepper(L("المدة: {0} ثانية", session.seconds), value: $session.seconds, in: 10...7200, step: 10)
             }
             Button(L("إضافة مصادر للأخبار…")) { contextOptions = false; showNews() }
+            Button(L("إرفاق رابط مقالة…"), systemImage: "link.badge.plus") {
+                contextOptions = false; attachArticle = true
+            }
         }.padding(22).frame(width: 380)
+    }
+    private var articleAttachmentSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(L("إرفاق مقالة بالمحادثة")).font(.title2.weight(.semibold))
+            Text(L("ألصق رابط المقالة العامة. سيقرأ التطبيق نصها ويضيفها إلى مراجع رسالتك التالية؛ يمكنك بعدها طلب شرحها أو استخدامها مثالًا لزاوية الكتابة."))
+                .foregroundStyle(.secondary)
+            TextField(L("رابط المقالة"), text: $articleURL, prompt: Text("https://example.com/article"))
+                .textFieldStyle(.roundedBorder)
+                .environment(\.layoutDirection, .leftToRight)
+                .accessibilityLabel(L("رابط المقالة"))
+            if let attachmentError {
+                Label(attachmentError, systemImage: "exclamationmark.circle").foregroundStyle(.red)
+            }
+            HStack {
+                Spacer()
+                Button(L("إلغاء")) { attachArticle = false; attachmentError = nil }
+                    .disabled(attaching)
+                Button(L("إرفاق المقالة")) { Task { await importArticle() } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(attaching || !articleURL.lowercased().hasPrefix("http"))
+                if attaching { ProgressView().controlSize(.small) }
+            }
+        }.padding(24).frame(width: 480)
+    }
+    private func importArticle() async {
+        attaching = true; attachmentError = nil
+        defer { attaching = false }
+        do {
+            let result = try await model.decoded("news.import", ["url": articleURL.trimmingCharacters(in: .whitespacesAndNewlines)], as: ImportedArticle.self)
+            selectedArticleIDs.insert(result.articleId)
+            attachedArticle = result
+            session.useNews = true
+            articleURL = ""
+            attachArticle = false
+        } catch { attachmentError = error.localizedDescription }
     }
 }

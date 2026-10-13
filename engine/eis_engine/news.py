@@ -181,7 +181,7 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
     def snapshot(self):
         subscriptions = self.store.rows("""SELECT s.id,s.title,s.url,s.feed_url,s.kind,s.enabled,s.interval_minutes,s.last_checked,s.last_success,s.error,s.status,
             (SELECT count(*) FROM news_articles a WHERE a.subscription_id=s.id AND a.is_read=0) AS unread_count
-            FROM news_subscriptions s WHERE workspace_id=? ORDER BY created_at DESC""", (self.ws,))
+            FROM news_subscriptions s WHERE workspace_id=? AND kind!='manual' ORDER BY created_at DESC""", (self.ws,))
         for row in subscriptions: row["enabled"] = bool(row["enabled"])
         return {"subscriptions":subscriptions,"articles":self.list_articles({"limit":100})["articles"]}
 

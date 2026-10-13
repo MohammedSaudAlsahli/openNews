@@ -119,6 +119,7 @@ class ChatSend(StrictModel):
     idempotency_key: UUID
     article_ids: list[UUID] = Field(default_factory=list, max_length=12)
     include_news: bool = True
+    research_web: bool = False
     format: Literal["discussion", "x_posts", "youtube_long", "tiktok"] = "discussion"
     target_seconds: int | None = Field(default=None, ge=10, le=7200)
     days: int = Field(default=7, ge=1, le=31)

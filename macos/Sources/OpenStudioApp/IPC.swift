@@ -182,11 +182,14 @@ struct ConversationMessage: Decodable, Identifiable {
 }
 struct ConversationOutput: Decodable, Identifiable {
     let draftId, title, format: String
+    let text: String?
     var id: String { draftId }
 }
 struct ConversationCitation: Decodable, Identifiable {
     let articleId, title, url: String
     let publishedAt: String?
+    var origin: String? = nil
+    var excerpt: String? = nil
     var id: String { articleId }
 }
 struct NewsSubscription: Decodable, Identifiable {

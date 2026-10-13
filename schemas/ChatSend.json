@@ -60,6 +60,11 @@
       "title": "Include News",
       "type": "boolean"
     },
+    "research_web": {
+      "default": false,
+      "title": "Research Web",
+      "type": "boolean"
+    },
     "format": {
       "default": "discussion",
       "enum": [
