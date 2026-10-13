@@ -311,3 +311,35 @@ def test_factory_streams_chatgpt_text_before_validated_completion(monkeypatch):
         result=await ModelFactory().run_stream({"provider_key":"openai-chatgpt","model_id":"account-model"},"Editorial rules",{"message":"Discuss"},ChatReply,deltas.append)
         assert result.message=="A structured reply" and len(deltas)==2 and stream.closed
     asyncio.run(run())
+
+
+def test_chatgpt_agno_executes_tool_and_returns_result_to_model(monkeypatch):
+    from openai.types.responses import Response
+    from eis_engine.providers import ModelFactory
+    async def run():
+        calls, executed, turns = [], [], []
+        async def search_saved_articles(query: str) -> str:
+            """Search saved RSS articles by topic."""
+            executed.append(query)
+            return '{"articles":[],"scope":"RSS"}'
+        class Stream:
+            def __init__(self, response): self.response = response
+            def __aiter__(self): return self.events()
+            async def events(self):
+                yield SimpleNamespace(type="response.completed", response=self.response)
+            async def close(self): pass
+        async def create(**kwargs):
+            calls.append(kwargs)
+            output = ([{"type":"function_call","id":"fc_test","call_id":"call_test","name":"search_saved_articles","arguments":"{\"query\":\"Anthropic\"}","status":"completed"}]
+                if len(calls) == 1 else [{"type":"message","id":"msg_test","role":"assistant","status":"completed","content":[{"type":"output_text","text":'{"message":"No saved match","article_ids":[],"drafts":[]}',"annotations":[]}]}])
+            return Stream(Response.model_validate({"id":"resp_test","object":"response","created_at":1,"model":"account-model","status":"completed","output":output,"parallel_tool_calls":False,"tool_choice":"auto","tools":[]}))
+        async def token(profile): return "fake-access"
+        monkeypatch.setattr(auth,"access_token",token)
+        monkeypatch.setattr(auth.ChatGPTResponses,"get_async_client",lambda self:SimpleNamespace(responses=SimpleNamespace(create=create)))
+        result = await ModelFactory().run({"provider_key":"openai-chatgpt","model_id":"account-model"},"Research",{},ChatReply,
+            tools=[search_saved_articles], on_turn=lambda: turns.append(1))
+        assert result.message == "No saved match"
+        assert executed == ["Anthropic"] and len(turns) == 2
+        assert calls[0]["tools"][0]["name"] == "search_saved_articles"
+        assert any(item.get("type") == "function_call_output" and 'RSS' in item["output"] for item in calls[1]["input"])
+    asyncio.run(run())

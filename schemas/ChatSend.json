@@ -61,7 +61,7 @@
       "type": "boolean"
     },
     "research_web": {
-      "default": false,
+      "default": true,
       "title": "Research Web",
       "type": "boolean"
     },

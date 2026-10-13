@@ -235,6 +235,7 @@ struct SavedCustomAgent: Decodable { let agentId: String }
 
 struct ConversationProgress: Decodable {
     let jobId, state, stage, message: String
+    let activity: String?
     let citations: [ConversationCitation]
     let elapsedSeconds: Int
 }

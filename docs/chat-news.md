@@ -16,7 +16,7 @@
 
 اختر اتصال النموذج، وحدّد ما إذا كنت تريد إرفاق أخبار الفترة أو الأخبار المحددة، ويمكن إرفاق المسودة الحالية أيضًا. قبل الإرسال توجد موافقة على استخدام النموذج والمراجع وكتابات الأسلوب والتكلفة المحتملة. تخص الموافقة النقاش الجاري بإعداداته؛ لا تُطلب إعادة تفعيلها لكل رسالة ما دام النطاق نفسه، وتُصفّر عند تبديل المحادثة أو النموذج أو إعدادات المخرج أو السياق والمراجع والقواعد المعتمدة. يمكن إيقاف الرد أو العودة إلى المحادثات السابقة.
 
-المساعد يناقش ما أُرسل إليه فقط؛ لا يملك متصفحًا حرًا يبحث في بقية الويب. السياق محدود، وقد يكون بعضه ملخصات بدل المقالات كاملة. يستطيع اقتراح زوايا أو توضيح ما ينقصه من الأدلة، ولا ينبغي وصف رده بأنه ملخص شامل لكل المصادر.
+يبحث المساعد في مكتبة RSS أولًا، ثم يستخدم أداة البحث في الويب وقراءة الصفحات عند نقص الأدلة، أو مباشرة عند طلب البحث بالنت. يمكن تعطيل أدوات الويب من خيارات المحادثة. نتائج البحث الأولية ليست مقالات مقروءة؛ يقرأ المصدر قبل صياغة محتوى للنشر ولا يدّعي شمول كل الأخبار.
 
 المخرجات المتاحة من المحادثة:
 
@@ -37,3 +37,13 @@
 جميع مهايئات Agno الـ68 ممثلة في إعدادات الاتصالات. اكتشاف اسم نموذج أو جاهزية المهايئ لا يضمن صلاحية حسابك أو نجاح التوليد به. بيانات الاعتماد الحالية ملفات محلية خاصة بصلاحيات مالك الجهاز، وليست مشفرة. تفاصيلها في `privacy.md`.
 
 لا يشمل هذا الامتداد تدقيقًا صحفيًا مستقلًا، تحققًا بصريًا من الصور، إنتاج فيديو، نشرًا اجتماعيًا، تدريبًا للأسلوب، أو خدمة مستقلة تستمر بعد إنهاء التطبيق بالكامل. نتائج الاختبارات والتغليف والقبول الحي تُوثق بعد إجرائها في سجل التحقق؛ هذه الصفحة تصف التنفيذ وحدوده ولا تستبدل ذلك السجل.
+
+## RSS-first conversational research — 2026-10-13
+
+Conversation research now runs as Agno function tools, including through the ChatGPT Responses adapter. The agent searches the saved RSS library by topic/date first and can search the web when evidence is insufficient. Explicit online requests go directly to web search. Disabling web permission removes both web search and page-reading tools; it does not disable RSS retrieval.
+
+Web search uses Agno WebSearchTools/DDGS rather than a second news-feed catalog or hardcoded publisher feed. Public page reading shares the existing bounded public-only article transport and reader. Search snippets and full pages have separate evidence statuses. Tool results enter the citation registry; web research never creates an RSS subscription. Search failures are distinguished from empty results, and the model must not pad requested story counts.
+
+The initial RSS sample balances publishers, while the search tool can query all saved dates. Chat displays a compact actual search/read status, final sources once, and keeps streamed text until the saved reply loads. The source sidebar starts collapsed and remains available from the toolbar. Prior reply citations remain available for follow-up questions.
+
+Validation: actual connected gpt-6-sol searched RSS then web for Anthropic on 2025-08-05, read two official articles and returned two distinct supported stories instead of inventing seven. A separate explicit-web request skipped RSS, read the official Opus 4.1 announcement, explained it and produced an X draft under 280 characters. These tests used an isolated database copy and did not change subscriptions or publish posts. Automated coverage includes Agno tool-call/result round trips through the ChatGPT adapter, historical RSS queries, cached full-text reads, web evidence identity, permissions and provider diversity.

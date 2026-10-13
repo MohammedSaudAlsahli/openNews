@@ -362,19 +362,22 @@ class ChatGPTResponses(OpenAIResponses):
     # inherited Responses capability makes Agno omit the JSON schema from the
     # prompt too, so the model never learns the contract it must return.
     on_text_delta: Callable[[str], None] | None = None
+    on_response_start: Callable[[], None] | None = None
     supports_native_structured_outputs: bool = False
     supports_json_schema_outputs: bool = False
 
     async def ainvoke(self,messages,assistant_message,response_format=None,tools=None,tool_choice=None,run_response=None,compress_tool_results=False):
         from openai import APIStatusError, APIConnectionError, APITimeoutError
-        if tools: raise Failure("MODEL_UNSUPPORTED","أدوات ChatGPT غير مفعلة في هذا الاتصال.")
-        items=self._format_messages(messages,compress_tool_results,tools=None)
+        items=self._format_messages(messages,compress_tool_results,tools=tools)
+        tool_options = {"tools": self._format_tool_params(messages=messages, tools=tools)} if tools else {}
+        if tool_choice is not None: tool_options["tool_choice"] = tool_choice
+        if self.on_response_start: self.on_response_start()
         assistant_message.metrics.start_timer()
         complete=None
         finalized={}
         stream=None
         try:
-            stream=await self.get_async_client().responses.create(model=self.id,input=items,store=False,stream=True)
+            stream=await self.get_async_client().responses.create(model=self.id,input=items,store=False,stream=True,**tool_options)
             async for event in stream:
                 if event.type=="response.output_text.delta" and self.on_text_delta:
                     self.on_text_delta(event.delta)
@@ -402,6 +405,6 @@ class ChatGPTResponses(OpenAIResponses):
         if not complete.output and finalized:
             complete=complete.model_copy(update={"output":[finalized[index] for index in sorted(finalized)]})
         parsed=self._parse_provider_response(complete,response_format=response_format)
-        if not parsed.content:
+        if not parsed.content and not parsed.tool_calls:
             raise Failure("MODEL_RESPONSE_INVALID","اتصال ChatGPT ناجح، لكن الرد لا يحتوي نصًا صالحًا. حاول مجددًا أو اختر نموذجًا آخر.")
         return parsed

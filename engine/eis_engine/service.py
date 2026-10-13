@@ -129,14 +129,15 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
     async def model(self, profile, instructions, data, schema):
         return await self.invoke_model(profile, SAFE_SYSTEM+"\n"+instructions, data, schema)
 
-    async def invoke_model(self, profile, instructions, data, schema, on_delta=None, on_start=None):
+    async def invoke_model(self, profile, instructions, data, schema, on_delta=None, on_start=None, tools=None, on_turn=None):
         async with self.model_lock:
             self.connections.ensure_enabled(profile)
             generation = self.connections.generation(profile["id"])
             try:
                 if on_start: on_start()
-                request = self.factory.run_stream(profile, instructions, data, schema, on_delta) if on_delta and hasattr(self.factory,"run_stream") else self.factory.run(profile, instructions, data, schema)
-                result = await asyncio.wait_for(request, timeout=120)
+                options = {"tools": tools, "on_turn": on_turn} if getattr(self.factory, "supports_tools", False) else {}
+                request = self.factory.run_stream(profile, instructions, data, schema, on_delta, **options) if on_delta and hasattr(self.factory,"run_stream") else self.factory.run(profile, instructions, data, schema, **options)
+                result = await asyncio.wait_for(request, timeout=240 if tools else 120)
                 self.connections.set(profile["id"], "connected", generation)
                 return result
             except Failure as exc:

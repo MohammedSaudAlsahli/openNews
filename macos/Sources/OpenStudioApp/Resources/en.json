@@ -1016,5 +1016,10 @@
   "يبحث عن أخبار حديثة ويقرأ المقالات…": "Searching recent news and reading articles…",
   "يبحث عن تقارير حديثة ويقرأ المصادر العامة": "Searching recent reporting and reading public sources",
   "يراجع {0} مصادر. ستظهر مراجع الرد مرة واحدة بعد اكتماله.": "Reviewing {0} sources. References will appear once below the finished reply.",
-  "إزالة المقالة المرفقة": "Remove attached article"
+  "إزالة المقالة المرفقة": "Remove attached article",
+  "السماح بالبحث في الويب عند الحاجة": "Allow web search when needed",
+  "يبحث في أخبار RSS أولًا، ثم الويب إذا لم تكفِ. وعند طلب البحث بالنت يبحث مباشرةً.": "Searches saved RSS news first, then the web if needed. Explicit online requests go straight to web search.",
+  "يبحث في الأخبار المحفوظة…": "Searching saved news…",
+  "يبحث في الويب…": "Searching the web…",
+  "يقرأ المصدر…": "Reading the source…"
 }

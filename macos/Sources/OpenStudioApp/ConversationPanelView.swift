@@ -160,7 +160,6 @@ struct ConversationPanel: View {
                             }
                             if let progress = session.progress, !progress.message.isEmpty {
                                 RichTextView(text: ConversationPresentation.markdown(progress.message, citations: progress.citations, partial: true), fontSize: 16, lineSpacing: 7, citationPreview: preview(for: progress.citations))
-                                Text(L("رد جارٍ؛ يُحفظ بعد اكتماله والتحقق من تنسيقه ومراجعه.")).font(.caption).foregroundStyle(.secondary)
                             }
                         }.id("pending")
                     }
@@ -180,6 +179,9 @@ struct ConversationPanel: View {
     }
     private var progressTitle: String {
         switch session.progress?.stage {
+        case "library": return L("يبحث في الأخبار المحفوظة…")
+        case "web": return L("يبحث في الويب…")
+        case "reading": return L("يقرأ المصدر…")
         case "researching": return L("يبحث عن أخبار حديثة ويقرأ المقالات…")
         case "waiting_model", "queued": return L("بانتظار النموذج…")
         case "validating": return L("جارٍ مراجعة التنسيق والمراجع…")
@@ -323,9 +325,6 @@ struct ConversationPanel: View {
             if session.useNews || session.includeDraft {
                 HStack(spacing: 12) {
                     if session.useNews { Label(selectedArticleIDs.isEmpty ? L("أخبار آخر 7 أيام") : L("الأخبار المحددة ({0})", selectedArticleIDs.count), systemImage: "newspaper") }
-                    if session.useNews && (session.researchWeb || ChatResearchIntent.requiresCurrentNews(session.composer)) {
-                        Label(L("بحث مباشر عن أخبار حديثة"), systemImage: "magnifyingglass")
-                    }
                     if session.includeDraft { Label(L("المسودة الحالية"), systemImage: "doc.text") }
                 }.font(.caption).foregroundStyle(.secondary)
             }
@@ -344,9 +343,8 @@ struct ConversationPanel: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(L("المراجع وخيارات الكتابة")).font(.headline)
             Toggle(selectedArticleIDs.isEmpty ? L("استخدم أخبار آخر {0} أيام من اشتراكاتي", 7) : L("استخدم الأخبار المحددة ({0})", selectedArticleIDs.count), isOn: $session.useNews)
-            Toggle(L("ابحث عن تقارير حديثة على الويب"), isOn: $session.researchWeb)
-                .disabled(!session.useNews)
-            Text(L("عند طلب «آخر خبر»، يبحث التطبيق تلقائيًا. الأبحاث العامة ليست بديلًا عن التحقق من المصدر الأصلي."))
+            Toggle(L("السماح بالبحث في الويب عند الحاجة"), isOn: $session.researchWeb)
+            Text(L("يبحث في أخبار RSS أولًا، ثم الويب إذا لم تكفِ. وعند طلب البحث بالنت يبحث مباشرةً."))
                 .font(.caption).foregroundStyle(.secondary)
             if !draftText.isEmpty { Toggle(L("إرفاق المسودة الحالية للنقاش أو إعادة الصياغة"), isOn: $session.includeDraft) }
             agentPicker

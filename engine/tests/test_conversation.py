@@ -192,8 +192,8 @@ def test_empty_news_does_not_create_fabricated_news_drafts(service):
         service.factory.reply = ChatReply(message="خبر غير مستند", drafts=[{"title": "خبر مختلق", "text": "حدث شيء اليوم", "format": "x_post"}])
         job = await finish(service, payload)
         assert service.store.rows("SELECT id FROM drafts") == []
-        assert service.factory.calls == []
-        assert job["state"] in {"completed", "failed"}
+        assert len(service.factory.calls) == 1
+        assert job["state"] == "failed"
     asyncio.run(scenario())
 
 
@@ -302,41 +302,26 @@ def test_saved_older_story_can_be_found_by_title_when_discussing_news(service):
     asyncio.run(scenario())
 
 
-def test_current_news_request_does_not_fall_back_to_unrelated_saved_article(service):
-    async def scenario():
-        article(service, now(), title="Unrelated local feed story")
-        payload = await setup(service, include_news=True, research_web=True,
-                              message="عطني آخر خبر عن ChatGPT عشان أنزله في تويتر", format="x_posts")
-        async def unavailable(url, conditional):
-            from eis_engine.news_urls import NewsError
-            raise NewsError("search unavailable")
-        service.news.fetch = unavailable
-        job = await finish(service, payload)
-        assert job["state"] == "completed"
-        assert service.factory.calls == []
-        messages = (await service.dispatch("chat.detail", {"conversation_id":payload["conversation_id"]}))["messages"]
-        assert "لن أكتب منشورًا" in messages[-1]["content"]
-        assert messages[-1]["outputs"] == []
-    asyncio.run(scenario())
-
-
-def test_attached_article_can_search_related_coverage_without_losing_primary_story(service, monkeypatch):
+def test_news_research_is_model_driven_and_keeps_rss_context(service):
     async def scenario():
         aid = article(service, now(), title="ChatGPT feature announcement")
         payload = await setup(service, include_news=True, research_web=True,
                               article_ids=[aid], message="اشرح المقالة وابحث عن خبر سابق مرتبط")
-        searched = []
-        async def related(fetch, query):
-            searched.append(query)
-            return [{"id": uid(), "title": "Earlier related report", "url": "https://publisher.example/earlier",
-                     "source_title": "Publisher", "published_at": now(), "discovered_at": now(),
-                     "body_status": "full", "text": "Earlier coverage about the same feature", "origin": "web"}]
-        monkeypatch.setattr("eis_engine.news_search.research", related)
+        class ToolModel(FakeChatModel):
+            supports_tools = True
+            async def run(self, profile, instructions, payload, schema, tools=None, on_turn=None):
+                assert {tool.__name__ for tool in tools} == {"search_saved_articles", "read_saved_article", "search_web", "read_web_page"}
+                assert "FIRST" in instructions and "explicitly asks" in instructions
+                assert payload["news"][0]["id"] == aid
+                saved = json.loads(await tools[0]("ChatGPT"))
+                assert saved["articles"][0]["id"] == aid
+                # The agent decides whether web research is needed; no pre-model RSS web fetch.
+                return ChatReply(message="خبر محفوظ", article_ids=[aid])
+        service.factory = ToolModel()
+        async def forbidden(*args): raise AssertionError("No web request selected")
+        service.news.fetch = forbidden
         job = await finish(service, payload)
         assert job["state"] == "completed"
-        assert searched == ["ChatGPT feature announcement"]
-        evidence = service.factory.calls[0][2]["news"]
-        assert [item["title"] for item in evidence] == ["ChatGPT feature announcement", "Earlier related report"]
     asyncio.run(scenario())
 
 

@@ -26,7 +26,7 @@ struct ContentView: View {
     @State private var detail: DraftDetail?
     @StateObject private var markdownEditor = MarkdownEditorController()
     @State private var previewDraft = false
-    @State private var showReferences = true
+    @State private var showReferences = false
     @State private var compactWindow = false
     @State private var compactReferences = false
     @AppStorage("sideBySideWorkspace") private var sideBySideWorkspace = false

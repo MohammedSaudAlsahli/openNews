@@ -127,6 +127,7 @@ def google_credentials(values):
 
 
 class ModelFactory:
+    supports_tools = True
     def create(self, profile):
         entry = next((p for p in catalog()["providers"] if p["id"] == profile["provider_key"]), None)
         if not entry or entry["status"] != "ready":
@@ -181,20 +182,22 @@ class ModelFactory:
         except Exception:
             raise Failure("MODEL_UNSUPPORTED", "تعذّرت تهيئة المهايئ. راجع بيانات الحساب وإعدادات المزود.") from None
 
-    async def run_stream(self, profile, instructions, data, schema, on_delta):
-        return await self.run(profile,instructions,data,schema,on_delta=on_delta)
+    async def run_stream(self, profile, instructions, data, schema, on_delta, tools=None, on_turn=None):
+        return await self.run(profile,instructions,data,schema,on_delta=on_delta, tools=tools, on_turn=on_turn)
 
-    async def run(self, profile, instructions, data, schema, on_delta=None):
+    async def run(self, profile, instructions, data, schema, on_delta=None, tools=None, on_turn=None):
         from agno.agent import Agent
         if profile["provider_key"] == "openai-chatgpt":
             from .chatgpt_auth import ChatGPTResponses, access_token
             model = ChatGPTResponses(id=profile["model_id"], api_key=await access_token(profile), base_url="https://api.openai.com/v1", store=False, retries=0, max_retries=0, timeout=90)
         else:
             model = self.create(profile)
-        if profile["provider_key"] == "openai-chatgpt": model.on_text_delta = on_delta
+        if profile["provider_key"] == "openai-chatgpt":
+            model.on_text_delta = on_delta
+            model.on_response_start = on_turn
         agent = Agent(model=model, instructions=instructions,
                       output_schema=schema, structured_outputs=False,
-                      tools=[], search_knowledge=False, telemetry=False,
+                      tools=tools or [], tool_call_limit=10, search_knowledge=False, telemetry=False,
                       retries=0, debug_mode=False, parse_response=on_delta is None)
         try:
             if on_delta and profile["provider_key"] != "openai-chatgpt":
@@ -203,6 +206,7 @@ class ModelFactory:
                 provider_errors = []
                 original_stream = model.ainvoke_stream
                 async def observed_stream(*args, **kwargs):
+                    if on_turn: on_turn()
                     try:
                         async for chunk in original_stream(*args, **kwargs): yield chunk
                     except Exception as error:

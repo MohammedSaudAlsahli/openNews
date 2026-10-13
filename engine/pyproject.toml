@@ -27,6 +27,7 @@ dependencies = [
     "portkey-ai>=2.3.4",
     "trafilatura>=2.3.1",
     "pyyaml>=6.0.3",
+    "ddgs>=9.0,<10",
 ]
 
 [dependency-groups]
