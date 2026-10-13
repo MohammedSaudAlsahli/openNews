@@ -1,6 +1,25 @@
 import SwiftUI
 import AppKit
 
+@MainActor final class SystemAppearanceObserver: ObservableObject {
+    @Published private(set) var isDark: Bool
+    private var observation: NSKeyValueObservation?
+
+    init() {
+        let application = NSApplication.shared
+        isDark = Self.isDarkAppearance(application.effectiveAppearance)
+        observation = application.observe(\.effectiveAppearance, options: [.new]) { [weak self] application, _ in
+            Task { @MainActor [weak self] in
+                self?.isDark = Self.isDarkAppearance(application.effectiveAppearance)
+            }
+        }
+    }
+
+    static func isDarkAppearance(_ appearance: NSAppearance) -> Bool {
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+}
+
 struct EditorialTheme {
     let page: Color
     let paper: Color
@@ -45,14 +64,15 @@ extension EnvironmentValues {
     }
 }
 
-/// Settings is a separate AppKit window. Keep its titlebar and SwiftUI content
-/// on one effective appearance, and keep it above the studio until dismissed.
+/// Keep Settings above studio windows while OpenStudio is active, but hide it
+/// when the user switches to another app.
 struct SettingsWindowHost: NSViewRepresentable {
     let dark: Bool
     func makeNSView(context: Context) -> AttachedView { AttachedView() }
     func updateNSView(_ view: AttachedView, context: Context) {
         view.apply = { window in
             window.level = .floating
+            window.hidesOnDeactivate = true
             window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         }
         view.applyIfAttached()

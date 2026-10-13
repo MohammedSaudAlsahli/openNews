@@ -75,6 +75,7 @@ struct ConnectionStatusRow: View {
     let profile: ProviderProfile
     let open: () -> Void
     @State private var confirming = false
+    @State private var confirmingDelete = false
     @State private var working = false
     @State private var failure: String?
     var body: some View {
@@ -99,6 +100,8 @@ struct ConnectionStatusRow: View {
                 } else {
                     Button(L("فصل الاتصال…")) { confirming = true }.disabled(working || model.health == nil)
                 }
+                Button(L("حذف الاتصال…"), role: .destructive) { confirmingDelete = true }
+                    .disabled(working || model.health == nil)
             }
             if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
         }.padding(.vertical, 18)
@@ -114,6 +117,19 @@ struct ConnectionStatusRow: View {
             Button(L("إلغاء"), role: .cancel) {}
         } message: {
             Text(L("ستُزال بيانات الدخول المحلية، وستتوقف الوكلاء التي تستخدم هذا الاتصال حتى تعيد ربطه. يمكنك إعادة تسجيل الدخول لاحقًا."))
+        }
+        .confirmationDialog(L("حذف هذا الاتصال؟"), isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button(L("حذف الاتصال"), role: .destructive) {
+                working = true; failure = nil
+                Task {
+                    defer { working = false }
+                    do { _ = try await model.call("providers.delete", ["profile_id": profile.id]); try await model.refresh() }
+                    catch { failure = error.localizedDescription; try? await model.refresh() }
+                }
+            }
+            Button(L("إلغاء"), role: .cancel) {}
+        } message: {
+            Text(L("ستُزال بيانات الدخول والاتصال من القائمة. ستحتاج الوكلاء المرتبطة به إلى اختيار اتصال آخر. تبقى المحادثات والمسودات محفوظة."))
         }
     }
 }

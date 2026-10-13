@@ -104,10 +104,10 @@ class ConnectionHealth:
     async def delete(self, pid):
         profile = self.s.profile(pid)
         await self.disconnect(pid)
-        from .chatgpt_auth import credential_path, write_record, _locks
+        from .chatgpt_auth import credential_path, _locks
         path = credential_path(profile)
         async with _locks.setdefault(str(path), asyncio.Lock()):
-            write_record(path, {})
+            path.unlink(missing_ok=True)
         with self.s.db:
             self.s.db.execute("DELETE FROM agent_assignments WHERE workspace_id=? AND profile_id=?", (self.s.ws,pid))
             self.s.db.execute("DELETE FROM provider_preferences WHERE profile_id=?", (pid,))

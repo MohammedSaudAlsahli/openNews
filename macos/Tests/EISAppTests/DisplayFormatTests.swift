@@ -1,6 +1,12 @@
 import Foundation
+import AppKit
 import Testing
 @testable import EISApp
+
+@MainActor @Test func systemAppearanceRecognizesDarkAndLightVariants() {
+    #expect(SystemAppearanceObserver.isDarkAppearance(NSAppearance(named: .darkAqua)!) == true)
+    #expect(SystemAppearanceObserver.isDarkAppearance(NSAppearance(named: .aqua)!) == false)
+}
 
 @Test func displayLocaleRetainsRegionAndExplicitNumberingOverride() {
     let base = Locale(identifier: "en_GB@numbers=latn")

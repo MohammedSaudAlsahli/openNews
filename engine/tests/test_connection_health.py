@@ -133,7 +133,7 @@ def test_delete_connection_hides_it_revokes_credentials_and_preserves_other_prof
         with s.db:
             s.db.execute("INSERT INTO agent_assignments VALUES(?,?,?,?)", (s.ws,"writer",pid,"test-model"))
         assert await s.dispatch("providers.delete", {"profile_id":pid}) == {"deleted":True}
-        assert auth.read_record(auth.credential_path(profile)) == {}
+        assert not auth.credential_path(profile).exists()
         assert [p['id'] for p in s.snapshot()['profiles']] == [other['profile_id']]
         assert not s.snapshot()['assignments']
         with pytest.raises(Failure): s.profile(pid)

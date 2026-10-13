@@ -25,13 +25,13 @@ import AppKit
 @main struct EditorialIntelligenceStudioApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var model = StudioModel()
-    @Environment(\.colorScheme) private var systemScheme
+    @StateObject private var systemAppearance = SystemAppearanceObserver()
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("colorPalette") private var colorPalette = "paper"
     @AppStorage("appLanguage") private var appLanguage = "ar"
     @AppStorage(ModelPermission.key) private var modelPermission = false
     private var direction: LayoutDirection { appLanguage == "en" ? .leftToRight : .rightToLeft }
-    private var colorScheme: ColorScheme { appearance == "light" ? .light : appearance == "dark" ? .dark : systemScheme }
+    private var colorScheme: ColorScheme { appearance == "light" ? .light : appearance == "dark" ? .dark : (systemAppearance.isDark ? .dark : .light) }
     private var theme: EditorialTheme { .resolve(colorPalette, dark: colorScheme == .dark) }
     var body: some Scene {
         Window(L("مساحة التحرير"), id: "studio") {
