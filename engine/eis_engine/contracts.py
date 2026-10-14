@@ -122,7 +122,7 @@ class ChatSend(StrictModel):
     research_web: bool = True
     format: Literal["discussion", "x_posts", "youtube_long", "tiktok"] = "discussion"
     target_seconds: int | None = Field(default=None, ge=10, le=7200)
-    days: int = Field(default=7, ge=1, le=31)
+    days: int | None = Field(default=None, ge=1, le=36500)
     draft_title: str = Field(default="", max_length=300)
     draft_text: str = Field(default="", max_length=60000)
 

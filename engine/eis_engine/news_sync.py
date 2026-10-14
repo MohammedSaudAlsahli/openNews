@@ -16,7 +16,11 @@ class NewsSyncMixin:
             interval = self._interval(payload.get("interval_minutes", 60))
         except NewsError as error: raise Failure("VALIDATION_ERROR", str(error)) from None
         existing = self.store.one("SELECT id FROM news_subscriptions WHERE workspace_id=? AND url=?", (self.ws,url))
-        if existing: return existing["id"]
+        if existing:
+            with self.db:
+                self.db.execute("UPDATE news_subscriptions SET removed_at=NULL,enabled=1 WHERE id=?", (existing["id"],))
+            if sync: await self.sync(existing["id"])
+            return existing["id"]
         identifier = uid()
         title = str(payload.get("title", "")).strip()[:300] or urlsplit(url).hostname
         with self.db:
@@ -49,7 +53,7 @@ class NewsSyncMixin:
 
     async def sync(self, identifier=None, force=False):
         async with self.lock:
-            rows = self.store.rows("SELECT * FROM news_subscriptions WHERE workspace_id=? AND enabled=1" + (" AND id=?" if identifier else ""), (self.ws,identifier) if identifier else (self.ws,))
+            rows = self.store.rows("SELECT * FROM news_subscriptions WHERE workspace_id=? AND enabled=1 AND removed_at IS NULL" + (" AND id=?" if identifier else ""), (self.ws,identifier) if identifier else (self.ws,))
             if identifier and not rows:
                 exists = self.store.one("SELECT id FROM news_subscriptions WHERE workspace_id=? AND id=?", (self.ws,identifier))
                 if not exists: raise Failure("VALIDATION_ERROR", "اشتراك الأخبار غير موجود.")
@@ -64,6 +68,7 @@ class NewsSyncMixin:
         with self.db:
             self.db.execute("UPDATE news_subscriptions SET last_checked=?,status='syncing',error=NULL WHERE id=?", (now(),row["id"]))
         try:
+            changed_articles = set()
             conditional = {"If-None-Match":row["etag"],"If-Modified-Since":row["last_modified"]}
             response = await self.fetch(row["feed_url"], conditional)
             if response["status"] != 304:
@@ -77,7 +82,9 @@ class NewsSyncMixin:
                 title, entries = parse_feed(body,response["url"],row["kind"])
                 with self.db:
                     for entry in entries:
-                        existing = self.store.one("SELECT id,summary,text,body_status,reader_json FROM news_articles WHERE subscription_id=? AND (url=? OR guid=?) LIMIT 1", (row["id"],entry["url"],entry["guid"]))
+                        article_id = self.archive.find(row['id'],entry['guid'],entry['url'])
+                        existing = self.store.one("SELECT * FROM news_articles WHERE id=?", (article_id,)) if article_id else None
+                        article_id = article_id or uid()
                         if existing:
                             # Existing unread/read state and body remain; a feed refresh is not a new article.
                             self.db.execute("UPDATE news_articles SET title=?,summary=?,published_at=coalesce(?,published_at) WHERE id=?", (entry["title"],entry["summary"],entry["published_at"],existing["id"]))
@@ -85,17 +92,29 @@ class NewsSyncMixin:
                                 self.db.execute("UPDATE news_articles SET text=? WHERE id=?", (entry["summary"],existing["id"]))
                             try: previous_reader = json.loads(existing["reader_json"])
                             except (TypeError, ValueError): previous_reader = {}
+                            if (existing['body_status'] == 'full' and previous_reader.get('origin') != 'feed'
+                                    and (existing['title'] != entry['title'] or existing['summary'] != entry['summary'])):
+                                changed_articles.add(article_id)
                             if previous_reader.get("origin") == "feed":
                                 fresh_reader = entry["reader"] | {k:previous_reader[k] for k in ("checked_at", "refresh_failed") if k in previous_reader}
                                 self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=?", (json.dumps(fresh_reader), existing["id"]))
                         else:
-                            self.db.execute("INSERT INTO news_articles(id,workspace_id,subscription_id,guid,title,url,published_at,discovered_at,summary) VALUES(?,?,?,?,?,?,?,?,?)", (uid(),self.ws,row["id"],entry["guid"],entry["title"],entry["url"],entry["published_at"],now(),entry["summary"]))
-                        self.db.execute("UPDATE news_articles SET reader_json=? WHERE subscription_id=? AND guid=? AND reader_json='{}'", (json.dumps(entry['reader']), row['id'], entry['guid']))
+                            self.db.execute("INSERT INTO news_articles(id,workspace_id,subscription_id,guid,title,url,published_at,discovered_at,summary) VALUES(?,?,?,?,?,?,?,?,?)", (article_id,self.ws,row["id"],entry["guid"],entry["title"],entry["url"],entry["published_at"],now(),entry["summary"]))
+                        if entry.get("full_text") and (not existing or existing["body_status"] != "full" or previous_reader.get("origin") == "feed"):
+                            # content:encoded / Atom content is saved before any website request.
+                            self.db.execute("UPDATE news_articles SET text=?,body_status='full',reader_json=? WHERE id=?",
+                                            (entry["full_text"],json.dumps(entry["reader"]),article_id))
+                        self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=? AND reader_json='{}'", (json.dumps(entry['reader']), article_id))
                         if entry.get("media_only"):
                             # Never download or pretend to transcribe an enclosure.
-                            self.db.execute("UPDATE news_articles SET text=?,body_status='media_summary' WHERE subscription_id=? AND guid=?", (entry["summary"],row["id"],entry["guid"]))
+                            self.db.execute("UPDATE news_articles SET text=?,body_status='media_summary' WHERE id=?", (entry["summary"],article_id))
+                        self.archive.register(article_id,row['id'],entry['guid'],entry['url'])
+                        self.archive.capture(article_id)
                     self.db.execute("UPDATE news_subscriptions SET feed_url=?,title=?,etag=?,last_modified=? WHERE id=?", (response["url"],title if row["title"] == urlsplit(row["url"]).hostname and title else row["title"],response["headers"].get("etag"),response["headers"].get("last-modified"),row["id"]))
-            # Feed refreshes never re-download already saved full articles.
+            # Recheck full website articles only when their feed evidence changed.
+            for article_id in changed_articles:
+                await self.reader(article_id, force=True)
+            # Unchanged feed entries reuse their full saved text.
             await self._fetch_bodies(row["id"], refresh_full=refresh_full)
             with self.db:
                 self.db.execute("UPDATE news_subscriptions SET last_success=?,status='ready',error=NULL WHERE id=?", (now(),row["id"]))
@@ -111,10 +130,10 @@ class NewsSyncMixin:
     async def _fetch_bodies(self, identifier, refresh_full=False):
         retry_before = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
         rows = self.store.rows("""SELECT * FROM news_articles
-            WHERE subscription_id=? AND body_status!='media_summary'
-              AND ((? AND body_status='full') OR (body_status!='full' AND (body_attempts=0 OR last_body_attempt<?)))
+            WHERE id IN (SELECT article_id FROM news_article_origins WHERE subscription_id=?) AND body_status!='media_summary'
+              AND body_status!='full' AND (body_attempts=0 OR last_body_attempt<?)
             ORDER BY CASE WHEN body_attempts=0 THEN 0 ELSE 1 END,
-                     discovered_at DESC LIMIT 20""", (identifier, int(refresh_full), retry_before))
+                     discovered_at DESC LIMIT 20""", (identifier, retry_before))
         semaphore = asyncio.Semaphore(3)
         async def fetch_article(row):
             async with semaphore:
@@ -139,6 +158,7 @@ class NewsSyncMixin:
                 except Exception: pass
                 with self.db:
                     self.db.execute("UPDATE news_articles SET text=?,body_status=?,body_attempts=body_attempts+1,last_body_attempt=? WHERE id=?", (text,status,now(),row["id"]))
+                    self.archive.capture(row['id'])
         await asyncio.gather(*(fetch_article(row) for row in rows))
 
     async def poll(self):

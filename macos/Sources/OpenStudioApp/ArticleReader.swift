@@ -19,6 +19,7 @@ struct ArticleReader: View {
     @State private var failure: String?
     @State private var tab = "reader"
     @State private var openedWebsite = false
+    @State private var history = false
     @State private var bookmarked = false
     @State private var saving = false
     @State private var summarizing = false
@@ -51,6 +52,7 @@ struct ArticleReader: View {
                     .disabled(saving).help(L(bookmarked ? "إزالة من المحفوظات" : "حفظ المقال"))
                     .accessibilityLabel(L(bookmarked ? "إزالة من المحفوظات" : "حفظ المقال"))
                 Menu {
+                    Button(L("سجل تعديلات المقالة")) { history = true }
                     Button(L("تكبير النص")) { preferredSize = min(24, preferredSize + 1) }.disabled(preferredSize >= 24)
                     Button(L("تصغير النص")) { preferredSize = max(14, preferredSize - 1) }.disabled(preferredSize <= 14)
                     Toggle(L("عرض صور المقال"), isOn: $showsImages)
@@ -71,6 +73,7 @@ struct ArticleReader: View {
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }.background(theme.paper)
+            .sheet(isPresented: $history) { ArticleHistory(articleID: article.id, articleTitle: article.title) }
             .task(id: article.id) { bookmarked = article.isBookmarked == true; await load() }
             .onChange(of: tab) { _, value in if value == "website" { openedWebsite = true } }
     }
@@ -120,13 +123,13 @@ struct ArticleReader: View {
                     }
                 }
                 if loading && detail == nil { ProgressView(L("جارٍ فتح النص…")).frame(maxWidth: .infinity).padding(40) }
-                else if content.isEmpty { RichTextView(text: text, fontSize: size, lineSpacing: 8) }
+                else if content.isEmpty { RichTextView(text: text, fontSize: size, lineSpacing: 5) }
                 else {
                     ForEach(Array(content.enumerated()), id: \.offset) { _, block in
                         if block.type == "image", showsImages, let id = block.id, id != cover?.id {
                             ArticleFigure(articleID: article.id, imageID: id, alt: block.alt ?? "", caption: block.caption ?? "")
                         } else if block.type == "text", let value = block.text {
-                            RichTextView(text: ArticleReaderText.withoutRepeatedTitle(value, title: article.title, firstBlock: true), fontSize: size, lineSpacing: 8)
+                            RichTextView(text: ArticleReaderText.withoutRepeatedTitle(value, title: article.title, firstBlock: true), fontSize: size, lineSpacing: 5)
                         }
                     }
                 }

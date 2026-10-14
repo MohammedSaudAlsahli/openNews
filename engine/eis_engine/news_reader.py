@@ -48,6 +48,9 @@ class NewsReaderMixin:
             self.db.execute("INSERT OR IGNORE INTO news_articles(id,workspace_id,subscription_id,guid,title,url,published_at,discovered_at,summary,text,body_status,reader_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                             (article_id,self.ws,source_id,response["url"],title,response["url"],published,now(),"",body,"full",json.dumps(reader)))
         saved = self.store.one("SELECT id FROM news_articles WHERE workspace_id=? AND url=?", (self.ws,response["url"]))
+        with self.db:
+            self.archive.register(saved['id'],source_id,response['url'],response['url'])
+            self.archive.capture(saved['id'])
         return {"article_id":saved["id"], "title":title}
 
     async def reader(self, identifier, force=False):
@@ -55,6 +58,8 @@ class NewsReaderMixin:
         lock = self.reader_locks.setdefault(identifier, asyncio.Lock())
         async with lock:
             row = self.article(identifier, mark_read=False)
+            if not force and row["body_status"] == "full" and row["reader"].get("origin") == "feed" and row["reader"].get("version", 1) >= 2:
+                return row
             checked = row["reader"].get("checked_at")
             if not force and checked and row["reader"].get("version", 1) >= 2:
                 if row["reader"].get("origin") == "article" or row["body_status"] == "full":
@@ -88,6 +93,7 @@ class NewsReaderMixin:
                 self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=? AND workspace_id=?", (json.dumps(reader), identifier, self.ws))
                 if full_text:
                     self.db.execute("UPDATE news_articles SET text=?,body_status='full' WHERE id=? AND workspace_id=?", (full_text, identifier, self.ws))
+            with self.db: self.archive.capture(identifier)
             return self.article(identifier, mark_read=False)
 
     def capture_public_reader(self, identifier, html):
@@ -105,6 +111,7 @@ class NewsReaderMixin:
         with self.db:
             self.db.execute("UPDATE news_articles SET text=?,body_status='full',reader_json=? WHERE id=? AND workspace_id=?",
                             (full_text,json.dumps(reader),identifier,self.ws))
+        with self.db: self.archive.capture(identifier)
         return self.article(identifier, mark_read=False)
 
     async def image(self, identifier, image_id):
@@ -134,6 +141,7 @@ class NewsReaderMixin:
                 try: os.replace(temporary.name, path)
                 finally:
                     if os.path.exists(temporary.name): os.unlink(temporary.name)
+        os.utime(path, None)
         return {"path":str(path)}
 
     async def site_icon(self, address):

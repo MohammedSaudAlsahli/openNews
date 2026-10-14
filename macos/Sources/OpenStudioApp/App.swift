@@ -25,6 +25,7 @@ import AppKit
 @main struct OpenStudioApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var model = StudioModel()
+    @StateObject private var updates = AppUpdates.shared
     @StateObject private var systemAppearance = SystemAppearanceObserver()
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("colorPalette") private var colorPalette = "paper"
@@ -48,6 +49,9 @@ import AppKit
         .defaultSize(width: 1400, height: 850)
         .windowStyle(.titleBar)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button(L("التحقق من وجود تحديث…")) { updates.check() }.disabled(!updates.available)
+            }
             CommandGroup(replacing: .newItem) {
                 command(L("محادثة جديدة"), .newEditorialConversation, "n")
                 command(L("مسودة جديدة"), .newEditorialDraft, "n", [.command, .shift])

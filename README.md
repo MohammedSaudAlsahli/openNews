@@ -2,7 +2,9 @@
 
 تطبيق macOS أصلي بالعربية والإنجليزية، مبني بـ SwiftUI، مع Python وAgno وSQLite مضمّنة في حزمة التطبيق.
 
-**التسليم الحالي: 0.1.0 — إثبات التشغيل المستقل والمسار التحريري الأول. هذه ليست نسخة MVP مكتملة، ولا إصدارًا موثقًا لدى Apple.** الوثيقة الأصلية كاملة في [PRD.md](PRD.md)، والتغطية الفعلية والحدود في [docs/acceptance.md](docs/acceptance.md).
+**التسليم الحالي: 0.2.0 — إثبات التشغيل المستقل والمسار التحريري الأول. هذه ليست نسخة MVP مكتملة، ولا إصدارًا موثقًا لدى Apple.** الوثيقة الأصلية كاملة في [PRD.md](PRD.md)، والتغطية الفعلية والحدود في [docs/acceptance.md](docs/acceptance.md).
+
+تحميل النسخة التجريبية من [GitHub Releases](https://github.com/MohammedSaudAlsahli/openStudio/releases). [دليل البداية والتحديث](docs/SETUP.md) · [دليل نشر الإصدارات](docs/RELEASING.md).
 
 ## جرّب التطبيق
 

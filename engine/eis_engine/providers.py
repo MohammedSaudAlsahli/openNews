@@ -128,6 +128,7 @@ def google_credentials(values):
 
 class ModelFactory:
     supports_tools = True
+    supports_session_events = True
     def create(self, profile):
         entry = next((p for p in catalog()["providers"] if p["id"] == profile["provider_key"]), None)
         if not entry or entry["status"] != "ready":
@@ -182,26 +183,33 @@ class ModelFactory:
         except Exception:
             raise Failure("MODEL_UNSUPPORTED", "تعذّرت تهيئة المهايئ. راجع بيانات الحساب وإعدادات المزود.") from None
 
-    async def run_stream(self, profile, instructions, data, schema, on_delta, tools=None, on_turn=None):
-        return await self.run(profile,instructions,data,schema,on_delta=on_delta, tools=tools, on_turn=on_turn)
+    async def run_stream(self, profile, instructions, data, schema, on_delta, tools=None, on_turn=None, on_reasoning=None, session_id=None, user_id=None, run_id=None):
+        return await self.run(profile,instructions,data,schema,on_delta=on_delta, tools=tools, on_turn=on_turn, on_reasoning=on_reasoning, session_id=session_id, user_id=user_id, run_id=run_id)
 
-    async def run(self, profile, instructions, data, schema, on_delta=None, tools=None, on_turn=None):
+    async def run(self, profile, instructions, data, schema, on_delta=None, tools=None, on_turn=None, on_reasoning=None, session_id=None, user_id=None, run_id=None):
         from agno.agent import Agent
         if profile["provider_key"] == "openai-chatgpt":
             from .chatgpt_auth import ChatGPTResponses, access_token
             model = ChatGPTResponses(id=profile["model_id"], api_key=await access_token(profile), base_url="https://api.openai.com/v1", store=False, retries=0, max_retries=0, timeout=90)
         else:
             model = self.create(profile)
+        # Request public summaries only on known OpenAI reasoning model families.
+        # Other providers keep their configured behavior; never fabricate a trace.
+        if on_reasoning and profile["provider_key"] in {"openai", "openai-chatgpt"} and hasattr(model, "reasoning_summary"):
+            if profile["model_id"].startswith(("gpt-5", "gpt-6", "o3", "o4")):
+                model.reasoning_summary = "auto"
         if profile["provider_key"] == "openai-chatgpt":
+            model.on_reasoning_delta = on_reasoning
             model.on_text_delta = on_delta
             model.on_response_start = on_turn
-        agent = Agent(model=model, instructions=instructions,
+        agent = Agent(model=model, instructions=instructions, session_id=session_id, user_id=user_id,
+                      add_history_to_context=False,
                       output_schema=schema, structured_outputs=False,
                       tools=tools or [], tool_call_limit=10, search_knowledge=False, telemetry=False,
                       retries=0, debug_mode=False, parse_response=on_delta is None)
         try:
             if on_delta and profile["provider_key"] != "openai-chatgpt":
-                from agno.run.agent import RunOutput, RunContentEvent, RunErrorEvent
+                from agno.run.agent import RunOutput, RunContentEvent, RunErrorEvent, ReasoningContentDeltaEvent
                 response = None
                 provider_errors = []
                 original_stream = model.ainvoke_stream
@@ -213,10 +221,11 @@ class ModelFactory:
                         provider_errors.append(error)
                         raise
                 model.ainvoke_stream = observed_stream
-                stream = agent.arun(json.dumps(data,ensure_ascii=False),stream=True,stream_events=True,yield_run_output=True)
+                stream = agent.arun(json.dumps(data,ensure_ascii=False),stream=True,stream_events=True,yield_run_output=True, run_id=run_id)
                 try:
                     async for event in stream:
                         if isinstance(event,RunContentEvent) and isinstance(event.content,str): on_delta(event.content)
+                        elif isinstance(event,ReasoningContentDeltaEvent) and on_reasoning: on_reasoning(event.reasoning_content)
                         elif isinstance(event,RunOutput): response = event
                         elif isinstance(event,RunErrorEvent):
                             if provider_errors: raise provider_errors[-1]
@@ -226,7 +235,7 @@ class ModelFactory:
                     model.ainvoke_stream = original_stream
                 if response is None: raise Failure("MODEL_RESPONSE_INVALID","لم يكتمل رد النموذج. حاول مجددًا.")
             else:
-                response = await agent.arun(json.dumps(data, ensure_ascii=False))
+                response = await agent.arun(json.dumps(data, ensure_ascii=False), run_id=run_id)
             if isinstance(response.content, schema):
                 return response.content
             if isinstance(response.content, str):

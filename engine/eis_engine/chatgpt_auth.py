@@ -362,6 +362,7 @@ class ChatGPTResponses(OpenAIResponses):
     # inherited Responses capability makes Agno omit the JSON schema from the
     # prompt too, so the model never learns the contract it must return.
     on_text_delta: Callable[[str], None] | None = None
+    on_reasoning_delta: Callable[[str], None] | None = None
     on_response_start: Callable[[], None] | None = None
     supports_native_structured_outputs: bool = False
     supports_json_schema_outputs: bool = False
@@ -371,6 +372,7 @@ class ChatGPTResponses(OpenAIResponses):
         items=self._format_messages(messages,compress_tool_results,tools=tools)
         tool_options = {"tools": self._format_tool_params(messages=messages, tools=tools)} if tools else {}
         if tool_choice is not None: tool_options["tool_choice"] = tool_choice
+        if self.reasoning_summary: tool_options["reasoning"] = {"summary": self.reasoning_summary}
         if self.on_response_start: self.on_response_start()
         assistant_message.metrics.start_timer()
         complete=None
@@ -381,6 +383,10 @@ class ChatGPTResponses(OpenAIResponses):
             async for event in stream:
                 if event.type=="response.output_text.delta" and self.on_text_delta:
                     self.on_text_delta(event.delta)
+                elif event.type=="response.reasoning_summary_part.added" and self.on_reasoning_delta:
+                    self.on_reasoning_delta("\n\n")
+                elif event.type=="response.reasoning_summary_text.delta" and self.on_reasoning_delta:
+                    self.on_reasoning_delta(event.delta)
                 elif event.type=="response.output_item.done":
                     # Plan-usage streams can omit all items from response.completed.
                     # Keep finalized items (including annotations/refusals), not partial deltas.

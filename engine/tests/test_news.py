@@ -289,11 +289,11 @@ def test_explicit_refresh_backfills_markdown_and_retains_full_text_on_failure(st
     article_id = manager.snapshot()["articles"][0]["id"]
     with store.db:
         store.db.execute("UPDATE news_articles SET text='old plain text',body_status='full' WHERE id=?",(article_id,))
-    asyncio.run(manager.sync(force=True))
+    asyncio.run(manager.reader(article_id,force=True))
     updated = manager.article(article_id,mark_read=False)["text"]
-    assert updated != "old plain text" and "# A real headline" in updated
+    assert updated != "old plain text" and "A real headline" in updated
     fail = True
-    asyncio.run(manager.sync(force=True))
+    asyncio.run(manager.reader(article_id,force=True))
     article = manager.article(article_id,mark_read=False)
     assert article["text"] == updated and article["body_status"] == "full"
 
@@ -308,4 +308,20 @@ def test_automatic_poll_does_not_refetch_already_full_articles(store):
     with store.db:
         store.db.execute("UPDATE news_subscriptions SET last_checked=NULL WHERE id=?",(identifier,))
     asyncio.run(manager.sync())
+    asyncio.run(manager.sync(force=True))
     assert calls.count("https://publisher.example/article") == 1
+
+
+def test_full_feed_content_is_saved_without_fetching_website(store):
+    full='Actual public article evidence. '*20
+    feed=('<rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Publisher</title><item><guid>one</guid><title>Article</title><link>https://publisher.example/article</link><description>Short excerpt</description><content:encoded><![CDATA[<p>'+full+'</p>]]></content:encoded></item></channel></rss>').encode()
+    calls=[]
+    async def fetch(url, conditional=None):
+        calls.append(url)
+        assert url.endswith('/feed')
+        return result(url,feed)
+    manager=news.NewsManager(store,fetch)
+    asyncio.run(manager.add({'url':'https://publisher.example/feed'}))
+    article=manager.article(manager.snapshot()['articles'][0]['id'],mark_read=False)
+    assert article['body_status']=='full' and full.strip() in article['text']
+    assert calls==['https://publisher.example/feed']

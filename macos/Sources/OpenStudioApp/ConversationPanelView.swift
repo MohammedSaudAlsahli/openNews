@@ -20,7 +20,9 @@ struct ConversationPanel: View {
     @State private var attaching = false
     @State private var attachmentError: String?
     @State private var attachedArticle: ImportedArticle?
-    @FocusState private var composerFocused: Bool
+    @State private var composerFocused = false
+    @State private var composerHeight: CGFloat = 38
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var canSend: Bool {
         !session.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && session.composer.count <= 12000 &&
         (session.includeDraft ? draftText.count <= 60000 : true) && session.modelReady && modelPermission && !session.sending && model.health != nil
@@ -48,6 +50,7 @@ struct ConversationPanel: View {
     private var configuredConversation: some View {
         conversationLayout
             .task(id: model.snapshot?.workspaceId) { await session.start(model) }
+            .onChange(of: session.conversationID) { _, _ in composerFocused = false }
             .task(id: session.jobID) { if let id = session.jobID { await session.monitor(model, job: id) } }
             .sheet(isPresented: $customization) {
                 AssistantCustomizationEditor(scope: "conversation", targetID: session.conversationID).editorialPresentation()
@@ -78,12 +81,12 @@ struct ConversationPanel: View {
                         composer
                         startingPrompts
                         if session.error != nil { failureNotice }
-                    }.frame(maxWidth: 720, alignment: .leading).padding(32)
-                        .padding(.top, 70).frame(maxWidth: .infinity)
+                    }.frame(maxWidth: 680, alignment: .leading).padding(32)
+                        .padding(.top, 44).frame(maxWidth: .infinity)
                 }
             } else {
                 messageHistory
-                composer.frame(maxWidth: 800).padding(20).frame(maxWidth: .infinity)
+                composer.frame(maxWidth: 680).padding(.horizontal, 24).padding(.vertical, 16).frame(maxWidth: .infinity)
             }
         }.background(Color(nsColor: .textBackgroundColor))
     }
@@ -150,21 +153,16 @@ struct ConversationPanel: View {
                     }
                     if session.sending {
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack(spacing: 8) {
-                                ProgressView().controlSize(.small)
-                                Text(progressTitle).font(.callout)
-                                if let progress = session.progress { Text(L("{0} ثانية", progress.elapsedSeconds)).font(.caption).monospacedDigit().foregroundStyle(.secondary) }
-                            }
-                            if let progress = session.progress {
-                                ConversationActivity(progress: progress, model: model)
-                            }
+                            ConversationActivity(execution: session.progress?.execution,
+                                contextInfo: session.progress?.contextInfo, title: progressTitle,
+                                elapsed: session.progress?.elapsedSeconds ?? 0, active: true)
                             if let progress = session.progress, !progress.message.isEmpty {
-                                RichTextView(text: ConversationPresentation.markdown(progress.message, citations: progress.citations, partial: true), fontSize: 16, lineSpacing: 7, citationPreview: preview(for: progress.citations))
+                                RichTextView(text: ConversationPresentation.markdown(progress.message, citations: progress.citations, partial: true), fontSize: 15, lineSpacing: 5, citationPreview: preview(for: progress.citations))
                             }
                         }.id("pending")
                     }
                     if session.error != nil { failureNotice }
-                }.frame(maxWidth: 720, alignment: .leading).padding(24).frame(maxWidth: .infinity)
+                }.frame(maxWidth: 680, alignment: .leading).padding(24).frame(maxWidth: .infinity)
             }
             .onChange(of: session.detail?.messages.last?.id) { _, _ in
                 if let last = session.detail?.messages.last?.id { proxy.scrollTo(last, anchor: .bottom) }
@@ -179,6 +177,8 @@ struct ConversationPanel: View {
     }
     private var progressTitle: String {
         switch session.progress?.stage {
+        case "thinking": return L("يفكّر في الرد…")
+        case "history": return L("يراجع الرسائل السابقة…")
         case "library": return L("يبحث في الأخبار المحفوظة…")
         case "web": return L("يبحث في الويب…")
         case "reading": return L("يقرأ المصدر…")
@@ -189,19 +189,29 @@ struct ConversationPanel: View {
         }
     }
     private var startingPrompts: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Button(L("ناقش معي أخبار هذا الأسبوع")) { session.composer = L("لخّص أهم أخبار هذا الأسبوع من اشتراكاتي، ثم اقترح ثلاث زوايا تستحق النقاش."); session.format = "discussion" }
-                .buttonStyle(.link)
-            Button(L("حوّل فكرة إلى منشورات X")) { session.composer = L("ساعدني على اختيار زاوية واضحة، ثم اكتب عدة منشورات X مستقلة بأسلوبي."); session.format = "x_posts" }
-                .buttonStyle(.link)
-            Button(L("إضافة مصادر للأخبار…"), action: showNews).buttonStyle(.link)
-        }.padding(.vertical, 8)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { promptActions }
+            VStack(alignment: .leading, spacing: 8) { promptActions }
+        }
+        .buttonStyle(.bordered).controlSize(.regular).tint(.secondary)
+        .font(.callout)
+    }
+    @ViewBuilder private var promptActions: some View {
+        Button {
+            session.composer = L("لخّص أهم أخبار هذا الأسبوع من اشتراكاتي، ثم اقترح ثلاث زوايا تستحق النقاش.")
+            session.format = "discussion"
+        } label: { Label(L("ناقش الأخبار"), systemImage: "text.bubble") }
+        Button {
+            session.composer = L("ساعدني على اختيار زاوية واضحة، ثم اكتب عدة منشورات X مستقلة بأسلوبي.")
+            session.format = "x_posts"
+        } label: { Label(L("طوّر فكرة"), systemImage: "square.and.pencil") }
+        Button(action: showNews) { Label(L("أضف مصادر"), systemImage: "plus") }
     }
     @ViewBuilder private func messageView(_ message: ConversationMessage) -> some View {
         if message.role == "user" {
             HStack {
                 Spacer(minLength: 70)
-                Text(verbatim: message.content).font(.system(size: 16)).lineSpacing(6).textSelection(.enabled)
+                Text(verbatim: message.content).font(.system(size: 15)).lineSpacing(5).textSelection(.enabled)
                     .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                     .environment(\.layoutDirection, RichTextDirection.detect(message.content))
                     .padding(16).background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
@@ -209,8 +219,13 @@ struct ConversationPanel: View {
             }.environment(\.layoutDirection, .leftToRight).padding(.bottom, 8)
         } else {
             VStack(alignment: .leading, spacing: 16) {
-                Label(L("المساعد التحريري"), systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
-                RichTextView(text: ConversationPresentation.markdown(message.content, citations: message.citations ?? []), fontSize: 16, lineSpacing: 7, citationPreview: preview(for: message.citations ?? []))
+                if let activity = message.activity {
+                    ConversationActivity(execution: activity, contextInfo: activity.contextInfo,
+                        title: "", elapsed: activity.elapsedSeconds, active: false)
+                } else {
+                    Label(L("المساعد التحريري"), systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
+                }
+                RichTextView(text: ConversationPresentation.markdown(message.content, citations: message.citations ?? []), fontSize: 15, lineSpacing: 5, citationPreview: preview(for: message.citations ?? []))
                 ForEach(message.outputs ?? []) { output in
                     ConversationDraftCard(output: output, openDraft: openDraft).disabled(model.busy)
                 }
@@ -260,7 +275,7 @@ struct ConversationPanel: View {
                 .init(value: "x_posts", label: L("منشورات X")),
                 .init(value: "youtube_long", label: L("YouTube طويل")),
                 .init(value: "tiktok", label: "TikTok")
-            ]).fixedSize()
+            ]).fixedSize().controlSize(.small)
     }
     private var modelPickerButton: some View {
             Button { modelOptions.toggle() } label: {
@@ -268,7 +283,7 @@ struct ConversationPanel: View {
                     Image(systemName: "cpu")
                     Text(session.modelID.isEmpty ? L("اختر نموذجًا") : DisplayFormat.isolated(session.modelID)).lineLimit(1)
                 }
-            }.buttonStyle(.borderless)
+            }.buttonStyle(.borderless).foregroundStyle(.secondary).font(.callout)
                 .accessibilityLabel(L("اختيار النموذج والاتصال"))
                 .popover(isPresented: $modelOptions) {
                     VStack(alignment: .leading, spacing: 16) {
@@ -290,17 +305,17 @@ struct ConversationPanel: View {
             VStack(alignment: .leading, spacing: 10) {
                 ZStack(alignment: .topLeading) {
                     if session.composer.isEmpty {
-                        Text(L("اكتب طلبك أو ناقش فكرة…")).foregroundStyle(.secondary).padding(5).allowsHitTesting(false)
+                        Text(L(session.sending ? "اكتب رسالتك التالية…" : "اكتب طلبك أو ناقش فكرة…")).font(.system(size: 15)).foregroundStyle(.secondary).padding(.horizontal, 5).padding(.top, 7).allowsHitTesting(false)
                     }
-                    ChatComposer(text: $session.composer, canSend: canSend) {
+                    ChatComposer(text: $session.composer, height: $composerHeight, focused: $composerFocused, canSend: canSend) {
                         Task { await session.send(model, articleIDs: selectedArticleIDs, draftText: draftText, draftTitle: draftTitle) }
                     }
                         .accessibilityLabel(L("رسالة المحادثة"))
-                        .frame(height: isWelcome ? 96 : 72)
+                        .frame(height: composerHeight)
                 }
-                HStack(spacing: 12) {
-                    Button { contextOptions.toggle() } label: { Image(systemName: "plus.circle") }
-                        .buttonStyle(.borderless).help(L("المراجع وخيارات الكتابة"))
+                HStack(spacing: 10) {
+                    Button { contextOptions.toggle() } label: { Image(systemName: selectedArticleIDs.isEmpty && !session.includeDraft ? "plus" : "paperclip") }
+                        .buttonStyle(.borderless).foregroundStyle(.secondary).frame(width: 28, height: 28).help(L("المراجع وخيارات الكتابة"))
                         .accessibilityLabel(L("المراجع وخيارات الكتابة"))
                         .popover(isPresented: $contextOptions) { contextControls.editorialPresentation() }
                     outputPicker
@@ -316,15 +331,26 @@ struct ConversationPanel: View {
                             .keyboardShortcut(.return, modifiers: .command)
                     }
                 }
-            }.padding(16).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(nsColor: .separatorColor).opacity(0.6)))
+            }.padding(14).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(
+                    session.composer.count > 12000 ? Color.red.opacity(0.7) : composerFocused ? Color.accentColor.opacity(0.65) : Color.primary.opacity(0.12),
+                    lineWidth: composerFocused ? 1.5 : 1))
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: composerFocused)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: canSend)
+            if session.sending {
+                Label(L("يستمر الرد أثناء تنقلك. يمكنك تجهيز رسالتك التالية."), systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption).foregroundStyle(.secondary).transition(.opacity)
+            } else if model.health == nil {
+                Label(L("جارٍ الاتصال بالمحرك…"), systemImage: "network")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if !modelPermission { ModelPermissionNotice() }
             else if session.profileID.isEmpty || session.modelID.isEmpty {
                 HStack { Text(L("اختر نموذجًا لبدء المحادثة.")).foregroundStyle(.secondary); Button(L("الإعدادات")) { openSettings() } }
             }
-            if session.useNews || session.includeDraft {
+            if !selectedArticleIDs.isEmpty || session.includeDraft {
                 HStack(spacing: 12) {
-                    if session.useNews { Label(selectedArticleIDs.isEmpty ? L("أخبار آخر 7 أيام") : L("الأخبار المحددة ({0})", selectedArticleIDs.count), systemImage: "newspaper") }
+                    if !selectedArticleIDs.isEmpty { Label(L("الأخبار المحددة ({0})", selectedArticleIDs.count), systemImage: "paperclip") }
                     if session.includeDraft { Label(L("المسودة الحالية"), systemImage: "doc.text") }
                 }.font(.caption).foregroundStyle(.secondary)
             }
@@ -342,7 +368,7 @@ struct ConversationPanel: View {
     private var contextControls: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text(L("المراجع وخيارات الكتابة")).font(.headline)
-            Toggle(selectedArticleIDs.isEmpty ? L("استخدم أخبار آخر {0} أيام من اشتراكاتي", 7) : L("استخدم الأخبار المحددة ({0})", selectedArticleIDs.count), isOn: $session.useNews)
+            Toggle(selectedArticleIDs.isEmpty ? L("ابحث في أرشيف أخباري") : L("استخدم الأخبار المحددة ({0})", selectedArticleIDs.count), isOn: $session.useNews)
             Toggle(L("السماح بالبحث في الويب عند الحاجة"), isOn: $session.researchWeb)
             Text(L("يبحث في أخبار RSS أولًا، ثم الويب إذا لم تكفِ. وعند طلب البحث بالنت يبحث مباشرةً."))
                 .font(.caption).foregroundStyle(.secondary)

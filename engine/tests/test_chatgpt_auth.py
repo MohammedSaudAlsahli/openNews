@@ -343,3 +343,26 @@ def test_chatgpt_agno_executes_tool_and_returns_result_to_model(monkeypatch):
         assert calls[0]["tools"][0]["name"] == "search_saved_articles"
         assert any(item.get("type") == "function_call_output" and 'RSS' in item["output"] for item in calls[1]["input"])
     asyncio.run(run())
+
+
+def test_public_reasoning_summary_stream_is_separate_from_text(monkeypatch):
+    from agno.models.message import Message
+    from openai.types.responses import Response
+    async def run():
+        response = Response.model_validate({'id':'r','object':'response','created_at':1,'model':'test','status':'completed','output':[{'type':'message','id':'m','role':'assistant','status':'completed','content':[{'type':'output_text','text':'answer','annotations':[]}]}],'parallel_tool_calls':False,'tool_choice':'auto','tools':[]})
+        class Stream:
+            def __aiter__(self): return self.events()
+            async def events(self):
+                yield SimpleNamespace(type='response.reasoning_summary_text.delta',delta='public summary')
+                yield SimpleNamespace(type='response.output_text.delta',delta='answer')
+                yield SimpleNamespace(type='response.completed',response=response)
+            async def close(self): pass
+        async def create(**kwargs):
+            assert kwargs["reasoning"] == {"summary":"auto"}
+            return Stream()
+        monkeypatch.setattr(auth.ChatGPTResponses,'get_async_client',lambda self:SimpleNamespace(responses=SimpleNamespace(create=create)))
+        summaries, text = [], []
+        model = auth.ChatGPTResponses(id='test',api_key='fake',reasoning_summary='auto',on_reasoning_delta=summaries.append,on_text_delta=text.append)
+        result = await model.ainvoke([Message(role='user',content='Test')],Message(role='assistant'))
+        assert summaries == ['public summary'] and text == ['answer'] and result.content == 'answer'
+    asyncio.run(run())

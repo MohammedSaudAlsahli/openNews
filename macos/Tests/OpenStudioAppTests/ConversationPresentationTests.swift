@@ -92,3 +92,20 @@ import Testing
         #expect(view.citation(at: NSPoint(x: 250, y: 190)) == nil)
     }
 }
+
+@Test func markdownLinksDoNotReverseArabicLists() {
+    let text = "**Claude:** أخبار جديدة عن أدوات البرمجة، منشورة اليوم. [1](https://example.com/long-english-article-title-about-software-development-and-artificial-intelligence)"
+    #expect(RichTextDirection.markdown(text) == .rightToLeft)
+    #expect(RichTextDirection.markdown("اقرأ الشرح ثم شغّل `npm install package-name --save-dev`.") == .rightToLeft)
+    #expect(RichTextDirection.markdown("Read this article [مصدر](https://example.com).") == .leftToRight)
+}
+
+@MainActor @Test func composerParagraphsFollowTheirOwnLanguage() {
+    let editor = MessageTextView()
+    editor.string = "هذه فكرة نناقشها في OpenStudio.\nAn English follow-up."
+    editor.refreshParagraphDirections()
+    let arabic = editor.textStorage?.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+    let english = editor.textStorage?.attribute(.paragraphStyle, at: (editor.string as NSString).length - 1, effectiveRange: nil) as? NSParagraphStyle
+    #expect(arabic?.alignment == .right)
+    #expect(english?.alignment == .left)
+}

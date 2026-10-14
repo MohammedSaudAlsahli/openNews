@@ -68,7 +68,7 @@ def test_weekly_window_excludes_unknown_old_future_and_naive_dates(service):
         good = article(service, (current - timedelta(days=2)).isoformat())
         for stamp in [None, "nonsense", (current - timedelta(days=8)).isoformat(), (current + timedelta(days=2)).isoformat(), current.replace(tzinfo=None).isoformat()]:
             article(service, stamp)
-        payload = await setup(service, include_news=True)
+        payload = await setup(service, include_news=True, days=7)
         context = service.conversations.source_context(ChatSend.model_validate(payload))
         assert [a["id"] for a in context["news"]] == [good]
         assert context["window"]["selected_explicitly"] is False
@@ -310,7 +310,7 @@ def test_news_research_is_model_driven_and_keeps_rss_context(service):
         class ToolModel(FakeChatModel):
             supports_tools = True
             async def run(self, profile, instructions, payload, schema, tools=None, on_turn=None):
-                assert {tool.__name__ for tool in tools} == {"search_saved_articles", "read_saved_article", "search_web", "read_web_page"}
+                assert {tool.__name__ for tool in tools} == {"search_saved_articles", "read_saved_article", "search_web", "read_web_page", "search_conversation_history"}
                 assert "FIRST" in instructions and "explicitly asks" in instructions
                 assert payload["news"][0]["id"] == aid
                 saved = json.loads(await tools[0]("ChatGPT"))
@@ -363,4 +363,106 @@ def test_source_preview_is_local_read_only_and_workspace_scoped(service, monkeyp
             service.db.execute("UPDATE news_articles SET workspace_id=? WHERE id=?", (other,identifier))
         with pytest.raises(Failure):
             await service.dispatch("news.preview", {"article_id": identifier})
+    asyncio.run(scenario())
+
+
+def test_context_budget_and_history_search_survive_restart_and_isolate_sessions(service):
+    from eis_engine.conversation_context import ConversationContext, HISTORY_BYTES
+    async def scenario():
+        payload = await setup(service)
+        cid = payload['conversation_id']
+        other = (await service.dispatch('chat.create', {}))['conversation_id']
+        ids = [uid() for _ in range(40)]
+        with service.db:
+            for index, mid in enumerate(ids):
+                text = 'اتفقنا على زاوية الطاقة' if index == 0 else ('نقاش طويل ' * 1500)
+                service.db.execute('INSERT INTO chat_messages VALUES(?,?,?,?,?,?,?,?,?)', (mid,service.ws,cid,'user',text,'[]','[]',None,now()))
+            foreign = uid()
+            service.db.execute('INSERT INTO chat_messages VALUES(?,?,?,?,?,?,?,?,?)', (foreign,service.ws,other,'user','زاوية سرية','[]','[]',None,now()))
+        context = ConversationContext(service.store, service.ws, cid)
+        snapshot = context.snapshot()
+        assert snapshot['context_info']['total_messages'] == 40
+        assert snapshot['context_info']['has_older_context']
+        assert snapshot['context_info']['history_bytes'] <= HISTORY_BYTES
+        assert len(snapshot['history']) < 16
+        assert context.search('الطاقة')['messages'][0]['id'] == ids[0]
+        assert context.search('سرية')['messages'] == []
+        assert 'error' in context.search('', foreign)
+        with service.db:
+            service.db.execute('INSERT INTO chat_messages VALUES(?,?,?,?,?,?,?,?,?)', (uid(),service.ws,cid,'user','رسالة مستقبلية','[]','[]',None,now()))
+        # Frozen retry context must not observe turns created after submission.
+        assert context.search('مستقبلية')['messages'] == []
+        reopened = Store(service.store.path.parent)
+        try:
+            restored = ConversationContext(reopened, service.ws, cid, snapshot['through'])
+            assert restored.search('الطاقة')['messages'][0]['content'] == 'اتفقنا على زاوية الطاقة'
+            assert restored.search('مستقبلية')['messages'] == []
+        finally: reopened.close()
+    asyncio.run(scenario())
+
+
+def test_session_events_are_scoped_persisted_and_separate_from_answer(service):
+    async def scenario():
+        payload = await setup(service)
+        class EventModel(FakeChatModel):
+            supports_tools = True
+            supports_session_events = True
+            async def run(self, profile, instructions, data, schema, tools=None, on_turn=None,
+                          on_reasoning=None, session_id=None, user_id=None, run_id=None):
+                assert session_id == payload['conversation_id'] and user_id == service.ws
+                assert run_id
+                on_turn()
+                on_reasoning('أراجع سياق السؤال. ')
+                history_tool = next(t for t in tools if t.__name__ == 'search_conversation_history')
+                await history_tool('زاوية')
+                # A new model turn must not erase past steps or summaries.
+                on_turn()
+                on_reasoning('أربط المصادر المتاحة.')
+                return ChatReply(message='الجواب النهائي')
+        service.factory = EventModel()
+        job = await finish(service, payload)
+        assert job['state'] == 'completed'
+        detail = await service.dispatch('chat.detail', {'conversation_id':payload['conversation_id']})
+        reply = detail['messages'][-1]
+        assert reply['content'] == 'الجواب النهائي'
+        assert [s['kind'] for s in reply['activity']['steps']] == ['context','history']
+        assert reply['activity']['reasoning_summary'] == 'أراجع سياق السؤال. \n\nأربط المصادر المتاحة.'
+        assert reply['activity']['context_info']['total_messages'] == 0
+    asyncio.run(scenario())
+
+
+def test_background_conversation_is_listed_and_finishes_while_another_is_open(service):
+    async def scenario():
+        payload = await setup(service)
+        service.factory.release = asyncio.Event()
+        submitted = await service.dispatch('chat.send', payload)
+        await service.factory.started.wait()
+        second = (await service.dispatch('chat.create', {'title':'Second'}))['conversation_id']
+        detail = await service.dispatch('chat.detail', {'conversation_id':second})
+        assert detail['active_job_id'] is None
+        listing = (await service.dispatch('chat.list', {}))['conversations']
+        first = next(row for row in listing if row['id'] == payload['conversation_id'])
+        assert first['active_job_id'] == submitted['job_id']
+        service.factory.release.set()
+        await service.tasks[submitted['job_id']]
+        listing = (await service.dispatch('chat.list', {}))['conversations']
+        assert all(row['active_job_id'] is None for row in listing)
+        restored = await service.dispatch('chat.detail', {'conversation_id':payload['conversation_id']})
+        assert restored['messages'][-1]['role'] == 'assistant'
+        assert (await service.dispatch('chat.detail', {'conversation_id':second}))['messages'] == []
+    asyncio.run(scenario())
+
+
+def test_month_period_reaches_archive_beyond_initial_source_sample(service):
+    async def scenario():
+        current = datetime.now(timezone.utc)
+        from eis_engine.news_period import resolve_period
+        first, last = resolve_period('الشهر الماضي', current.date())
+        old = article(service, first.isoformat()+'T12:00:00+00:00')
+        for i in range(30):
+            article(service, current.isoformat())
+        payload = await setup(service, include_news=True, message='أخبار الشهر الماضي')
+        context = service.conversations.source_context(ChatSend.model_validate(payload))
+        assert [a['id'] for a in context['news']] == [old]
+        assert context['window']['requested_dates'] == [first.isoformat(), last.isoformat()]
     asyncio.run(scenario())

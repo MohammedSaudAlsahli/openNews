@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 extension Notification.Name {
+    static let onboardingReadNews = Self("eis.onboardingReadNews")
     static let showEditorialSetup = Self("eis.showSetup")
     static let newEditorialConversation = Self("eis.newConversation")
     static let newEditorialDraft = Self("eis.newDraft")
@@ -65,6 +66,7 @@ struct ContentView: View {
             .onChange(of: jobRevision) { _, _ in
                 Task { await receiveGeneratedDraft(); await chat.update(model) }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .onboardingReadNews)) { _ in compactPane = "articles" }
             .onReceive(NotificationCenter.default.publisher(for: .showEditorialSetup)) { _ in showingSetup = true }
             .onReceive(NotificationCenter.default.publisher(for: .newEditorialConversation)) { _ in beginConversation() }
             .onReceive(NotificationCenter.default.publisher(for: .openEditorialDrafts)) { _ in showDrafts = true }
@@ -144,7 +146,7 @@ struct ContentView: View {
     }
 
     private func beginConversation() {
-        guard !chat.sending && !chat.loading else { return }
+        guard !chat.submitting && !chat.loading else { return }
         compactPane = "conversation"
         chat.newConversation(model)
     }
@@ -172,7 +174,6 @@ struct ContentView: View {
                 if compactWindow { compactReferences.toggle() } else { showReferences.toggle() }
             } label: { Label(L("المصادر"), systemImage: "sidebar.trailing") }.help(L("الأخبار والكتابات"))
             }
-            SettingsLink { Label(L("الإعدادات"), systemImage: "gearshape") }.help(L("الإعدادات (⌘,)"))
         }
     }
 
@@ -288,7 +289,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(L("النشاط")).font(.headline)
                         if model.snapshot?.jobs.isEmpty != false { Text(L("ستظهر هنا عمليات التحليل والتوليد.")).foregroundStyle(.secondary) }
-                        ScrollView { VStack(spacing: 12) { ForEach(model.snapshot?.jobs ?? []) { job in ActivityRow(job: job) } } }.frame(maxHeight: 360)
+                        ActivitySummary()
                     }.padding(20).frame(width: 360).editorialPresentation()
                 }
         }.font(.caption).padding(.horizontal, 18).frame(height: 36).background(Color(nsColor: .windowBackgroundColor))

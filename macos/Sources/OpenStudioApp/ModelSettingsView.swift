@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 private enum SettingsSection: String, CaseIterable {
-    case general, connections, agents, permissions, assistant
+    case general, connections, agents, permissions, assistant, newsMemory, summaryModels
 }
 
 struct ModelSettingsView: View {
@@ -13,6 +13,7 @@ struct ModelSettingsView: View {
     @AppStorage("colorPalette") private var colorPalette = "paper"
     @AppStorage("appLanguage") private var appLanguage = "ar"
     @AppStorage("settingsSection") private var section: SettingsSection = .general
+    @State private var visited: Set<SettingsSection> = []
     var body: some View {
         let _ = interfaceLanguage
         HStack(spacing: 0) {
@@ -22,29 +23,51 @@ struct ModelSettingsView: View {
                     Section(L("مساحة العمل")) {
                         Label(L("الوكلاء"), systemImage: "person.2").tag(SettingsSection.agents)
                         Label(L("تخصيص المساعد"), systemImage: "slider.horizontal.3").tag(SettingsSection.assistant)
+                        Label(L("ذاكرة الأخبار"), systemImage: "books.vertical").tag(SettingsSection.newsMemory)
+                        Label(L("التلخيص والنماذج"), systemImage: "text.alignleft").tag(SettingsSection.summaryModels)
                     }
                     Section(L("التطبيق")) {
                         Label(L("مزوّدو الذكاء الاصطناعي"), systemImage: "network").tag(SettingsSection.connections)
                         Label(L("اللغة والمظهر"), systemImage: "globe").tag(SettingsSection.general)
                         Label(L("الصلاحيات والإعداد"), systemImage: "lock.shield").tag(SettingsSection.permissions)
                     }
-                }.listStyle(.sidebar).scrollContentBackground(.hidden).padding(.horizontal, 10).padding(.top, 6)
+                }.font(.callout).listStyle(.sidebar).scrollContentBackground(.hidden).padding(.horizontal, 10).padding(.top, 6)
             }.frame(width: 240).background(theme.page)
             Divider()
             // Keep each editor alive while navigating between settings sections.
             ZStack {
+                if section == .general || visited.contains(.general) {
                 VStack(alignment: .leading, spacing: 0) {
                     settingsHeading(L("اللغة والمظهر"), subtitle: L("خصّص لغة التطبيق ومظهره."))
                     general
                 }.opacity(section == .general ? 1 : 0)
                     .allowsHitTesting(section == .general).disabled(section != .general).accessibilityHidden(section != .general)
+                }
+                if section == .newsMemory || visited.contains(.newsMemory) {
+                VStack(alignment: .leading, spacing: 0) {
+                    settingsHeading(L("ذاكرة الأخبار"), subtitle: L("أخبار محفوظة، بحث أسرع، وملخصات جاهزة للنقاش."))
+                    Form { NewsMemorySettings { section = .summaryModels } }.formStyle(.grouped)
+                }.opacity(section == .newsMemory ? 1 : 0)
+                    .allowsHitTesting(section == .newsMemory).disabled(section != .newsMemory).accessibilityHidden(section != .newsMemory)
+                }
+                if section == .summaryModels {
+                    VStack(alignment: .leading, spacing: 0) {
+                        settingsHeading(L("التلخيص والنماذج"), subtitle: L("اختر ما يناسب جهازك. حمّل مرة واحدة، واترك الباقي للتطبيق."))
+                        LocalSummaryModels { section = .agents }
+                    }
+                }
+                if section == .connections || visited.contains(.connections) {
                 ConnectionsSettingsView().opacity(section == .connections ? 1 : 0)
                     .allowsHitTesting(section == .connections).disabled(section != .connections).accessibilityHidden(section != .connections)
+                }
+                if section == .permissions || visited.contains(.permissions) {
                 VStack(alignment: .leading, spacing: 0) {
                     settingsHeading(L("الصلاحيات والإعداد"), subtitle: L("اضبط صلاحيات التطبيق مرة واحدة، وغيّرها متى شئت."))
                     PermissionsSettingsView()
                 }.opacity(section == .permissions ? 1 : 0)
                     .allowsHitTesting(section == .permissions).disabled(section != .permissions).accessibilityHidden(section != .permissions)
+                }
+                if section == .assistant || visited.contains(.assistant) {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(L("تخصيص المساعد")).font(.title2.weight(.semibold))
                     Text(L("اضبط الدور والتعليمات والأسلوب مرة واحدة. يمكنك تخصيص كل وكيل أو محادثة بصورة مستقلة."))
@@ -53,11 +76,16 @@ struct ModelSettingsView: View {
                     Spacer()
                 }.padding(28).opacity(section == .assistant ? 1 : 0)
                     .allowsHitTesting(section == .assistant).disabled(section != .assistant).accessibilityHidden(section != .assistant)
+                }
+                if section == .agents || visited.contains(.agents) {
                 agents.opacity(section == .agents ? 1 : 0)
                     .allowsHitTesting(section == .agents).disabled(section != .agents).accessibilityHidden(section != .agents)
+                }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 900, idealWidth: 1000, minHeight: 680, idealHeight: 740)
+        .frame(minWidth: 1000, idealWidth: 1080, minHeight: 680, idealHeight: 740)
+        .onAppear { visited.insert(section) }
+        .onChange(of: section) { _, value in visited.insert(value) }
         .textFieldStyle(.roundedBorder)
         .navigationTitle(L("الإعدادات"))
         .background(theme.page)
@@ -96,32 +124,6 @@ struct ModelSettingsView: View {
                 LabeledContent(L("حفظ النصوص"), value: L("محليًا على جهازك"))
                 Text(L("تُرسل البيانات عند طلب الكتابة أو التحليل بعد تفعيل إذن استخدام النماذج. يمكنك تغيير الإذن من الصلاحيات والإعداد."))
                     .font(.callout).foregroundStyle(.secondary)
-            }
-            Section(L("تلخيص الأخبار في الخلفية")) {
-                Toggle(L("جهّز ملخصات الأخبار تلقائيًا"), isOn: Binding(
-                    get: { model.digestStatus?.enabled == true },
-                    set: { enabled in
-                        Task {
-                            do {
-                                _ = try await model.call("news.digest.set", ["enabled": enabled, "language": appLanguage])
-                                try await model.refresh()
-                            } catch { model.error = error.localizedDescription }
-                        }
-                    }))
-                    .disabled(!ModelPermission.allowed() || model.snapshot?.assignments?.contains(where: { $0.role == "news" }) != true)
-                if model.snapshot?.assignments?.contains(where: { $0.role == "news" }) != true {
-                    Button(L("اختر نموذج ملخّص الأخبار")) { section = .agents }
-                }
-                if let digest = model.digestStatus {
-                    Text(L("الملخصات الجاهزة: {0}، المتبقية: {1}", DisplayFormat.integer(digest.prepared), DisplayFormat.integer(digest.pending)))
-                        .font(.caption).foregroundStyle(.secondary)
-                    if !digest.currentTitle.isEmpty {
-                        Label(L("يلخّص الآن: {0}", digest.currentTitle), systemImage: "sparkles")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                Text(L("يستخدم النموذج الذي تختاره لملخّص الأخبار، على المقالات المتاحة فقط. قد تُحتسب تكلفة من مزودك."))
-                    .font(.caption).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
     }

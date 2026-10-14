@@ -91,11 +91,18 @@
       "title": "Target Seconds"
     },
     "days": {
-      "default": 7,
-      "maximum": 31,
-      "minimum": 1,
-      "title": "Days",
-      "type": "integer"
+      "anyOf": [
+        {
+          "maximum": 36500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Days"
     },
     "draft_title": {
       "default": "",

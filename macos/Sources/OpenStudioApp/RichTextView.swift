@@ -11,14 +11,14 @@ struct RichTextView: View {
     var citationPreview: ((URL) -> AnyView?)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 18) {
             ForEach(Array(RichTextBlock.parse(text).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .heading(let level, let value):
                     inline(value).font(.system(size: fontSize + (level == 1 ? 6 : level == 2 ? 4 : 2), weight: .semibold))
-                        .padding(.top, 6).accessibilityAddTraits(.isHeader)
+                        .padding(.top, 10).accessibilityAddTraits(.isHeader)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .environment(\.layoutDirection, RichTextDirection.detect(value))
+                        .environment(\.layoutDirection, RichTextDirection.markdown(value))
                 case .paragraph(let value):
                     paragraphs(value).font(.system(size: fontSize))
                 case .list(let marker, let value, let depth):
@@ -26,19 +26,17 @@ struct RichTextView: View {
                         Text(verbatim: marker).foregroundStyle(.secondary).frame(minWidth: 15, alignment: .leading)
                         paragraphs(value).frame(maxWidth: .infinity, alignment: .leading)
                     }.font(.system(size: fontSize)).padding(.leading, CGFloat(min(depth, 4)) * 14)
-                        .environment(\.layoutDirection, RichTextDirection.detect(value))
+                        .environment(\.layoutDirection, RichTextDirection.markdown(value))
                 case .quote(let value):
                     HStack(alignment: .top, spacing: 10) {
-                        RoundedRectangle(cornerRadius: 2).fill(Color.accentColor.opacity(0.5)).frame(width: 3)
                         paragraphs(value).font(.system(size: fontSize)).foregroundStyle(.secondary)
-                    }.padding(16).background(theme.surface, in: RoundedRectangle(cornerRadius: 8))
-                        .environment(\.layoutDirection, RichTextDirection.detect(value))
-                case .code(let value):
-                    ScrollView(.horizontal) {
-                        Text(verbatim: value).font(.system(size: max(12, fontSize - 2), design: .monospaced))
-                            .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                    }.padding(10).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
-                        .environment(\.layoutDirection, .leftToRight)
+                    }.padding(.horizontal, 16).padding(.vertical, 4)
+                        .overlay(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2).fill(Color.accentColor.opacity(0.55)).frame(width: 3)
+                        }
+                        .environment(\.layoutDirection, RichTextDirection.markdown(value))
+                case .code(let value, let language):
+                    MarkdownCodeBlock(code: value, language: language, fontSize: fontSize)
                 case .table(let rows):
                     ScrollView(.horizontal) {
                         VStack(spacing: 0) {
@@ -131,7 +129,12 @@ private struct ParagraphText: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> NSTextView {
-        let view = CitationTextView(frame: .zero)
+        let storage = NSTextStorage()
+        let layout = InlineCodeLayoutManager()
+        let container = NSTextContainer(containerSize: .zero)
+        storage.addLayoutManager(layout)
+        layout.addTextContainer(container)
+        let view = CitationTextView(frame: .zero, textContainer: container)
         view.isEditable = false
         view.isSelectable = true
         view.drawsBackground = false

@@ -106,12 +106,23 @@ struct Snapshot: Decodable {
     let subscriptions: [NewsSubscription]?
     let articles: [NewsArticle]?
     let newsDigest: NewsDigestStatus?
+    let newsSearch: NewsSearchStatus?
     let jobs: [Job]
 }
-struct NewsDigestStatus: Decodable {
+struct NewsSearchStatus: Decodable, Equatable {
+    let enabled: Bool
+    let model, phase, currentTitle: String
+    let indexed, semantic, pending: Int
+}
+struct NewsDigestStatus: Decodable, Equatable {
+    var engine: String? = nil
+    var localModel: String? = nil
+    var currentId: String? = nil
     let enabled: Bool
     let language: String
     let prepared, pending: Int
+    let dailyLimit, usedToday: Int?
+    let phase: String?
     let currentTitle: String
 }
 struct Provider: Decodable, Identifiable {
@@ -163,7 +174,10 @@ struct ProviderModels: Decodable {
 }
 struct SavedConnection: Decodable { let profileId, keychainRef: String }
 
-struct ConversationSummary: Decodable, Identifiable { let id, title, updatedAt: String }
+struct ConversationSummary: Decodable, Identifiable {
+    let id, title, updatedAt: String
+    var activeJobId: String? = nil
+}
 struct ConversationList: Decodable { let conversations: [ConversationSummary] }
 struct CreatedConversation: Decodable { let conversationId: String }
 struct ConversationDetail: Decodable {
@@ -177,6 +191,7 @@ struct ConversationDetail: Decodable {
 struct ConversationJob: Decodable { let id, state: String; let errorCode: String? }
 struct ConversationMessage: Decodable, Identifiable {
     let id, role, content, createdAt: String
+    let activity: ConversationExecution?
     let outputs: [ConversationOutput]?
     let citations: [ConversationCitation]?
 }
@@ -233,7 +248,23 @@ struct CustomAgent: Decodable, Identifiable {
 struct CustomAgentList: Decodable { let agents: [CustomAgent] }
 struct SavedCustomAgent: Decodable { let agentId: String }
 
+struct ConversationContextInfo: Decodable {
+    let totalMessages, includedMessages, historyBytes, historyBudgetBytes: Int
+    let hasOlderContext: Bool
+}
+struct ConversationExecutionStep: Decodable, Identifiable {
+    let id, kind, detail: String
+    let elapsedSeconds: Int
+}
+struct ConversationExecution: Decodable {
+    let steps: [ConversationExecutionStep]
+    let reasoningSummary: String
+    let elapsedSeconds: Int
+    let contextInfo: ConversationContextInfo?
+}
 struct ConversationProgress: Decodable {
+    let execution: ConversationExecution?
+    let contextInfo: ConversationContextInfo?
     let jobId, state, stage, message: String
     let activity: String?
     let citations: [ConversationCitation]

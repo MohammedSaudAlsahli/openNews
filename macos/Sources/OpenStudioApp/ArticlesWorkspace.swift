@@ -16,6 +16,7 @@ struct ArticlesWorkspace: View {
     @State private var scope = "all"
     @State private var days = 0
     @State private var order = "newest"
+    @State private var summaryStates: [String: String] = [:]
     @State private var articles: [NewsArticle] = []
     @State private var selected: NewsArticle?
     @State private var loading = false
@@ -24,6 +25,10 @@ struct ArticlesWorkspace: View {
     @State private var error: String?
     @State private var discover = false
     private var filters: String { "\(query)|\(sourceID)|\(scope)|\(days)|\(order)" }
+    private var summaryRefreshKey: String {
+        let digest = model.digestStatus
+        return [articles.map(\.id).joined(), String(digest?.prepared ?? 0), digest?.currentId ?? "", digest?.localModel ?? "", digest?.engine ?? "", digest?.language ?? ""].joined(separator: "|")
+    }
     var body: some View {
         ZStack {
             library.accessibilityElement(children: .contain).opacity(selected == nil ? 1 : 0).allowsHitTesting(selected == nil).disabled(selected != nil).accessibilityHidden(selected != nil)
@@ -37,6 +42,16 @@ struct ArticlesWorkspace: View {
                 }).id(article.id)
             }
         }.background(theme.page)
+            .task(id: summaryRefreshKey) {
+                let ids = articles.map(\.id)
+                for start in stride(from: 0, to: ids.count, by: 100) {
+                    guard !Task.isCancelled else { return }
+                    if let result = try? await model.decoded("news.summary.states", ["ids": Array(ids[start..<min(start+100,ids.count)])], as: ArticleSummaryStates.self) {
+                        guard !Task.isCancelled else { return }
+                        summaryStates.merge(result.states) { _, new in new }
+                    }
+                }
+            }
             .sheet(isPresented: $discover) { FeedLibraryView() }
             .task(id: filters + (model.health?.workspaceId ?? "")) {
                 request = UUID()
@@ -114,20 +129,31 @@ struct ArticlesWorkspace: View {
             if let error { Text(L(error)).foregroundStyle(.red).font(.callout).padding(12) }
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 290, maximum: 480), spacing: 22, alignment: .top)], alignment: .center, spacing: 24) {
-                    ForEach(articles) { article in ArticleCard(article: article) { selected = article }.id(article.id) }
+                    ForEach(articles) { article in
+                        ArticleCard(summaryState: summaryStates[article.id] ?? "pending", article: article) { selected = article }.id(article.id)
+                            .task {
+                                if article.id == articles.last?.id && more && !loading && error == nil {
+                                    await load(append: true)
+                                }
+                            }
+                    }
                 }.padding(28)
                 if articles.isEmpty && !loading {
                     ContentUnavailableView(L(scope == "saved" ? "لم تحفظ مقالات بعد" : "لا توجد مقالات مطابقة"), systemImage: scope == "saved" ? "bookmark" : "newspaper", description: Text(L("جرّب تغيير البحث أو اكتشف مصادر جديدة."))).padding(40)
                 }
-                if more { Button(L("تحميل المزيد")) { Task { await load(append: true) } }.disabled(loading).padding(24) }
+                if more {
+                    Button(L("تحميل المزيد")) { Task { await load(append: true) } }
+                        .disabled(loading).padding(24)
+                }
             }
         }
     }
     private func load(append: Bool = false) async {
+        guard !append || (!loading && more) else { return }
         let token = UUID(); request = token; loading = true; error = nil
         defer { if request == token { loading = false } }
         do {
-            let page = try await model.decoded("news.list", ["query":query,"source_id":sourceID,"scope":scope,"days":days,"order":order,"offset":append ? articles.count : 0], as: NewsArticlePage.self)
+            let page = try await model.decoded("news.list", ["query":query,"source_id":sourceID,"scope":scope,"days":days,"order":order,"offset":append ? articles.count : 0,"limit":24], as: NewsArticlePage.self)
             guard !Task.isCancelled, request == token else { return }
             if append { let known = Set(articles.map(\.id)); articles += page.articles.filter { !known.contains($0.id) } }
             else { articles = page.articles }

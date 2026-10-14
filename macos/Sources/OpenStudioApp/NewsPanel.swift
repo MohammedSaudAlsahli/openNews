@@ -5,10 +5,8 @@ struct NewsPanel: View {
     @EnvironmentObject private var model: StudioModel
     @Binding var selectedArticleIDs: Set<String>
     @State private var adding = false
-    @State private var library = false
     @State private var subscriptions = false
     @State private var query = ""
-    @State private var selected: NewsArticle?
     @State private var syncing = false
     @State private var error: String?
     private var feeds: [NewsSubscription] { model.snapshot?.subscriptions ?? [] }
@@ -18,13 +16,13 @@ struct NewsPanel: View {
         let _ = interfaceLanguage
         VStack(spacing: 0) {
             HStack {
-                Text(L("أخبارك ومراجعك")).font(.headline)
+                Text(L("مراجع المحادثة")).font(.headline)
                 Spacer()
                 Button { subscriptions.toggle() } label: { Image(systemName: "list.bullet.rectangle") }.help(L("إدارة الاشتراكات")).accessibilityLabel(L("إدارة الاشتراكات"))
                 Button { adding = true } label: { Image(systemName: "plus") }.help(L("إضافة RSS أو Reddit")).accessibilityLabel(L("إضافة RSS أو Reddit"))
             }.padding(16)
-            Button { library = true } label: { Label(L("اكتشف المصادر"), systemImage: "safari") }
-                .buttonStyle(.bordered).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.bottom, 12)
+            Text(L("اختر مقالات لإرفاقها، أو اطلب البحث في أي فترة من المحادثة."))
+                .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 16).padding(.bottom, 12)
             if let error {
                 Text(L(error)).font(.caption).foregroundStyle(.red).padding(.horizontal, 16)
             }
@@ -32,7 +30,7 @@ struct NewsPanel: View {
             else { articleList }
             Divider()
             HStack {
-                Text(selectedArticleIDs.isEmpty ? L("آخر {0} أيام للمحادثة", 7) : L("{0} أخبار محددة", DisplayFormat.integer(selectedArticleIDs.count))).font(.caption).foregroundStyle(.secondary)
+                Text(selectedArticleIDs.isEmpty ? L("الفترة حسب طلبك") : L("{0} أخبار محددة", DisplayFormat.integer(selectedArticleIDs.count))).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if !selectedArticleIDs.isEmpty { Button(L("مسح التحديد")) { selectedArticleIDs.removeAll() }.font(.caption) }
                 Button { Task { await sync() } } label: {
@@ -41,15 +39,8 @@ struct NewsPanel: View {
                 }.disabled(syncing || feedsBusy || feeds.isEmpty).help(L("تحديث الأخبار")).accessibilityLabel(L("تحديث الأخبار"))
             }.padding(14)
         }
-        .sheet(isPresented: $library) { FeedLibraryView() }
         .sheet(isPresented: $adding) { AddNewsSubscriptionSheet() }
-        .task(id: (model.health?.workspaceId ?? "") + String(feedsBusy)) {
-            guard model.health != nil else { return }
-            while !Task.isCancelled {
-                do { try await Task.sleep(nanoseconds: feedsBusy ? 2_000_000_000 : 60_000_000_000) } catch { break }
-                try? await model.refresh()
-            }
-        }
+
     }
     private var subscriptionList: some View {
         ScrollView {
@@ -66,6 +57,12 @@ struct NewsPanel: View {
                                 catch { self.error = error.localizedDescription }
                             }
                         }))
+                        Button(L("إلغاء الاشتراك مع الاحتفاظ بالأخبار"), role: .destructive) {
+                            Task {
+                                do { _ = try await model.call("news.unsubscribe", ["subscription_id": feed.id]); try await model.refresh() }
+                                catch { self.error = error.localizedDescription }
+                            }
+                        }
                         Text(feed.kind == "reddit" ? "Reddit" : "RSS").font(.caption).foregroundStyle(.secondary)
                         if let url = URL(string: feed.url), ["https", "http"].contains(url.scheme?.lowercased() ?? "") { Link(L("فتح المصدر"), destination: url).font(.caption) }
                         if let date = feed.lastSuccess { Text(L("آخر جلب ناجح: {0}", DisplayFormat.date(date))).font(.caption2).foregroundStyle(.secondary) }
@@ -121,12 +118,7 @@ struct NewsPanel: View {
         do {
             _ = try await model.call("news.sync")
             try await model.refresh()
-            // Some feeds complete between snapshots; stop polling as soon as all settle.
-            for _ in 0..<60 {
-                try await Task.sleep(nanoseconds: 2_000_000_000)
-                try await model.refresh()
-                if !feedsBusy { break }
-            }
+
         } catch { self.error = error.localizedDescription }
     }
 }

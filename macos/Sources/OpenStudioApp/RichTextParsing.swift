@@ -8,7 +8,7 @@ enum RichTextBlock: Equatable {
     case paragraph(String)
     case list(String, String, Int)
     case quote(String)
-    case code(String)
+    case code(String, language: String = "")
     case divider
     case table([[String]])
 
@@ -17,6 +17,7 @@ enum RichTextBlock: Equatable {
         var paragraph: [String] = []
         var code: [String] = []
         var fence: String?
+        var language = ""
         var table: [[String]] = []
         func cells(_ line: String) -> [String] {
             var value = line.trimmingCharacters(in: .whitespaces)
@@ -30,7 +31,7 @@ enum RichTextBlock: Equatable {
         for line in text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if let activeFence = fence {
-                if trimmed.hasPrefix(activeFence) { result.append(.code(code.joined(separator: "\n"))); code = []; fence = nil }
+                if trimmed.count >= activeFence.count && trimmed.allSatisfy({ $0 == activeFence.first }) { result.append(.code(code.joined(separator: "\n"), language: language)); code = []; fence = nil }
                 else { code.append(line) }
                 continue
             }
@@ -43,7 +44,9 @@ enum RichTextBlock: Equatable {
                 paragraph.removeLast(); flush(); table = [cells(header)]; continue
             }
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
-                flush(); fence = String(trimmed.prefix { $0 == trimmed.first }); continue
+                flush(); fence = String(trimmed.prefix { $0 == trimmed.first })
+                language = String(trimmed.dropFirst(fence!.count)).split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
+                continue
             }
             if trimmed.isEmpty { flush(); continue }
             let hashes = trimmed.prefix { $0 == "#" }.count
@@ -70,7 +73,7 @@ enum RichTextBlock: Equatable {
             paragraph.append(line)
         }
         if !table.isEmpty { result.append(.table(table)) }
-        if fence != nil { result.append(.code(code.joined(separator: "\n"))) }
+        if fence != nil { result.append(.code(code.joined(separator: "\n"), language: language)) }
         flush()
         return result
     }
@@ -92,10 +95,17 @@ enum RichTextLinks {
             let url = (value as? URL) ?? (value as? String).flatMap(URL.init(string:))
             if url.map(allowed) != true { native.removeAttribute(.link, range: range) }
         }
+        var codeRanges: [NSRange] = []
+        var offset = 0
+        for run in parsed.runs {
+            let length = String(parsed[run.range].characters).utf16.count
+            if run.inlinePresentationIntent?.contains(.code) == true { codeRanges.append(NSRange(location: offset, length: length)) }
+            offset += length
+        }
         // NSDataDetector recognizes plain URLs without requiring Markdown link syntax.
         if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
             for match in detector.matches(in: native.string, range: full) {
-                guard let url = match.url, allowed(url), native.attribute(.link, at: match.range.location, effectiveRange: nil) == nil else { continue }
+                guard !codeRanges.contains(where: { NSIntersectionRange($0, match.range).length > 0 }), let url = match.url, allowed(url), native.attribute(.link, at: match.range.location, effectiveRange: nil) == nil else { continue }
                 native.addAttribute(.link, value: url, range: match.range)
             }
         }
@@ -119,11 +129,11 @@ enum RichTextLinks {
             let length = String(value[run.range].characters).utf16.count
             let range = NSRange(location: location, length: length)
             let intent = run.inlinePresentationIntent ?? []
-            var font = intent.contains(.code) ? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular) : NSFont.systemFont(ofSize: fontSize)
+            var font = intent.contains(.code) ? NSFont.monospacedSystemFont(ofSize: fontSize * 0.88, weight: .regular) : NSFont.systemFont(ofSize: fontSize)
             if intent.contains(.stronglyEmphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) }
             if intent.contains(.emphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
             native.addAttribute(.font, value: font, range: range)
-            if intent.contains(.code) { native.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: range) }
+            if intent.contains(.code) { native.addAttribute(.inlineCode, value: true, range: range) }
             if intent.contains(.strikethrough) { native.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range) }
             if let link = run.link, allowed(link) { native.addAttribute(.foregroundColor, value: NSColor.linkColor, range: range) }
             location += length
@@ -135,7 +145,11 @@ enum RichTextLinks {
         while start < text.length {
             let range = text.paragraphRange(for: NSRange(location: start, length: 0))
             let style = NSMutableParagraphStyle()
-            let rtl = RichTextDirection.detect(text.substring(with: range)) == .rightToLeft
+            var prose = ""
+            native.enumerateAttributes(in: range) { attributes, span, _ in
+                if attributes[.inlineCode] == nil && attributes[.link] == nil { prose += text.substring(with: span) }
+            }
+            let rtl = RichTextDirection.detect(prose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? text.substring(with: range) : prose) == .rightToLeft
             style.baseWritingDirection = rtl ? .rightToLeft : .leftToRight
             style.alignment = rtl ? .right : .left
             style.lineSpacing = lineSpacing
@@ -157,7 +171,34 @@ enum RichTextLinks {
 
 /// Content direction is independent of the chosen interface language.
 enum RichTextDirection {
+    private static let directions: NSCache<NSString, NSNumber> = {
+        let cache = NSCache<NSString, NSNumber>()
+        cache.countLimit = 1024
+        cache.totalCostLimit = 4 * 1024 * 1024
+        return cache
+    }()
+
+    /// Link destinations and inline code must not move Arabic list markers to the left.
+    static func markdown(_ source: String) -> LayoutDirection {
+        guard let value = try? AttributedString(markdown: source, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else {
+            return detect(source)
+        }
+        let prose = value.runs.filter { $0.link == nil && $0.inlinePresentationIntent?.contains(.code) != true }
+            .map { String(value[$0.range].characters) }.joined()
+        return detect(prose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? String(value.characters) : prose)
+    }
+
     static func detect(_ text: String) -> LayoutDirection {
+        let key = text as NSString
+        if let cached = directions.object(forKey: key) {
+            return cached.boolValue ? .rightToLeft : .leftToRight
+        }
+        let result = recognize(text)
+        directions.setObject(NSNumber(value: result == .rightToLeft), forKey: key, cost: text.utf8.count)
+        return result
+    }
+
+    private static func recognize(_ text: String) -> LayoutDirection {
         // A brand name at the beginning (e.g. GitHub) must not reverse an
         // otherwise Arabic paragraph. Use the paragraph language, then the
         // first strong character when the short text cannot be identified.

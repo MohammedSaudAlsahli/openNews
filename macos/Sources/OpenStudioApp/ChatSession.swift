@@ -19,10 +19,12 @@ import SwiftUI
     @Published var loading = false
     @Published var loadingOlder = false
     @Published var sending = false
+    @Published var submitting = false
     @Published var error: String?
     @Published var jobID: String?
     @Published var progress: ConversationProgress?
     private var initialized = false
+    private var listRevision = UUID()
 
     func start(_ model: StudioModel) async {
         guard model.health != nil, model.snapshot != nil, !initialized else { return }
@@ -34,11 +36,18 @@ import SwiftUI
         // Start on an explicit new conversation; history remains one click away.
     }
     func refreshList(_ model: StudioModel) async {
-        do { conversations = try await model.decoded("chat.list", as: ConversationList.self).conversations }
-        catch { self.error = error.localizedDescription }
+        let revision = UUID()
+        listRevision = revision
+        do {
+            let items = try await model.decoded("chat.list", as: ConversationList.self).conversations
+            guard listRevision == revision, !Task.isCancelled else { return }
+            conversations = items
+        } catch {
+            if listRevision == revision, !Task.isCancelled { self.error = error.localizedDescription }
+        }
     }
     func select(_ id: String, _ model: StudioModel) async {
-        guard !sending && !loading else { return }
+        guard !submitting && !loading else { return }
         unsentMessages[conversationID] = composer
         loading = true; error = nil
         defer { loading = false }
@@ -46,6 +55,7 @@ import SwiftUI
             let loaded = try await model.decoded("chat.detail", ["conversation_id": id], as: ConversationDetail.self)
             composer = unsentMessages[id] ?? ""
             progress = nil
+            composerRevision = UUID()
             conversationID = id; detail = loaded; jobID = loaded.activeJobId; sending = jobID != nil
             if let last = loaded.lastJob, ["failed", "interrupted", "cancelled"].contains(last.state) {
                 error = Self.failureMessage(last.errorCode)
@@ -66,13 +76,13 @@ import SwiftUI
                 messages: older.messages.filter { !existing.contains($0.id) } + current.messages,
                 activeJobId: current.activeJobId, lastJob: current.lastJob,
                 hasMore: older.hasMore, nextBeforeMessageId: older.nextBeforeMessageId)
-        } catch { self.error = error.localizedDescription }
+        } catch { if conversationID == requested { self.error = error.localizedDescription } }
     }
     func newConversation(_ model: StudioModel) {
-        guard !sending && !loading else { return }
+        guard !submitting && !loading else { return }
         unsentMessages[conversationID] = composer
         progress = nil
-        conversationID = ""; detail = nil; error = nil; agentID = ""; jobID = nil
+        conversationID = ""; detail = nil; error = nil; agentID = ""; jobID = nil; sending = false
         composer = ""; format = "discussion"; includeDraft = false; seconds = 60
         composerRevision = UUID()
         if let assignment = model.snapshot?.assignments?.first(where: { $0.role == "writer" }) {
@@ -81,6 +91,8 @@ import SwiftUI
     }
     func send(_ model: StudioModel, articleIDs: Set<String>, draftText: String, draftTitle: String) async {
         guard !sending, !loading, modelReady, ModelPermission.allowed(), composer.count <= 12000, (!includeDraft || draftText.count <= 60000), !composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        submitting = true
+        defer { submitting = false }
         sending = true; error = nil; progress = nil
         let message = composer
         do {
@@ -88,7 +100,7 @@ import SwiftUI
                 let created = try await model.decoded("chat.create", ["title": String(message.prefix(80))], as: CreatedConversation.self)
                 conversationID = created.conversationId
             }
-            var payload: [String: Any] = ["conversation_id": conversationID, "message": message, "profile_id": profileID, "model_id": modelID, "consent": true, "idempotency_key": UUID().uuidString, "article_ids": useNews ? Array(articleIDs) : [], "format": format, "days": 7, "include_news": useNews, "research_web": researchWeb]
+            var payload: [String: Any] = ["conversation_id": conversationID, "message": message, "profile_id": profileID, "model_id": modelID, "consent": true, "idempotency_key": UUID().uuidString, "article_ids": useNews ? Array(articleIDs) : [], "format": format, "include_news": useNews, "research_web": researchWeb]
             if !agentID.isEmpty { payload["agent_id"] = agentID }
             if includeDraft && !draftText.isEmpty { payload["draft_text"] = draftText; payload["draft_title"] = draftTitle }
             if ["youtube_long", "tiktok"].contains(format) { payload["target_seconds"] = seconds }
@@ -100,16 +112,22 @@ import SwiftUI
         } catch { self.error = error.localizedDescription; sending = jobID != nil }
     }
     func update(_ model: StudioModel) async {
-        guard let id = jobID, let job = model.snapshot?.jobs.first(where: { $0.id == id }), !job.active else { return }
-        if !conversationID.isEmpty {
-            do { detail = try await model.decoded("chat.detail", ["conversation_id": conversationID], as: ConversationDetail.self) }
-            catch { self.error = error.localizedDescription }
+        guard !loading, let id = jobID,
+              let job = model.snapshot?.jobs.first(where: { $0.id == id }), !job.active else { return }
+        let requestedConversation = conversationID
+        do {
+            let loaded = try await model.decoded("chat.detail", ["conversation_id": requestedConversation], as: ConversationDetail.self)
+            // A background completion must never replace the newly selected thread.
+            guard conversationID == requestedConversation, jobID == id, !loading else { return }
+            detail = loaded
+            jobID = nil; sending = false; progress = nil
+            if job.state != "completed" { error = Self.failureMessage(job.errorCode) }
+        } catch {
+            guard conversationID == requestedConversation, jobID == id, !loading else { return }
+            self.error = error.localizedDescription
+            return
         }
-        // Keep the streamed answer visible until the persisted message is ready.
-        // Clearing progress first makes a completed reply disappear and reappear.
-        jobID = nil; sending = false; progress = nil
         await refreshList(model)
-        if job.state != "completed" { error = Self.failureMessage(job.errorCode) }
     }
     func monitor(_ model: StudioModel, job: String) async {
         while !Task.isCancelled && jobID == job {
@@ -117,7 +135,11 @@ import SwiftUI
                 let next = try await model.decoded("chat.progress", ["job_id": job], as: ConversationProgress.self)
                 guard !Task.isCancelled, jobID == job else { return }
                 if !["queued", "running"].contains(next.state) {
-                    try await model.refresh(); await update(model); return
+                    try await model.refresh(); await update(model)
+                    if jobID != job { return }
+                    // Navigation or a transient fetch failure can defer final delivery.
+                    try await Task.sleep(for: .milliseconds(300))
+                    continue
                 }
                 progress = next
                 try await Task.sleep(for: .milliseconds(300))
@@ -138,8 +160,10 @@ import SwiftUI
         }
     }
     func retry(_ model: StudioModel) async {
-        guard !sending, ModelPermission.allowed(), let last = detail?.lastJob,
+        guard !sending, !loading, !submitting, ModelPermission.allowed(), let last = detail?.lastJob,
               ["failed", "interrupted", "cancelled"].contains(last.state) else { return }
+        submitting = true
+        defer { submitting = false }
         sending = true; error = nil; progress = nil
         do {
             _ = try await model.call("jobs.resume", ["job_id": last.id, "consent": true])

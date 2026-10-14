@@ -94,3 +94,11 @@ def test_image_endpoint_rejects_html_and_svg(saved):
     async def bad(url,conditional=None): return result(url,b'<svg onload="bad"/>','image/svg+xml')
     manager.fetch=bad
     with pytest.raises(Failure): asyncio.run(manager.image('article','0'))
+
+
+def test_preserved_code_retains_language_and_literal_source():
+    from lxml import html
+    from eis_engine.article_reader import preserve_special_blocks
+    tree = html.fromstring('<article><pre><code class="language-python"># عربي\nprint("hello")</code></pre></article>')
+    blocks = preserve_special_blocks(tree, 'https://example.com')
+    assert list(blocks.values()) == ['```python\n# عربي\nprint("hello")\n```']

@@ -90,3 +90,25 @@ struct BackgroundWindowHost: NSViewRepresentable {
         }
     }
 }
+
+struct ActivitySummary: View {
+    @EnvironmentObject private var model: StudioModel
+    private var jobs: [Job] { model.snapshot?.jobs ?? [] }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let attention = jobs.filter { $0.state != "completed" }
+            if attention.isEmpty {
+                Label(L("لا توجد مهام قيد التنفيذ"), systemImage: "checkmark.circle")
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(spacing: 12) { ForEach(attention) { ActivityRow(job: $0) } }
+                }.frame(maxHeight: 300)
+            }
+            let completed = jobs.filter { $0.state == "completed" }.count
+            if completed > 0 {
+                Text(L("{0} مهام مكتملة مؤخرًا", completed)).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+}

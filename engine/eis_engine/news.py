@@ -177,11 +177,13 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
         self.icon_results, self.icon_pending = {}, {}
         self.db.execute("UPDATE news_subscriptions SET status='pending' WHERE workspace_id=? AND status='syncing'", (self.ws,))
         self.db.commit()
+        from .news_archive import NewsArchive
+        self.archive = NewsArchive(self)
 
     def snapshot(self):
         subscriptions = self.store.rows("""SELECT s.id,s.title,s.url,s.feed_url,s.kind,s.enabled,s.interval_minutes,s.last_checked,s.last_success,s.error,s.status,
             (SELECT count(*) FROM news_articles a WHERE a.subscription_id=s.id AND a.is_read=0) AS unread_count
-            FROM news_subscriptions s WHERE workspace_id=? AND kind!='manual' ORDER BY created_at DESC""", (self.ws,))
+            FROM news_subscriptions s WHERE workspace_id=? AND kind!='manual' AND removed_at IS NULL ORDER BY created_at DESC""", (self.ws,))
         for row in subscriptions: row["enabled"] = bool(row["enabled"])
         return {"subscriptions":subscriptions,"articles":self.list_articles({"limit":100})["articles"]}
 
@@ -198,8 +200,8 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
                 or type(limit) is not int or not 1 <= limit <= 100
                 or type(offset) is not int or not 0 <= offset <= 100000):
             raise Failure("VALIDATION_ERROR", "خيارات بحث المقالات غير صالحة.")
-        clauses, args = ["a.workspace_id=?"], [self.ws]
-        if source: clauses.append("a.subscription_id=?"); args.append(source)
+        clauses, args = ["a.workspace_id=?", "a.id NOT IN (SELECT article_id FROM news_article_duplicates)"], [self.ws]
+        if source: clauses.append("a.id IN (SELECT article_id FROM news_article_origins WHERE subscription_id=?)"); args.append(source)
         if scope == "unread": clauses.append("a.is_read=0")
         if scope == "saved": clauses.append("a.is_bookmarked=1")
         if days:
@@ -213,13 +215,11 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
             args.append('%'+term+'%')
         direction = "DESC" if order == "newest" else "ASC"
         rows = self.store.rows("""SELECT a.id,a.subscription_id,s.title AS source_title,a.title,a.url,a.published_at,
-            a.discovered_at,substr(a.summary,1,500) AS summary,a.body_status,a.is_read,a.is_bookmarked,a.reader_json
+            a.discovered_at,substr(a.summary,1,500) AS summary,a.body_status,a.is_read,a.is_bookmarked,(SELECT json_extract(value,'$.id') FROM json_each(a.reader_json,'$.blocks') WHERE json_extract(value,'$.type')='image' LIMIT 1) AS cover_image_id
             FROM news_articles a JOIN news_subscriptions s ON a.subscription_id=s.id WHERE """ + " AND ".join(clauses) +
             " ORDER BY coalesce(a.published_at,a.discovered_at) " + direction + ",a.id " + direction + " LIMIT ? OFFSET ?", (*args,limit+1,offset))
         for row in rows:
             row["is_read"], row["is_bookmarked"] = bool(row["is_read"]), bool(row["is_bookmarked"])
-            reader = json.loads(row.pop("reader_json", "{}"))
-            row["cover_image_id"] = next((b.get("id") for b in reader.get("blocks",[]) if b.get("type")=="image"), None)
         return {"articles":rows[:limit], "has_more":len(rows)>limit}
 
     def bookmark(self, params):

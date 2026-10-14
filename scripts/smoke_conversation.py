@@ -67,10 +67,13 @@ with tempfile.TemporaryDirectory(prefix='eis-chat-smoke-') as temporary:
         assert 'error' not in answer,answer
         return answer['result']
     try:
-        for _ in range(200):
+        started = time.monotonic()
+        for _ in range(600):
             if sock.exists():break
             if child.poll() is not None:raise RuntimeError(child.stderr.read().decode())
             time.sleep(.05)
+        if not sock.exists(): raise RuntimeError('Engine did not become ready within the app startup limit of 30 seconds')
+        startup_seconds = round(time.monotonic()-started,3)
         profile=call('providers.save',{'provider_key':'lmstudio','label':'Isolated mock','config':{'base_url':f'http://127.0.0.1:{server.server_port}/v1'}})['profile_id']
         keys=workspace/'.providers';keys.mkdir(mode=0o700);credential=keys/(profile+'.json');credential.write_text('{}');credential.chmod(0o600)
         catalog=call('providers.models',{'profile_id':profile,'refresh':True})
@@ -98,7 +101,7 @@ with tempfile.TemporaryDirectory(prefix='eis-chat-smoke-') as temporary:
         output=detail['messages'][-1]['outputs'][0]['draft_id']
         exported=call('drafts.export',{'draft_id':output})['text']
         assert 'https://example.org/story' in exported
-        print(json.dumps({'result':'passed','actual_agno_calls_to_mock':len(calls),'formats':['discussion','x_posts','youtube_long','tiktok'],'stream_previews':len(previews),'persistent_messages':8,'separate_drafts':3,'style_and_news_isolated':True,'export_has_source':True,'bundled':resources is not None}))
+        print(json.dumps({'result':'passed','actual_agno_calls_to_mock':len(calls),'formats':['discussion','x_posts','youtube_long','tiktok'],'stream_previews':len(previews),'persistent_messages':8,'separate_drafts':3,'style_and_news_isolated':True,'export_has_source':True,'bundled':resources is not None,'startup_seconds':startup_seconds}))
     finally:
         child.terminate()
         try:child.wait(timeout=10)

@@ -31,6 +31,7 @@ async def serve(directory, socket_path):
     service.catalog_task = asyncio.create_task(service.refresh_catalogs())
     service.news_task = asyncio.create_task(service.news.poll())
     service.digest_task = asyncio.create_task(service.news_digest.poll())
+    service.knowledge_task = asyncio.create_task(service.news.knowledge.poll())
     stop = asyncio.Event()
 
     async def connected(reader,writer):

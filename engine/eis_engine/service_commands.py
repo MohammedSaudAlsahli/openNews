@@ -23,6 +23,12 @@ class ServiceCommandsMixin:
             return self.conversations.submit(p)
         if command == "news.icon":
             return await self.news.site_icon(p.get("url", ""))
+        if command == "news.unsubscribe":
+            return self.news.archive.unsubscribe(p.get("subscription_id"))
+        if command == "news.history":
+            return self.news.archive.history(p.get("article_id"))
+        if command == "news.revision":
+            return self.news.archive.compare(p.get("article_id"),p.get("revision_id"))
         if command == "news.list":
             return self.news.list_articles(p)
         if command == "news.bookmark":
@@ -32,10 +38,41 @@ class ServiceCommandsMixin:
         if command == "news.summarize":
             from .article_summary import summarize
             return await summarize(self, p)
+        if command == "news.search.status":
+            return self.news.knowledge.status()
+        if command == "news.search.set":
+            return self.news.knowledge.configure(p)
+        if command == "news.digest.device":
+            return self.news_digest.device_state(p)
         if command == "news.digest.status":
             return self.news_digest.status()
         if command == "news.digest.set":
             return self.news_digest.configure(p)
+        if command == "news.summary.states":
+            return self.news_digest.article_states(p.get('ids'))
+        if command == "news.local.catalog":
+            from .local_summary import CATALOG
+            await asyncio.gather(*(self.news_digest.local.inspect(x['id']) for x in CATALOG),return_exceptions=True)
+            return await self.news_digest.local.refresh()
+        if command == "news.local.search":
+            return await self.news_digest.local.library.search(p.get('query',''),p.get('page',1))
+        if command == "news.local.variants":
+            return await self.news_digest.local.library.variants(p.get('model'))
+        if command == "news.local.status":
+            return await self.news_digest.local.refresh()
+        if command == "news.local.start":
+            return await self.news_digest.local.start_runtime()
+        if command == "news.local.inspect":
+            return await self.news_digest.local.inspect(p.get('model'))
+        if command == "news.local.download":
+            if p.get('consent') is not True: raise Failure('PERMISSION_DENIED','فعّل استخدام النماذج من إعدادات الصلاحيات للمتابعة.')
+            return await self.news_digest.local.begin(p.get('model'),p.get('language','ar'))
+        if command == "news.local.cancel":
+            return await self.news_digest.local.cancel()
+        if command == "news.local.select":
+            name = await self.news_digest.local.check_generation(p.get('model'))
+            return self.news_digest.configure({'engine':'local','local_model':name,
+                'enabled':False,'language':p.get('language',self.news_digest.settings()['language'])})
         if command == "news.directory":
             return await self.feed_directory.search(p)
         if command == "news.library.path":
@@ -80,7 +117,7 @@ class ServiceCommandsMixin:
                 self.db.execute("INSERT INTO source_roles VALUES(?,?,?) ON CONFLICT(item_id) DO UPDATE SET purpose=excluded.purpose",(item["id"],self.ws,purpose))
             return {"updated":True}
         if command == "runtime.health":
-            return {"engine_version":"0.1.0","schema_version":1,"sqlite_version":sqlite3.sqlite_version,"sqlite_vec":self.store.vec_version,"workspace_id":self.ws,"transport":"unix_socket","release_status":"development"}
+            return {"engine_version":"0.2.0","schema_version":1,"sqlite_version":sqlite3.sqlite_version,"sqlite_vec":self.store.vec_version,"workspace_id":self.ws,"transport":"unix_socket","release_status":"development"}
         if command == "workspace.snapshot":
             return self.snapshot()
         if command == "sources.detail":

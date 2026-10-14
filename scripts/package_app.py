@@ -15,7 +15,17 @@ app=Path(staging.name)/'OpenStudio.app'
 resources=app/'Contents/Resources'
 (app/'Contents/MacOS').mkdir(parents=True)
 resources.mkdir()
+release=json.loads((ROOT/'release-config.json').read_text())
+version=(ROOT/'VERSION').read_text().strip()
+build_version=(ROOT/'BUILD_VERSION').read_text().strip()
 shutil.copy2(sys.argv[1],app/'Contents/MacOS/OpenStudio')
+framework=Path(sys.argv[1]).parent/'Sparkle.framework'
+if not framework.is_dir():
+    framework=ROOT/'macos/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework'
+if not framework.is_dir(): raise RuntimeError('Missing Sparkle framework')
+(app/'Contents/Frameworks').mkdir()
+shutil.copytree(framework,app/'Contents/Frameworks/Sparkle.framework',symlinks=True)
+subprocess.run(['install_name_tool','-add_rpath','@executable_path/../Frameworks',str(app/'Contents/MacOS/OpenStudio')],check=True)
 # SwiftPM localization resources must travel with the standalone executable.
 localization_bundle = Path(sys.argv[1]).parent / 'OpenStudio_OpenStudioApp.bundle'
 if not localization_bundle.is_dir():
@@ -38,8 +48,10 @@ shutil.copy2(ROOT/'build/requirements.lock',resources/'requirements.lock')
 with (app/'Contents/Info.plist').open('wb') as f:
     plistlib.dump(dict(CFBundleIdentifier='com.editorialintelligence.studio',CFBundleExecutable='OpenStudio',
                       CFBundleName='OpenStudio',CFBundleDisplayName='OpenStudio',
-                      CFBundleShortVersionString='0.1.0',CFBundleVersion='1',CFBundlePackageType='APPL',
+                      CFBundleShortVersionString=version,CFBundleVersion=build_version,CFBundlePackageType='APPL',
                       CFBundleIconFile='OpenStudio.icns',
+                      SUFeedURL=release['feed_url'],SUPublicEDKey=release['public_key'],SUEnableAutomaticChecks=True,
+                      SUScheduledCheckInterval=3600,SUAutomaticallyUpdate=False,
                       LSMinimumSystemVersion='14.0',NSHighResolutionCapable=True,
                       CFBundleDevelopmentRegion='ar',CFBundleLocalizations=['ar','en'],NSPrincipalClass='NSApplication'),f)
 sbom=[]
@@ -63,6 +75,12 @@ for file in sorted(app.rglob('*'),key=lambda p:len(p.parts),reverse=True):
             if identity!='-':
                 command+=['--options','runtime','--timestamp']
             subprocess.run(command+[str(file)],check=True,stdout=subprocess.DEVNULL)
+# Re-seal Sparkle's nested XPC/app/framework bundles after signing their executables.
+for bundle in sorted((app/'Contents/Frameworks').rglob('*'),key=lambda p:len(p.parts),reverse=True):
+    if bundle.is_dir() and not bundle.is_symlink() and bundle.suffix in {'.xpc','.app','.framework'}:
+        args=['codesign','--force','--sign',identity]
+        if identity!='-': args+=['--options','runtime','--timestamp']
+        subprocess.run(args+[str(bundle)],check=True)
 command=['codesign','--force','--sign',identity]
 if identity!='-':
     command+=['--options','runtime','--timestamp']
@@ -76,7 +94,8 @@ if os.environ.get('EIS_APP_OUTPUT_DIR'):
     destination=Path(os.environ['EIS_APP_OUTPUT_DIR'])/app.name
     shutil.copytree(app,destination,symlinks=True,copy_function=shutil.copy)
     subprocess.run(['codesign','--verify','--deep','--strict',str(destination)],check=True)
-image=ROOT/'dist/OpenStudio-development.dmg'
+(Path(staging.name)/'Applications').symlink_to('/Applications')
+image=ROOT/f'dist/OpenStudio-{version}-macOS-arm64.dmg'
 subprocess.run(['hdiutil','create','-volname','OpenStudio','-srcfolder',str(Path(staging.name)),'-ov','-format','UDZO',str(image)],check=True)
 subprocess.run(['hdiutil','verify',str(image)],check=True)
 print(image)

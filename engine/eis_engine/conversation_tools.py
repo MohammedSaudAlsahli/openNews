@@ -1,7 +1,6 @@
 """Read-only Agno conversation tools; RSS is the library, web is optional research."""
 import asyncio
 import json
-from datetime import date
 from urllib.parse import urlsplit
 
 from .news_urls import canonical_url, NewsError
@@ -16,6 +15,7 @@ class ConversationTools:
         self.allow_library, self.allow_web = allow_library, allow_web
         self.searcher = searcher
         self.calls = 0
+        self.saved_searches = {}
 
     @property
     def functions(self):
@@ -45,32 +45,24 @@ class ConversationTools:
         """Search the user's saved RSS articles first. Empty query lists recent stories across sources.
 
         Args:
-            query: Topic or company name, without request verbs. Try English names for English feeds.
+            query: Topic, company, or natural-language description in Arabic or English.
             from_date: Optional inclusive publication date YYYY-MM-DD, e.g. 2026-08-05.
             to_date: Optional inclusive publication date YYYY-MM-DD. Omit both dates to search all saved history.
         """
+        key = (query.strip().casefold(), from_date, to_date)
+        if self.allow_library and key in self.saved_searches: return self.saved_searches[key]
         if not self.allow_library or not self.begin('library', query or 'RSS'): return self.output({'error': 'Tool limit reached or library disabled'})
         try:
-            clauses, values = ['a.workspace_id=?', "s.kind!='manual'"], [self.news.ws]
-            for bound, operator in [(from_date, '>='), (to_date, '<=')]:
-                if bound:
-                    date.fromisoformat(bound)
-                    clauses.append(f'substr(a.published_at,1,10){operator}?')
-                    values.append(bound)
-            # Search every saved row; no recent-window or newest-500 restriction.
-            terms = query.strip().split()[:8]
-            for term in terms:
-                clauses.append("lower(a.title || ' ' || a.summary || ' ' || a.text || ' ' || s.title) LIKE ? ESCAPE '\\'")
-                values.append('%' + term.lower().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%')
-            rows = self.news.store.rows('''SELECT a.id,a.title,a.url,a.published_at,a.discovered_at,a.body_status,
-                s.title AS source_title,substr(coalesce(nullif(a.text,''),a.summary),1,1800) AS text
-                FROM news_articles a JOIN news_subscriptions s ON s.id=a.subscription_id WHERE ''' +
-                ' AND '.join(clauses) + ' ORDER BY a.published_at DESC LIMIT 100', tuple(values))
-            from .news_context import diverse_articles
-            found = diverse_articles(rows, 12)
+            knowledge = getattr(self.news, 'knowledge', None)
+            if knowledge is None:
+                from .news_knowledge import NewsKnowledge
+                knowledge = self.news.knowledge = NewsKnowledge(self.news)
+            found = await knowledge.search(query, from_date, to_date)
             for item in found: self.remember(item)
-            return self.output({'articles': found, 'matched_at_least': len(rows),
+            result = self.output({'articles': found, 'matched_at_least': len(found),
                                 'scope': 'Saved RSS library only. If results do not answer the question, use search_web.'})
+            self.saved_searches[key] = result
+            return result
         except (ValueError, TypeError):
             return self.output({'error': 'Use valid YYYY-MM-DD dates.'})
 

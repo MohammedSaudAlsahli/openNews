@@ -103,7 +103,10 @@ def preserve_special_blocks(tree, base):
         if node.tag == 'pre':
             value = node.text_content().strip('\n')
             fence = '`' * max(3, max((len(m[0])+1 for m in re.finditer(r'`+',value)), default=3))
-            value = fence + '\n' + value + '\n' + fence
+            classes = ' '.join(element.get('class', '') for element in [node, *node.iterdescendants('code')])
+            match = re.search(r'(?:language-|lang-)([A-Za-z0-9_+.-]+)', classes)
+            language = match[1] if match else ''
+            value = fence + language + '\n' + value + '\n' + fence
         else:
             parser = ReaderSummary(base)
             parser.feed(html.tostring(node,encoding='unicode'))

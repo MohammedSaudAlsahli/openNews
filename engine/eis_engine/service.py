@@ -40,12 +40,16 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         self.catalog_task = None
         self.news_task = None
         self.digest_task = None
+        self.knowledge_task = None
         self.feed_tasks = set()
         from .news import NewsManager
         from .conversation import ConversationManager
         self.news = NewsManager(store)
         from .news_digest import NewsDigest
         self.news_digest = NewsDigest(self)
+        self.news.digest = self.news_digest
+        from .news_knowledge import NewsKnowledge
+        self.news.knowledge = NewsKnowledge(self.news)
         from .feed_directory import FeedDirectory
         self.feed_directory = FeedDirectory(store)
         self.conversations = ConversationManager(self)
@@ -84,7 +88,7 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
                     profiles=[row | {"auto_refresh":bool(row["auto_refresh"]), "connection":self.connections.status(self.profile(row["id"]))} for row in self.store.rows("SELECT p.*,coalesce(v.label,'') AS label,coalesce(v.auto_refresh,1) AS auto_refresh FROM provider_profiles p LEFT JOIN provider_preferences v ON v.profile_id=p.id WHERE p.workspace_id=? AND p.id NOT IN (SELECT profile_id FROM removed_provider_profiles) ORDER BY p.created_at", (self.ws,))],
                     assignments=self.store.rows("SELECT role,profile_id,model_id FROM agent_assignments WHERE workspace_id=?", (self.ws,)),
                     jobs=self.store.rows("SELECT id,type,state,error_code,updated_at FROM jobs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 30", (self.ws,)),
-                    news_digest=self.news_digest.status(), **self.news.snapshot())
+                    news_digest=self.news_digest.status(), news_search=self.news.knowledge.status(), **self.news.snapshot())
 
     def import_text(self, data):
         if data.purpose == "style" and data.rights_status not in {"owned","licensed"}:
@@ -129,13 +133,15 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
     async def model(self, profile, instructions, data, schema):
         return await self.invoke_model(profile, SAFE_SYSTEM+"\n"+instructions, data, schema)
 
-    async def invoke_model(self, profile, instructions, data, schema, on_delta=None, on_start=None, tools=None, on_turn=None):
+    async def invoke_model(self, profile, instructions, data, schema, on_delta=None, on_start=None, tools=None, on_turn=None, on_reasoning=None, session_id=None, user_id=None, run_id=None):
         async with self.model_lock:
             self.connections.ensure_enabled(profile)
             generation = self.connections.generation(profile["id"])
             try:
                 if on_start: on_start()
                 options = {"tools": tools, "on_turn": on_turn} if getattr(self.factory, "supports_tools", False) else {}
+                if getattr(self.factory, "supports_session_events", False):
+                    options.update(on_reasoning=on_reasoning, session_id=session_id, user_id=user_id, run_id=run_id)
                 request = self.factory.run_stream(profile, instructions, data, schema, on_delta, **options) if on_delta and hasattr(self.factory,"run_stream") else self.factory.run(profile, instructions, data, schema, **options)
                 result = await asyncio.wait_for(request, timeout=240 if tools else 120)
                 self.connections.set(profile["id"], "connected", generation)
@@ -158,7 +164,13 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         task.add_done_callback(self.feed_tasks.discard)
 
     async def close(self):
+        if hasattr(self.news.knowledge.embedder, 'close'):
+            self.news.knowledge.embedder.close()
+        await self.news_digest.local.close()
         await self.chatgpt_auth.close()
+        if self.knowledge_task:
+            self.knowledge_task.cancel()
+            await asyncio.gather(self.knowledge_task,return_exceptions=True)
         if self.digest_task:
             self.digest_task.cancel()
             await asyncio.gather(self.digest_task,return_exceptions=True)

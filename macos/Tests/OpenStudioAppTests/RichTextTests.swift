@@ -6,7 +6,7 @@ import Testing
 
 @Test func richTextRecognizesDocumentStructure() {
     let blocks = RichTextBlock.parse("# عنوان\n\nفقرة **بارزة**\n\n- نقطة\n2. ثانية\n> اقتباس\n```swift\nlet a = 1\n```")
-    #expect(blocks == [.heading(1, "عنوان"), .paragraph("فقرة **بارزة**"), .list("•", "نقطة", 0), .list("2.", "ثانية", 0), .quote("اقتباس"), .code("let a = 1")])
+    #expect(blocks == [.heading(1, "عنوان"), .paragraph("فقرة **بارزة**"), .list("•", "نقطة", 0), .list("2.", "ثانية", 0), .quote("اقتباس"), .code("let a = 1", language: "swift")])
 }
 
 @Test func richTextRejectsExecutableAndLocalSchemes() {
@@ -86,4 +86,38 @@ import Testing
     let source = "# عنوان\n\n**نص حرفي**\nEnglish with العربية\n"
     #expect(RichTextLinks.native(AttributedString(source), fontSize: 15, lineSpacing: 6).string == source)
     #expect(RichTextBlock.parse("first line\nsecond line\n\nnext paragraph") == [.paragraph("first line\nsecond line"), .paragraph("next paragraph")])
+}
+
+@Test func fencedLanguageAndIncompleteStreamsKeepLiteralCode() {
+    #expect(RichTextBlock.parse("```json\n{\"url\": \"https://example.com\"}\n```") == [.code("{\"url\": \"https://example.com\"}", language: "json")])
+    #expect(RichTextBlock.parse("~~~python\nprint('العربية')") == [.code("print('العربية')", language: "python")])
+    #expect(RichTextBlock.parse("```text\n```not-a-close\n```") == [.code("```not-a-close", language: "text")])
+}
+
+@Test func inlineCodePreservesSpacingAndDoesNotAutolink() {
+    let parsed = RichTextLinks.attributed("Run `bash install-images.sh --prepare-only`, then `http://127.0.0.1:5173`.")
+    #expect(String(parsed.characters) == "Run bash install-images.sh --prepare-only, then http://127.0.0.1:5173.")
+    #expect(parsed.runs.compactMap { $0.link }.isEmpty)
+    let native = RichTextLinks.native(parsed, fontSize: 16, lineSpacing: 6)
+    let offset = (native.string as NSString).range(of: "bash").location
+    #expect(native.attribute(.inlineCode, at: offset, effectiveRange: nil) != nil)
+    #expect(native.attribute(.backgroundColor, at: offset, effectiveRange: nil) == nil)
+    #expect((native.attribute(.font, at: offset, effectiveRange: nil) as? NSFont)?.pointSize == 16 * 0.88)
+}
+
+@Test func highlightingNeverChangesCodeOrArabicComments() {
+    let source = "# تشغيل بالعربية\nprint(\"https://example.com\")\n    return 42"
+    for dark in [true, false] {
+        let rendered = CodeHighlighting.render(source, language: "python", dark: dark)
+        #expect(String(rendered.characters) == source)
+        #expect(rendered.runs.count > 3)
+        #expect(String(CodeHighlighting.render(source, language: "unknown", dark: dark).characters) == source)
+    }
+}
+
+@Test func technicalTokensDoNotReverseArabicProse() {
+    let source = "شغّل الأمر `bash install-images.sh --prepare-only` ثم افتح الرابط http://127.0.0.1:5173 وتابع القراءة."
+    let rendered = RichTextLinks.native(RichTextLinks.attributed(source), fontSize: 17, lineSpacing: 6)
+    let style = rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+    #expect(style?.baseWritingDirection == .rightToLeft)
 }

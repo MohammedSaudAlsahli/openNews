@@ -31,7 +31,7 @@ struct WorkspaceSidebar: View {
                 }.padding(10).contentShape(Rectangle())
             }.buttonStyle(.plain)
                 .background(chat.conversationID.isEmpty && pane == "conversation" ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                .disabled(chat.sending || chat.loading).padding(.horizontal, 10)
+                .disabled(chat.submitting || chat.loading).padding(.horizontal, 10)
             Button(action: openDrafts) {
                 Label(L("المسودات المحفوظة"), systemImage: "doc.on.doc")
                     .frame(maxWidth: .infinity, alignment: .leading).padding(10).contentShape(Rectangle())
@@ -58,11 +58,13 @@ struct WorkspaceSidebar: View {
                                 Image(systemName: "bubble.left").foregroundStyle(.secondary)
                                 Text(item.title).lineLimit(2).multilineTextAlignment(.leading)
                                 Spacer(minLength: 0)
-                                if chat.conversationID == item.id { Image(systemName: "checkmark").font(.caption).foregroundStyle(.secondary) }
+                                if item.activeJobId != nil {
+                                    ProgressView().controlSize(.mini).help(L("يعمل في الخلفية"))
+                                } else if chat.conversationID == item.id { Image(systemName: "checkmark").font(.caption).foregroundStyle(.secondary) }
                             }.padding(10).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                         }.buttonStyle(.plain).help(item.title)
                             .background(chat.conversationID == item.id && pane == "conversation" ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                            .disabled(chat.sending || chat.loading)
+                            .disabled(chat.submitting || chat.loading)
                     }
                     if conversations.isEmpty {
                         Text(L(query.isEmpty ? "تظهر محادثاتك هنا بعد أول رسالة." : "لا توجد محادثات تطابق البحث."))
@@ -79,7 +81,7 @@ struct WorkspaceSidebar: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text(L("النشاط")).font(.headline)
                             if model.snapshot?.jobs.isEmpty != false { Text(L("ستظهر هنا عمليات التحليل والتوليد.")).foregroundStyle(.secondary) }
-                            ScrollView { VStack(spacing: 12) { ForEach(model.snapshot?.jobs ?? []) { job in ActivityRow(job: job) } } }.frame(maxHeight: 360)
+                            ActivitySummary()
                         }.padding(20).frame(width: 360).editorialPresentation()
                     }
                 SettingsLink {
@@ -87,5 +89,9 @@ struct WorkspaceSidebar: View {
                 }.buttonStyle(.plain).help(L("الإعدادات (⌘,)"))
             }.padding(10)
         }.frame(width: 220).background(theme.page)
+            .task(id: model.snapshot?.jobs.map { $0.id + $0.state }) {
+                guard model.health != nil else { return }
+                await chat.refreshList(model)
+            }
     }
 }

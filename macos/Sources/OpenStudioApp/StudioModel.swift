@@ -3,6 +3,7 @@ import AppKit
 
 @MainActor final class StudioModel: ObservableObject {
     @Published var snapshot: Snapshot?
+    @Published var searchStatus: NewsSearchStatus?
     @Published var digestStatus: NewsDigestStatus?
     @Published var customAgents: [CustomAgent] = []
     @Published var agentEditor = AgentEditorState()
@@ -19,8 +20,10 @@ import AppKit
     private var polling: Task<Void, Never>?
     let workspace: URL
     private let permissionDefaults: UserDefaults
+    private let requestOverride: ((String, [String: Any]) async throws -> Data)?
 
-    init(permissionDefaults: UserDefaults = .standard) {
+    init(permissionDefaults: UserDefaults = .standard, requestOverride: ((String, [String: Any]) async throws -> Data)? = nil) {
+        self.requestOverride = requestOverride
         self.permissionDefaults = permissionDefaults
         workspace = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("com.editorialintelligence.studio/default", isDirectory: true)
@@ -81,11 +84,27 @@ import AppKit
                         break
                     }
                     ticks += 1
-                    let syncing = self.snapshot?.subscriptions?.contains { $0.status == "syncing" } == true
+                    if ticks % 5 == 0 {
+                        let thermal: String
+                        switch ProcessInfo.processInfo.thermalState {
+                        case .nominal: thermal = "nominal"
+                        case .fair: thermal = "fair"
+                        case .serious: thermal = "serious"
+                        case .critical: thermal = "critical"
+                        @unknown default: thermal = "unknown"
+                        }
+                        _ = try? await self.call("news.digest.device", ["thermal": thermal, "low_power": ProcessInfo.processInfo.isLowPowerModeEnabled])
+                    }
+                    let syncing = self.snapshot?.subscriptions?.contains { ["queued", "syncing", "fetching", "running"].contains($0.status) } == true
                     if (self.snapshot?.jobs.contains(where: \.active) == true && ticks % 3 == 0) || (syncing && ticks % 4 == 0) || ticks % 60 == 0 {
                         try? await self.refresh()
-                    } else if self.digestStatus?.enabled == true && ticks % 5 == 0 {
-                        self.digestStatus = try? await self.decoded("news.digest.status", as: NewsDigestStatus.self)
+                    } else if ticks % 5 == 0 {
+                        if let next = try? await self.decoded("news.search.status", as: NewsSearchStatus.self), next != self.searchStatus {
+                            self.searchStatus = next
+                        }
+                        if let next = try? await self.decoded("news.digest.status", as: NewsDigestStatus.self), next != self.digestStatus {
+                            self.digestStatus = next
+                        }
                     }
                 }
             }
@@ -108,6 +127,7 @@ import AppKit
         if command == "news.digest.set" && payload["enabled"] as? Bool == true && !ModelPermission.allowed(in: permissionDefaults) {
             throw EngineError(message: L("فعّل استخدام النماذج من إعدادات الصلاحيات للمتابعة."))
         }
+        if let requestOverride { return try await requestOverride(command, payload) }
         let request = UUID().uuidString
         var data = try JSONSerialization.data(withJSONObject: ["schema_version":1,"request_id":request,"command":command,"payload":payload])
         data.append(10)
@@ -130,6 +150,7 @@ import AppKit
     func refresh() async throws {
         snapshot = try await decoded("workspace.snapshot",as: Snapshot.self)
         digestStatus = snapshot?.newsDigest
+        searchStatus = snapshot?.newsSearch
         customAgents = try await decoded("agents.list", as: CustomAgentList.self).agents
     }
 

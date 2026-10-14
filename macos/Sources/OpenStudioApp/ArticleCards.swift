@@ -2,7 +2,20 @@ import SwiftUI
 import AppKit
 
 enum ArticleExcerpt {
+    private static let excerpts: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 512
+        cache.totalCostLimit = 4 * 1024 * 1024
+        return cache
+    }()
     static func plain(_ text: String) -> String {
+        let key = text as NSString
+        if let cached = excerpts.object(forKey: key) { return cached as String }
+        let result = render(text)
+        excerpts.setObject(result as NSString, forKey: key, cost: text.utf8.count + result.utf8.count)
+        return result
+    }
+    private static func render(_ text: String) -> String {
         let clean = RichTextLinks.attributed(text).characters
         return String(String(clean).replacingOccurrences(of: #"(?m)^\s*[#>*-]+\s*"#, with: "", options: .regularExpression)
             .split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(320))
@@ -37,6 +50,7 @@ struct ArticleCard: View {
     @State private var saved = false
     @State private var saving = false
     @State private var failure: String?
+    var summaryState = "pending"
     let article: NewsArticle
     var compact = false
     let open: () -> Void
@@ -59,13 +73,18 @@ struct ArticleCard: View {
                     Text(ArticleExcerpt.plain(article.summary)).font(.system(size: compact ? 13 : 14)).foregroundStyle(.secondary)
                         .lineLimit(3).lineSpacing(3).frame(height: compact ? 54 : 60, alignment: .topLeading).frame(maxWidth: .infinity, alignment: .leading)
                         .environment(\.layoutDirection, RichTextDirection.detect(article.summary))
-                    Text(DisplayFormat.date(article.publishedAt ?? article.discoveredAt)).font(.caption2).foregroundStyle(.tertiary)
+                    HStack {
+                        Text(DisplayFormat.date(article.publishedAt ?? article.discoveredAt)).font(.caption2).foregroundStyle(.secondary)
+                        Spacer()
+                        Label(summaryLabel, systemImage: summaryState == "ready" ? "checkmark.circle" : summaryState == "summarizing" ? "sparkles" : "doc.text")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                 }.padding(compact ? 14 : 18)
             }.frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
                 .background(theme.paper, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.08)))
                 .clipShape(RoundedRectangle(cornerRadius: 14)).contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel(article.title)
+        }.buttonStyle(.plain).accessibilityLabel(article.title).accessibilityValue(summaryLabel)
         .overlay(alignment: .topTrailing) {
             Button {
                 saving = true
@@ -88,7 +107,18 @@ struct ArticleCard: View {
         .onChange(of: article.isBookmarked) { _, value in saved = value == true }
         .alert(L("تعذّر حفظ المقال"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) { Button(L("إغلاق")) { failure = nil } } message: { Text(failure ?? "") }
     }
+    private var summaryLabel: String {
+        switch summaryState {
+        case "ready": return L("ملخّص")
+        case "summarizing": return L("جارٍ التلخيص")
+        case "retrying": return L("بانتظار إعادة المحاولة")
+        case "incomplete": return L("النص الكامل غير متاح")
+        default: return L("لم يُلخّص بعد")
+        }
+    }
 }
+
+struct ArticleSummaryStates: Decodable { let states: [String: String] }
 
 private struct ArticleThumbnail: View {
     @Environment(\.editorialTheme) private var theme
