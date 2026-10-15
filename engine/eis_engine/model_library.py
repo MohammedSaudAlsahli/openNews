@@ -19,7 +19,7 @@ def parse_search(text):
         title = ' '.join(link.xpath('.//h2')[0].text_content().split())
         descriptions = link.xpath('.//p')
         labels = [' '.join(x.text_content().split()) for x in link.xpath('.//span')]
-        capabilities = [x for x in labels if x in {'embedding','tools','vision','thinking','cloud'}]
+        capabilities = [x for x in labels if x in {'embedding','tools','vision','thinking','cloud','decision','audio'}]
         rows.append({'id':name,'name':title,'description':' '.join(descriptions[0].text_content().split()) if descriptions else '',
                      'capabilities':list(dict.fromkeys(capabilities)), 'source':'https://ollama.com'+path})
     more = any('/search?' in x and 'page=' in x for x in doc.xpath('//*[@hx-trigger="revealed"]/@hx-get'))
@@ -44,10 +44,11 @@ def parse_variants(text, family):
 
 
 class ModelLibrary:
-    async def search(self, query='', page=1):
+    async def search(self, query='', page=1, capability=''):
         if not isinstance(query,str) or len(query)>150 or type(page) is not int or not 1<=page<=10000:
             raise Failure('VALIDATION_ERROR','بحث غير صالح.')
-        text = await self.fetch('https://ollama.com/search', {**({'q':query} if query else {}), **({'page':page} if page>1 else {})})
+        if capability not in {'','embedding','tools','thinking','vision','decision'}: raise Failure('VALIDATION_ERROR','Invalid capability')
+        text = await self.fetch('https://ollama.com/search', {**({'c':capability} if capability else {}),**({'q':query} if query else {}), **({'page':page} if page>1 else {})})
         result = parse_search(text)
         if not result['models'] and ('<html' not in text.lower() and '<li' not in text.lower()):
             raise Failure('CATALOG_UNAVAILABLE','تعذّر تحميل المكتبة. أعد المحاولة.')

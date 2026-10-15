@@ -409,10 +409,18 @@ def test_session_events_are_scoped_persisted_and_separate_from_answer(service):
             supports_session_events = True
             async def run(self, profile, instructions, data, schema, tools=None, on_turn=None,
                           on_reasoning=None, session_id=None, user_id=None, run_id=None):
+                if schema.__name__ == 'SummaryPair':
+                    return schema(ar='أراجع سياق السؤال. \n\nأربط المصادر المتاحة.', en='I review the question and connect the available sources.')
                 assert session_id == payload['conversation_id'] and user_id == service.ws
                 assert run_id
+                assert 'summaries and progress descriptions must be in Arabic' in instructions
                 on_turn()
                 on_reasoning('أراجع سياق السؤال. ')
+                live = await service.dispatch('chat.progress', {'job_id': run_id})
+                assert live['state'] == 'running'
+                assert live['execution']['reasoning_summary'] == ''
+                assert live['execution']['summary_language'] == 'ar'
+                assert live['message'] == ''
                 history_tool = next(t for t in tools if t.__name__ == 'search_conversation_history')
                 await history_tool('زاوية')
                 # A new model turn must not erase past steps or summaries.

@@ -26,16 +26,27 @@ struct ModelPermissionNotice: View {
 struct PermissionsSettingsView: View {
     @AppStorage("appLanguage") private var interfaceLanguage = "ar"
     @AppStorage(ModelPermission.key) private var allowed = false
-    @Environment(\.openWindow) private var openWindow
     var body: some View {
         let _ = interfaceLanguage
         Form {
             Section(L("استخدام الذكاء الاصطناعي")) {
                 Toggle(L("السماح باستخدام النماذج"), isOn: $allowed)
-                Text(L("عندما تطلب كتابة أو تحليلًا، يُرسل طلبك والأسلوب والمراجع المرفقة إلى المزوّد الذي تختاره. قد تُحتسب تكلفة حسب حسابك. يمكنك إيقاف هذا الإذن في أي وقت."))
+                Text(L("يسمح بالمحادثة والتحليل والتلخيص والبحث بالمعنى. التلخيص التلقائي يعمل أيضًا في الخلفية عند تفعيله. قد تُحتسب تكلفة عند استخدام اتصال خارجي."))
                     .font(.callout).foregroundStyle(.secondary)
                 Text(L("لا نطلب الموافقة مجددًا لكل رسالة، ولا ننشر محتواك تلقائيًا.")).font(.caption).foregroundStyle(.secondary)
             }
+            Section(L("حفظ البيانات")) {
+                Text(L("أخبارك ومحادثاتك ومسوداتك محفوظة على جهازك. تستخدم النماذج المحلية جهازك؛ أما الاتصالات الخارجية فتستقبل النصوص اللازمة للمهمة."))
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }.formStyle(.grouped)
+    }
+}
+
+struct ApplicationSettingsView: View {
+    @Environment(\.openWindow) private var openWindow
+    var body: some View {
+        Form {
             UpdateSettings()
             Section(L("إعداد التطبيق")) {
                 Button(L("فتح دليل الإعداد")) {
@@ -153,7 +164,7 @@ struct SetupWizard: View {
             Button { adding = true } label: { Label(L("ربط مزوّد"), systemImage: "plus") }
             Divider()
             Toggle(L("السماح باستخدام النماذج"), isOn: $permission).toggleStyle(.switch)
-            Text(L("عندما تطلب كتابة أو تحليلًا، يُرسل طلبك والأسلوب والمراجع المرفقة إلى المزوّد الذي تختاره. قد تُحتسب تكلفة حسب حسابك. يمكنك إيقاف هذا الإذن في أي وقت."))
+            Text(L("يسمح بالمحادثة والتحليل والتلخيص والبحث بالمعنى. التلخيص التلقائي يعمل أيضًا في الخلفية عند تفعيله. قد تُحتسب تكلفة عند استخدام اتصال خارجي."))
                 .font(.callout).foregroundStyle(.secondary)
             Text(L("التلخيص المحلي اختياري؛ تختار نموذجه وتنزّله لاحقًا من الإعدادات.")) .font(.caption).foregroundStyle(.secondary)
         }

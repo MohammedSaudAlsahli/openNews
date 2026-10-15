@@ -53,7 +53,7 @@ struct ArticlesWorkspace: View {
                 }
             }
             .sheet(isPresented: $discover) { FeedLibraryView() }
-            .task(id: filters + (model.health?.workspaceId ?? "")) {
+            .task(id: filters + (model.health?.workspaceId ?? "") + (model.snapshot?.subscriptions ?? []).map { $0.id + ($0.lastSuccess ?? "") }.joined()) {
                 request = UUID()
                 guard model.health != nil else { return }
                 do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
@@ -97,6 +97,10 @@ struct ArticlesWorkspace: View {
                     Text(L("المحفوظات")).tag("saved")
                 }.pickerStyle(.segmented).labelsHidden().frame(width: 300)
                 Spacer()
+                Picker(L("المصدر"), selection: $sourceID) {
+                    Text(L("كل المصادر")).tag("")
+                    ForEach(model.snapshot?.subscriptions ?? []) { Text($0.title).tag($0.id) }
+                }.frame(maxWidth: 260)
                 if loading { ProgressView().controlSize(.small) }
             }.padding(.horizontal, 28).padding(.bottom, 16)
             HStack(spacing: 12) {
@@ -104,10 +108,6 @@ struct ArticlesWorkspace: View {
                 TextField(L("ابحث في العناوين ونصوص المقالات"), text: $query).textFieldStyle(.plain)
                 if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).help(L("مسح البحث")) }
                 Menu {
-                    Picker(L("المصدر"), selection: $sourceID) {
-                        Text(L("كل المصادر")).tag("")
-                        ForEach(model.snapshot?.subscriptions ?? []) { Text($0.title).tag($0.id) }
-                    }
                     Picker(L("التاريخ"), selection: $days) {
                         Text(L("كل الأوقات")).tag(0)
                         Text(L("آخر يوم")).tag(1)

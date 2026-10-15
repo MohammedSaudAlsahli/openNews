@@ -193,6 +193,9 @@ class ModelFactory:
             model = ChatGPTResponses(id=profile["model_id"], api_key=await access_token(profile), base_url="https://api.openai.com/v1", store=False, retries=0, max_retries=0, timeout=90)
         else:
             model = self.create(profile)
+        if profile.get("_activity_translation") and profile["provider_key"] in {"openai", "openai-chatgpt"}:
+            if profile["model_id"].startswith(("gpt-5", "gpt-6", "o3", "o4")) and hasattr(model, "reasoning_effort"):
+                model.reasoning_effort = "low"
         # Request public summaries only on known OpenAI reasoning model families.
         # Other providers keep their configured behavior; never fabricate a trace.
         if on_reasoning and profile["provider_key"] in {"openai", "openai-chatgpt"} and hasattr(model, "reasoning_summary"):

@@ -22,7 +22,7 @@ def test_packaged_library_complete_unique_safe_and_bilingual(service, monkeypatc
     result = asyncio.run(service.dispatch("news.library", {}))
     assert result["version"] == 1
     feeds = result["feeds"]
-    assert len(feeds) == 12
+    assert len(feeds) == 24
     assert len({row["id"] for row in feeds}) == len(feeds)
     assert len({canonical_url(row["url"]) for row in feeds}) == len(feeds)
     assert {row["category"] for row in feeds} == {"general", "news", "technology", "ai", "science", "business", "sports", "podcasts"}
@@ -164,3 +164,15 @@ def test_existing_empty_user_file_is_not_reseeded(service):
     path.write_text("")
     with pytest.raises(Failure): asyncio.run(service.dispatch("news.library", {}))
     assert path.read_text() == ""
+
+
+def test_curated_updates_do_not_replace_user_catalog(service):
+    from eis_engine.feed_library import ensure_library_file
+    path = ensure_library_file(service.store)
+    custom = "version: 1\nfeeds: []\n"
+    path.write_text(custom)
+    result = asyncio.run(service.dispatch("news.curated", {}))
+    assert len(result["feeds"]) == 24
+    assert path.read_text() == custom
+    assert asyncio.run(service.dispatch("news.library", {}))["feeds"] == []
+    assert service.news.snapshot()["subscriptions"] == []

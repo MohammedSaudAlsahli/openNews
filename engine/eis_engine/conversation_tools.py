@@ -73,7 +73,7 @@ class ConversationTools:
             row = self.news.article(article_id, mark_read=False)
             self.notify('reading', row['title'])
             if row['body_status'] not in {'full', 'media_summary'}: row = await self.news.reader(article_id)
-            item = {key: row.get(key) for key in ('id', 'title', 'url', 'source_title', 'published_at', 'discovered_at', 'body_status')}
+            item = {key: row.get(key) for key in ('id', 'title', 'url', 'source_title', 'source_kind', 'published_at', 'discovered_at', 'body_status')}
             item['text'] = (row.get('text') or row.get('summary') or '')[:16000]
             return self.output(self.remember(item))
         except Exception:

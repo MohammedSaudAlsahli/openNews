@@ -2,6 +2,7 @@
 import asyncio
 import hashlib
 import os
+import re
 from pathlib import Path
 import shutil
 import tarfile
@@ -20,8 +21,20 @@ class LocalRuntime:
             if candidate.is_file(): return str(candidate)
         return next((p for p in ['/opt/homebrew/bin/ollama','/usr/local/bin/ollama','/Applications/Ollama.app/Contents/Resources/ollama'] if Path(p).is_file()),None)
 
-    async def metadata(self):
-        if self.executable(): return 0
+    async def compatible(self, minimum):
+        executable = self.executable()
+        if not executable: return False
+        try:
+            process = await asyncio.create_subprocess_exec(executable,'--version',stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.STDOUT)
+            try: output,_ = await asyncio.wait_for(process.communicate(),5)
+            except TimeoutError:
+                process.kill(); await process.wait(); return False
+            versions = re.findall(r'(\d+)\.(\d+)\.(\d+)',output.decode())
+            return bool(versions) and tuple(map(int,versions[-1])) >= minimum
+        except OSError: return False
+
+    async def metadata(self, force=False):
+        if self.executable() and not force: return 0
         if not self.asset:
             async with httpx.AsyncClient(trust_env=False,timeout=6) as client:
                 r=await client.get('https://api.github.com/repos/ollama/ollama/releases/latest')
@@ -31,9 +44,9 @@ class LocalRuntime:
                 raise Failure('RUNTIME_UNAVAILABLE','تعذّر التحقق من ملفات التشغيل. أعد المحاولة لاحقًا.')
         return self.asset['size']
 
-    async def install(self, progress):
-        if self.executable(): return self.executable()
-        await self.metadata()
+    async def install(self, progress, force=False):
+        if self.executable() and not force: return self.executable()
+        await self.metadata(force=force)
         self.root.mkdir(parents=True,exist_ok=True)
         archive=self.root/'runtime-download.tgz'
         staging=self.root/'runtime-unpacking'
@@ -58,7 +71,15 @@ class LocalRuntime:
             executable=next((staging/x for x in ['bin/ollama','ollama'] if (staging/x).is_file()),None)
             if not executable: raise ValueError('Missing executable')
             executable.chmod(executable.stat().st_mode | 0o700)
-            staging.rename(self.root/'runtime')
+            destination = self.root/'runtime'
+            previous = self.root/'runtime-previous'
+            if previous.exists(): shutil.rmtree(previous)
+            if destination.exists(): destination.rename(previous)
+            try: staging.rename(destination)
+            except BaseException:
+                if previous.exists(): previous.rename(destination)
+                raise
+            if previous.exists(): shutil.rmtree(previous)
             return self.executable()
         finally:
             archive.unlink(missing_ok=True)

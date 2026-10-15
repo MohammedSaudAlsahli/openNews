@@ -205,8 +205,18 @@ def parse_feed(body, base, kind="rss"):
 
 
 def normalize_subscription(url, kind="auto"):
+    if isinstance(url, str):
+        url = url.strip()
+        if kind == "reddit" and re.fullmatch(r"(?:r/)?[A-Za-z0-9_]{2,40}", url):
+            url = "https://www.reddit.com/r/" + url.removeprefix("r/") + "/"
     canonical = canonical_url(url)
     p = urlsplit(canonical)
+    if p.hostname in {"x.com", "www.x.com", "twitter.com", "www.twitter.com"}:
+        raise NewsError("أضف رابط RSS الذي توفره خدمة التحويل، وليس رابط حساب X.")
+    if kind in {"x_rss", "reddit_rss"}:
+        if p.hostname in {"reddit.com", "www.reddit.com", "old.reddit.com"}:
+            raise NewsError("اختر Reddit المباشر لرابط المجتمع، أو أدخل رابط RSS من خدمة التحويل.")
+        return canonical, canonical, kind
     is_reddit = p.hostname in {"reddit.com", "www.reddit.com", "old.reddit.com"}
     if kind == "reddit" or is_reddit:
         match = re.match(r"^/r/([A-Za-z0-9_]{2,40})(?:/.*)?$", p.path)

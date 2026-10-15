@@ -156,7 +156,7 @@ struct ArticleReader: View {
         guard ModelPermission.allowed() else { summaryError = "فعّل استخدام النماذج من إعدادات الصلاحيات للمتابعة."; return }
         summarizing = true; summaryError = nil
         defer { summarizing = false }
-        do { summary = try await model.decoded("news.summarize", ["article_id":article.id,"consent":true,"language":AppLanguage.current.rawValue], as: ArticleAISummary.self) }
+        do { summary = try await model.decoded("news.summarize", ["article_id":article.id,"consent":true], as: ArticleAISummary.self) }
         catch { summaryError = error.localizedDescription }
     }
     private func load(force: Bool = false) async {

@@ -8,10 +8,11 @@ from datetime import date
 from .contracts import Failure
 from .news_embeddings import LocalNewsEmbeddings, MODEL_ID, MODEL_REVISION
 
-INDEX_MODEL = MODEL_ID + "@" + MODEL_REVISION + ":256"
+INDEX_MODEL = MODEL_ID + "@" + MODEL_REVISION + ":768"
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS news_embedding_choice(workspace_id TEXT PRIMARY KEY, name TEXT NOT NULL, dimensions INTEGER NOT NULL, digest TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS news_search_settings(workspace_id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS news_search_pending(article_id TEXT PRIMARY KEY REFERENCES news_articles(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS news_search_chunks(
@@ -51,9 +52,32 @@ class NewsKnowledge:
         self.query_cache = {}
         self.phase, self.current_title, self.retry_at = "idle", "", 0
         self.db.executescript(SCHEMA)
+        choice = self.store.one("SELECT * FROM news_embedding_choice WHERE workspace_id=?", (self.ws,))
+        if choice and embedder is None:
+            self.embedder = LocalNewsEmbeddings(name=choice['name'], dimensions=choice['dimensions'], digest=choice['digest'])
         # An encoder change must never mix incompatible vector spaces.
         with self.db:
-            self.db.execute("UPDATE news_search_chunks SET vector=NULL,model='' WHERE model!=?", (INDEX_MODEL,))
+            self.db.execute("UPDATE news_search_chunks SET vector=NULL,model='' WHERE model!=?", (self.index_model,))
+
+    @property
+    def index_model(self):
+        return getattr(self.embedder, 'fingerprint', INDEX_MODEL)
+
+    async def select_model(self, name, dimensions, digest):
+        async with self.lock:
+            encoder = LocalNewsEmbeddings(name=name, dimensions=dimensions, digest=digest)
+            with self.db:
+                self.db.execute("INSERT OR REPLACE INTO news_embedding_choice VALUES(?,?,?,?)", (self.ws,name,dimensions,digest))
+                self.db.execute("UPDATE news_search_chunks SET vector=NULL,model='' WHERE model!=?", (encoder.fingerprint,))
+            self.embedder = encoder
+            self.query_cache.clear()
+            self.phase, self.retry_at = 'idle', 0
+            self.configure({'enabled':True})
+
+    async def ensure_runtime(self):
+        if isinstance(self.embedder, LocalNewsEmbeddings):
+            if not self.embedder.digest: raise RuntimeError('Choose an embedding model')
+            await self.news.digest.local.start_runtime()
 
     def status(self):
         setting = self.store.one("SELECT enabled FROM news_search_settings WHERE workspace_id=?", (self.ws,))
@@ -61,8 +85,12 @@ class NewsKnowledge:
             count(DISTINCT CASE WHEN NOT EXISTS(SELECT 1 FROM news_search_chunks missing WHERE missing.article_id=c.article_id AND missing.vector IS NULL) THEN c.article_id END) AS semantic
             FROM news_search_chunks c JOIN news_articles a ON a.id=c.article_id WHERE a.workspace_id=?""", (self.ws,))
         total = self.store.one("SELECT count(*) AS n FROM news_articles WHERE workspace_id=?", (self.ws,))["n"]
-        return {"enabled":bool(setting and setting['enabled']), "model":MODEL_ID, **counts,
-                "pending":max(0,total-counts['semantic']), "phase":self.phase, "current_title":self.current_title}
+        phase = self.phase
+        digest = getattr(self.news, 'digest', None)
+        if setting and setting['enabled'] and total > counts['semantic'] and digest and phase in {'idle','indexing'}:
+            phase = digest.budget.phase() or ('waiting_model' if digest.service.model_lock.locked() else phase)
+        return {"enabled":bool(setting and setting['enabled']), "model":getattr(self.embedder, "name", MODEL_ID), **counts,
+                "pending":max(0,total-counts['semantic']), "phase":("needs_download" if isinstance(self.embedder, LocalNewsEmbeddings) and not self.embedder.digest else phase), "current_title":self.current_title}
 
     def configure(self, payload):
         if type(payload.get('enabled')) is not bool: raise Failure('VALIDATION_ERROR', 'إعداد البحث غير صالح.')
@@ -97,10 +125,11 @@ class NewsKnowledge:
             if digest: await digest.service.model_lock.acquire()
             self.phase, self.current_title = ('preparing' if getattr(self.embedder,'model',None) is None else 'indexing'), rows[0]['title']
             try:
+                await self.ensure_runtime()
                 vectors = await asyncio.to_thread(self.embedder.encode, [r['text'] for r in rows])
                 with self.db:
                     for row, vector in zip(rows,vectors,strict=True):
-                        self.db.execute("UPDATE news_search_chunks SET vector=?,model=? WHERE id=? AND text=?", (struct.pack(f'{len(vector)}f',*vector),INDEX_MODEL,row['id'],row['text']))
+                        self.db.execute("UPDATE news_search_chunks SET vector=?,model=? WHERE id=? AND text=?", (struct.pack(f'{len(vector)}f',*vector),self.index_model,row['id'],row['text']))
                 self.phase = 'indexing'
                 return True
             except asyncio.CancelledError: raise
@@ -152,7 +181,7 @@ class NewsKnowledge:
             row = self.news.article(article_id,mark_read=False)
             if row['url'] in urls: continue
             urls.add(row['url'])
-            item = {k:row.get(k) for k in ('id','title','url','published_at','discovered_at','body_status','source_title')}
+            item = {k:row.get(k) for k in ('id','title','url','published_at','discovered_at','body_status','source_title','source_kind')}
             item['text'] = excerpts.get(article_id,row['text'] or row['summary'])[:1800]
             digest = getattr(self.news,'digest',None)
             if digest and (preview := digest.preview(article_id)): item['prepared_summary'] = preview['summary']
@@ -165,18 +194,27 @@ class NewsKnowledge:
             await asyncio.wait_for(self.lock.acquire(), timeout=3)
         except TimeoutError:
             return []
+        digest = getattr(self.news, 'digest', None)
+        acquired = False
         try:
+            if digest:
+                try: await asyncio.wait_for(digest.service.model_lock.acquire(),timeout=.25)
+                except TimeoutError: return []
+                acquired = True
+            await self.ensure_runtime()
             vector = self.query_cache.get(query)
             if vector is None:
                 vector = (await asyncio.to_thread(self.embedder.encode,[query],query=True))[0]
                 if len(self.query_cache)>=64: self.query_cache.pop(next(iter(self.query_cache)))
                 self.query_cache[query] = vector
             packed = struct.pack(f'{len(vector)}f',*vector)
-            rows = self.store.rows(f"SELECT c.article_id,c.text,vec_distance_cosine(c.vector,?) AS distance {base} WHERE {where} AND c.vector IS NOT NULL AND c.model=? ORDER BY distance LIMIT 60", (packed,*values,INDEX_MODEL))
+            rows = self.store.rows(f"SELECT c.article_id,c.text,vec_distance_cosine(c.vector,?) AS distance {base} WHERE {where} AND c.vector IS NOT NULL AND c.model=? ORDER BY distance LIMIT 60", (packed,*values,self.index_model))
             return [r for r in rows if r['distance'] < .65]
         except Exception:
+            self.phase = "unavailable"
             return []
         finally:
+            if acquired: digest.service.model_lock.release()
             self.lock.release()
 
     async def poll(self):

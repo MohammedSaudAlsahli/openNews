@@ -353,7 +353,10 @@ def test_public_reasoning_summary_stream_is_separate_from_text(monkeypatch):
         class Stream:
             def __aiter__(self): return self.events()
             async def events(self):
-                yield SimpleNamespace(type='response.reasoning_summary_text.delta',delta='public summary')
+                yield SimpleNamespace(type='response.reasoning_summary_text.delta',delta='public ')
+                assert summaries == ['public '] and text == []
+                yield SimpleNamespace(type='response.reasoning_summary_text.delta',delta='summary')
+                assert summaries == ['public ', 'summary'] and text == []
                 yield SimpleNamespace(type='response.output_text.delta',delta='answer')
                 yield SimpleNamespace(type='response.completed',response=response)
             async def close(self): pass
@@ -364,5 +367,5 @@ def test_public_reasoning_summary_stream_is_separate_from_text(monkeypatch):
         summaries, text = [], []
         model = auth.ChatGPTResponses(id='test',api_key='fake',reasoning_summary='auto',on_reasoning_delta=summaries.append,on_text_delta=text.append)
         result = await model.ainvoke([Message(role='user',content='Test')],Message(role='assistant'))
-        assert summaries == ['public summary'] and text == ['answer'] and result.content == 'answer'
+        assert summaries == ['public ', 'summary'] and text == ['answer'] and result.content == 'answer'
     asyncio.run(run())

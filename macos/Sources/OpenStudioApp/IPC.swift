@@ -259,6 +259,9 @@ struct ConversationExecutionStep: Decodable, Identifiable {
 struct ConversationExecution: Decodable {
     let steps: [ConversationExecutionStep]
     let reasoningSummary: String
+    var reasoningSummaries: [String: String]? = nil
+    var summaryLanguage: String? = nil
+    var summaryTranslationState: String? = nil
     let elapsedSeconds: Int
     let contextInfo: ConversationContextInfo?
 }

@@ -154,3 +154,30 @@ def test_manual_summary_is_available_on_reopen_without_background_request(servic
         assert await reopened.prepare_next() is False
         assert reopened.status()['phase'] == 'ready'
     asyncio.run(scenario())
+
+
+def test_manual_summary_defaults_to_background_language(service):
+    from eis_engine.article_summary import summarize
+    async def scenario():
+        # The reader must use summary preferences, not the UI language.
+        service.db.execute("INSERT INTO news_digest_settings(workspace_id,enabled,language) VALUES(?,0,'en')", (service.ws,))
+        seen = []
+        def preview(article_id, language=None):
+            seen.append(language)
+            return {'summary': 'Prepared English summary.', 'model': 'fixture', 'cached': True}
+        service.news_digest.preview = preview
+        result = await summarize(service, {'consent': True, 'article_id': 'story'})
+        assert seen == ['en']
+        assert result['cached']
+        await summarize(service, {'consent': True, 'article_id': 'story', 'language': 'ar'})
+        assert seen == ['en', 'ar']
+    asyncio.run(scenario())
+
+
+def test_wrong_language_is_not_a_ready_summary(service):
+    from eis_engine.news_digest_cache import matches_language
+    assert not matches_language('A fully English summary of the article.', 'ar')
+    assert matches_language('أعلنت OpenAI تحديثًا جديدًا يتيح للمطورين استخدام الأدوات بسهولة.', 'ar')
+    assert not matches_language('هذا ملخص عربي كامل عن الخبر الجديد.', 'en')
+    with pytest.raises(Failure, match='لغة'):
+        service.news_digest.cache.save({'id':'story'}, 'ar', {'model_id':'fixture','profile_id':'fixture'}, 'English output despite Arabic instruction.')

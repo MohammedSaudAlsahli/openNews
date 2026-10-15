@@ -149,3 +149,24 @@ import Testing
     #expect(polls >= 2)
     #expect(chat.jobID == nil && !chat.sending && chat.detail?.id == "first")
 }
+
+@Test func activityGroupsPreserveOrderAndCollapseRepeatedDetails() {
+    let steps = [
+        ConversationExecutionStep(id: "1", kind: "context", detail: "context", elapsedSeconds: 0),
+        ConversationExecutionStep(id: "2", kind: "reading", detail: "Article", elapsedSeconds: 1),
+        ConversationExecutionStep(id: "3", kind: "reading", detail: "Article", elapsedSeconds: 2),
+        ConversationExecutionStep(id: "4", kind: "reading", detail: "Other", elapsedSeconds: 3),
+        ConversationExecutionStep(id: "5", kind: "web", detail: "query", elapsedSeconds: 4),
+        ConversationExecutionStep(id: "6", kind: "reading", detail: "Last", elapsedSeconds: 5)
+    ]
+    let groups = ActivityEventGroup.groups(steps)
+    #expect(groups.map(\.kind) == ["reading", "web", "reading"])
+    #expect(groups[0].details == ["Article", "Other"])
+    #expect(ActivityEventGroup.displayDetail("https://www.githubstatus.com/incidents/123") == "githubstatus.com")
+    #expect(ActivityEventGroup.sourceURL("file:///etc/passwd") == nil)
+    #expect(ActivityEventGroup.displayDetail("Article title") == "Article title")
+}
+
+@Test func activitySummaryRemovesStreamingWhitespaceGaps() {
+    #expect(ConversationActivity.readableSummary("  **Searching**\n\n\n\nReading  ") == "Searching\n\nReading")
+}

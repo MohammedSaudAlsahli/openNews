@@ -231,7 +231,7 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
         return {"saved":params["saved"]}
 
     def article(self, identifier, mark_read=True):
-        row = self.store.one("""SELECT a.*,s.title AS source_title FROM news_articles a JOIN news_subscriptions s ON a.subscription_id=s.id WHERE a.id=? AND a.workspace_id=?""", (identifier,self.ws))
+        row = self.store.one("""SELECT a.*,s.title AS source_title,s.kind AS source_kind FROM news_articles a JOIN news_subscriptions s ON a.subscription_id=s.id WHERE a.id=? AND a.workspace_id=?""", (identifier,self.ws))
         if not row: raise Failure("VALIDATION_ERROR", "الخبر غير موجود في مساحة العمل.")
         if mark_read:
             with self.db: self.db.execute("UPDATE news_articles SET is_read=1 WHERE id=? AND workspace_id=?", (identifier,self.ws))

@@ -6,8 +6,9 @@ The RSS library remains the persistent evidence store. Agno's `search_saved_arti
 
 - Explicit RSS `content:encoded` / Atom content is preserved, including when a short description precedes it. Full cached articles survive both automatic and manual feed refresh. Explicit reader refresh can still retrieve corrections.
 - SQLite FTS5 indexes overlapping passages across the entire saved text. Keyword search works during setup and offline, with fallback for newly ingested articles.
-- Optional local semantic search uses Google's `google/embeddinggemma-2`, pinned revision `914f7f89142e33e77833254d9c9b90c3cef7303b`. Only text encoders load, on two CPU threads in a worker, using float32. Query/document task prefixes follow Google's model card. Embeddings are normalized to 256 dimensions and stored in SQLite alongside the original passages; sqlite-vec computes cosine distance. This is exact vector search over date-filtered rows, not an approximate ANN index.
-- Model weights download once to the workspace models cache; the published checkpoint download is approximately 1.49 GB even though unused vision/audio encoders are not loaded. No article text is sent to Google or Hugging Face. Model download requires connectivity; subsequent inference is local.
+- Optional semantic search uses Agno's `OllamaEmbedder` against the app-owned local Ollama runtime. The suggested model is `embeddinggemma-2:270m`; users can browse Ollama's Embedding capability catalog and choose other models. Installed choices are checked against `/api/show`, and cloud/completion-only models are rejected. Runtime and weights are downloaded only after explicit selection; RSS, article storage and keyword search never wait for them.
+- Each selected model is probed for its native vector dimension. Normalized vectors retain model name, immutable Ollama digest and dimension identity; changing the selection clears incompatible vectors and query caches while preserving articles, FTS and prepared summaries. EmbeddingGemma query/document prefixes follow its model card; Nomic uses its search prefixes. Other models use unmodified query text. Quality varies by model and language; capability compatibility alone does not guarantee retrieval quality.
+- PyTorch, Sentence Transformers and their tensor dependencies are no longer part of the application. Article text stays local during embeddings. Model/runtime downloads require connectivity; subsequent inference is local. Sizes are read from the registry before download, with disk/memory preflight, progress, cancellation and retry. Downloaded model files live outside the application and survive app updates.
 - Reciprocal rank fusion combines lexical and semantic candidates. Publication-date constraints and workspace/RSS scope apply to both paths. Duplicate URLs collapse at retrieval. Results contain original article IDs, passages, source names and URLs, preserving citations. Semantic similarity is a retrieval hint, not evidence that two events are causally related.
 - SQL triggers immediately invalidate stale passages when article content or metadata changes; deleted articles remove their vectors and FTS entries. Encoder revision changes discard incompatible vectors. Indexing processes small batches and yields between them. Pending chat jobs take priority. If semantic setup fails or indexing owns the encoder, keyword search remains available.
 
@@ -90,10 +91,17 @@ every second. Idle checks back off to ten seconds. Summary counts reuse results
 until database changes, without caching entire article bodies. The references
 panel relies on the central snapshot monitor instead of duplicating polling.
 
-EmbeddingGemma also runs in an isolated local worker that exits after 30 seconds
-without requests. This releases both tensor-runtime memory and model weights;
-subsequent searches restart it on demand and may have cold-start latency. Automatic
-embedding batches share the quiet budget/model lock with summaries, so the two
-models do not infer concurrently in background. Thermal/power signals terminate
-automatic embedding work. User-requested searches still run immediately. Stored
-vectors remain in SQLite and are never deleted by idle cleanup.
+Embedding requests use the local Ollama runtime with two requested CPU threads and
+`keep_alive=0`, releasing weights after each inference request. Automatic batches
+share the quiet budget/model lock with summaries and yield to pending conversations.
+Search falls back to keywords when the model is unavailable or busy. Stored vectors
+remain in SQLite across restarts. Selecting a different model rebuilds only vectors.
+
+## Validation — 2026-10-15
+
+A real `embeddinggemma-2:270m` download and inference test passed through Agno:
+three English news passages and three Arabic/English queries ranked the expected
+story first (768 dimensions, about 5.85 seconds for six embeddings on this host).
+This is a functional bilingual smoke test, not a benchmark of general quality.
+A fresh workspace fetched 10 live RSS articles and searched them without any model
+download. See `size-reduction-2026-10-15.md` for measured bundle sizes and checks.

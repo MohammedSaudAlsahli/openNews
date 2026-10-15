@@ -99,7 +99,6 @@ struct AgentsSettingsView: View {
                 Text(L("الوكلاء الأساسيون")).font(.caption).foregroundStyle(.secondary)
                 selectionButton(L("الكاتب"), id: "writer", icon: "pencil")
                 selectionButton(L("المحلل"), id: "analyst", icon: "text.magnifyingglass")
-                selectionButton(L("ملخّص الأخبار"), id: "news", icon: "newspaper")
                 Divider()
                 Text(L("وكلاؤك")).font(.caption).foregroundStyle(.secondary)
                 ScrollView {
@@ -120,7 +119,7 @@ struct AgentsSettingsView: View {
                             .id(selection)
                         Divider().padding(.vertical, 10)
                         Text(L("الدور والأسلوب")).font(.headline)
-                        Text(L("خصص تعليمات هذا الوكيل وطريقة إجابته.")).font(.callout).foregroundStyle(.secondary)
+                        Text(L("تُضاف تعليمات هذا الوكيل إلى تعليماتك العامة، وتُستخدم عند اختياره فقط.")).font(.callout).foregroundStyle(.secondary)
                         AssistantCustomizationButton(scope: "agent", targetID: selection).id(selection)
                     } else {
                         editor
@@ -130,6 +129,7 @@ struct AgentsSettingsView: View {
                 }.frame(maxWidth: 640, alignment: .leading).padding(32).frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
+        .onAppear { if selection == "news" { load("writer") } }
         .disabled(saving)
         .interactiveDismissDisabled(dirty || saving)
         .alert(L("حفظ تغييرات الوكيل؟"), isPresented: $model.agentEditor.confirmNavigation) {
@@ -155,8 +155,10 @@ struct AgentsSettingsView: View {
             Text(L("يستخدم الوكيل المصادر المرفقة وقواعد التحقق نفسها؛ لا يحصل على أدوات أو صلاحيات إضافية."))
                 .font(.caption).foregroundStyle(.secondary)
             if selection != "new" {
-                AssistantCustomizationButton(scope: "agent", targetID: selection).id(selection)
-                Text(L("تعليمات العمل أعلاه تُطبّق مع التخصيص الإضافي لهذا الوكيل.")).font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup(L("أسلوب إضافي وأمثلة")) {
+                    AssistantCustomizationButton(scope: "agent", targetID: selection).id(selection)
+                    Text(L("اكتب المهمة في تعليمات العمل أعلاه. استخدم هذا التخصيص فقط لإضافة أسلوب أو أمثلة خاصة بالوكيل.")).font(.caption).foregroundStyle(.secondary)
+                }
             }
             if model.snapshot?.profiles.isEmpty != false {
                 SetupConnectionCTA(onSetupConnection: { navigate("connection") })

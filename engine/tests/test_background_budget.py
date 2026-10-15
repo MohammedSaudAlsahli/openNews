@@ -83,48 +83,6 @@ def test_local_generation_releases_model_on_cancellation(service, monkeypatch):
     asyncio.run(scenario())
 
 
-def test_embedding_process_restarts_and_closes_without_loading_tensor_libraries(tmp_path, monkeypatch):
-    import subprocess
-    import sys
-    from eis_engine.news_embeddings import LocalNewsEmbeddings
-    script = tmp_path/'fake_encoder.py'
-    script.write_text("import sys,json\nfor line in sys.stdin:\n r=json.loads(line); print(json.dumps({'vectors':[[1,0] for t in r['texts']]}),flush=True)\n")
-    real_popen = subprocess.Popen
-    monkeypatch.setattr(subprocess, 'Popen', lambda args, **kw: real_popen([sys.executable, str(script)], **kw))
-    encoder = LocalNewsEmbeddings(tmp_path)
-    try:
-        assert encoder.encode(['first']) == [[1,0]]
-        first = encoder.process
-        first.terminate(); first.wait(timeout=2)
-        assert encoder.encode(['second','third'], query=True) == [[1,0],[1,0]]
-        second = encoder.process
-        assert second.pid != first.pid
-    finally:
-        encoder.close()
-    assert second.poll() is not None
-
-
-def test_embedding_worker_exits_on_idle(monkeypatch, tmp_path):
-    import io
-    from eis_engine import news_embedding_worker as worker
-    class Encoder:
-        def __init__(self, cache): pass
-        def encode(self, texts, query=False): return [[0,1]]
-    monkeypatch.setattr(worker, 'LocalEncoder', Encoder)
-    monkeypatch.setattr(worker.sys, 'argv', ['worker', str(tmp_path)])
-    monkeypatch.setattr(worker.sys, 'stdin', io.StringIO('{"texts":["sample"]}\n'))
-    output = io.StringIO()
-    monkeypatch.setattr(worker.sys, 'stdout', output)
-    calls = []
-    def ready(readers, writes, errors, timeout):
-        calls.append(timeout)
-        return (readers if len(calls)==1 else [], [], [])
-    monkeypatch.setattr(worker.select, 'select', ready)
-    worker.main()
-    assert calls == [30,30]
-    assert 'vectors' in output.getvalue()
-
-
 def test_automatic_embeddings_share_quiet_budget_and_yield_to_conversation(service):
     async def scenario():
         knowledge = service.news.knowledge

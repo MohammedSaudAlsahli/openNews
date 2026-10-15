@@ -74,62 +74,19 @@ struct ConnectionStatusRow: View {
     @EnvironmentObject private var model: StudioModel
     let profile: ProviderProfile
     let open: () -> Void
-    @State private var confirming = false
-    @State private var confirmingDelete = false
-    @State private var working = false
-    @State private var failure: String?
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 18) {
-                Button(action: open) {
-                    HStack(spacing: 14) {
-                        if let provider = model.catalog?.providers.first(where: { $0.id == profile.providerKey }) {
-                            ProviderBrandView(provider: provider, size: 36)
-                        }
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(profile.displayName).font(.headline)
-                            ConnectionStatusView(profile: profile)
-                            Text(technicalIdentifier(profile.providerKey) + " · " + L(profile.providerKey == "openai-chatgpt" ? "حساب ChatGPT" : "إعداد على هذا الجهاز"))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 12)
-                    }.contentShape(Rectangle())
-                }.buttonStyle(.plain)
-                if profile.connection?.state == "disconnected" {
-                    Button(L("إعادة الربط"), action: open)
-                } else {
-                    Button(L("فصل الاتصال…")) { confirming = true }.disabled(working || model.health == nil)
+        Button(action: open) {
+            HStack(spacing: 14) {
+                if let provider = model.catalog?.providers.first(where: { $0.id == profile.providerKey }) {
+                    ProviderBrandView(provider: provider, size: 36)
                 }
-                Button(L("حذف الاتصال…"), role: .destructive) { confirmingDelete = true }
-                    .disabled(working || model.health == nil)
-            }
-            if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
-        }.padding(.vertical, 18)
-        .confirmationDialog(L("فصل هذا الاتصال؟"), isPresented: $confirming, titleVisibility: .visible) {
-            Button(L("فصل الاتصال"), role: .destructive) {
-                working = true; failure = nil
-                Task {
-                    defer { working = false }
-                    do { _ = try await model.call("providers.disconnect", ["profile_id": profile.id]); try await model.refresh() }
-                    catch { failure = error.localizedDescription; try? await model.refresh() }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(profile.displayName).font(.headline)
+                    ConnectionStatusView(profile: profile)
                 }
-            }
-            Button(L("إلغاء"), role: .cancel) {}
-        } message: {
-            Text(L("ستُزال بيانات الدخول المحلية، وستتوقف الوكلاء التي تستخدم هذا الاتصال حتى تعيد ربطه. يمكنك إعادة تسجيل الدخول لاحقًا."))
-        }
-        .confirmationDialog(L("حذف هذا الاتصال؟"), isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button(L("حذف الاتصال"), role: .destructive) {
-                working = true; failure = nil
-                Task {
-                    defer { working = false }
-                    do { _ = try await model.call("providers.delete", ["profile_id": profile.id]); try await model.refresh() }
-                    catch { failure = error.localizedDescription; try? await model.refresh() }
-                }
-            }
-            Button(L("إلغاء"), role: .cancel) {}
-        } message: {
-            Text(L("ستُزال بيانات الدخول والاتصال من القائمة. ستحتاج الوكلاء المرتبطة به إلى اختيار اتصال آخر. تبقى المحادثات والمسودات محفوظة."))
-        }
+                Spacer(minLength: 12)
+                Image(systemName: "chevron.forward").font(.caption).foregroundStyle(.secondary)
+            }.padding(.vertical, 18).contentShape(Rectangle())
+        }.buttonStyle(.plain).help(L("إدارة الاتصال"))
     }
 }

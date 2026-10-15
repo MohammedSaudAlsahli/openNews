@@ -69,7 +69,6 @@ struct ConversationPanel: View {
     private var conversationLayout: some View {
         VStack(spacing: 0) {
             conversationHeader
-            Divider()
             if isWelcome {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -81,26 +80,19 @@ struct ConversationPanel: View {
                         composer
                         startingPrompts
                         if session.error != nil { failureNotice }
-                    }.frame(maxWidth: 680, alignment: .leading).padding(32)
+                    }.frame(maxWidth: 740, alignment: .leading).padding(32)
                         .padding(.top, 44).frame(maxWidth: .infinity)
                 }
             } else {
                 messageHistory
-                composer.frame(maxWidth: 680).padding(.horizontal, 24).padding(.vertical, 16).frame(maxWidth: .infinity)
+                composer.frame(maxWidth: 740).padding(.horizontal, 24).padding(.vertical, 16).frame(maxWidth: .infinity)
             }
         }.background(Color(nsColor: .textBackgroundColor))
     }
     private var conversationHeader: some View {
         HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(session.detail?.title ?? L("محادثة جديدة")).font(.headline).lineLimit(1)
-                Text(L(session.loading ? "جارٍ تحميل المحادثة…" : session.sending ? "جارٍ إعداد الرد…" : session.error != nil ? "تحتاج المحادثة انتباهك" : session.conversationID.isEmpty ? "لم تبدأ المحادثة بعد" : "محفوظة على جهازك"))
-                    .font(.caption).foregroundStyle(.secondary)
-                if let digest = model.digestStatus, digest.enabled, !digest.currentTitle.isEmpty {
-                    Label(L("يلخّص الآن: {0}", digest.currentTitle), systemImage: "sparkles")
-                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
+            Text(session.detail?.title ?? L("محادثة جديدة"))
+                .font(.callout).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
             Button {
                 Task {
@@ -119,7 +111,7 @@ struct ConversationPanel: View {
             } label: { Label(L("تخصيص المساعد"), systemImage: "slider.horizontal.3") }
                 .buttonStyle(.borderless).disabled(session.sending || session.loading || model.health == nil)
             if session.loading { ProgressView().controlSize(.small) }
-        }.padding(.horizontal, 24).padding(.vertical, 16)
+        }.padding(.horizontal, 24).padding(.vertical, 8)
     }
     private var failureNotice: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -141,7 +133,7 @@ struct ConversationPanel: View {
     private var messageHistory: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 22) {
+                LazyVStack(alignment: .leading, spacing: 30) {
                     if session.detail?.hasMore == true {
                         HStack {
                             Button(L("تحميل رسائل أقدم")) { Task { await session.loadOlder(model) } }.disabled(session.loadingOlder)
@@ -156,13 +148,14 @@ struct ConversationPanel: View {
                             ConversationActivity(execution: session.progress?.execution,
                                 contextInfo: session.progress?.contextInfo, title: progressTitle,
                                 elapsed: session.progress?.elapsedSeconds ?? 0, active: true)
+                                .id("live-activity-" + (session.jobID ?? "pending"))
                             if let progress = session.progress, !progress.message.isEmpty {
-                                RichTextView(text: ConversationPresentation.markdown(progress.message, citations: progress.citations, partial: true), fontSize: 15, lineSpacing: 5, citationPreview: preview(for: progress.citations))
+                                RichTextView(text: ConversationPresentation.markdown(progress.message, citations: progress.citations, partial: true), fontSize: 16, lineSpacing: 7, citationPreview: preview(for: progress.citations))
                             }
                         }.id("pending")
                     }
                     if session.error != nil { failureNotice }
-                }.frame(maxWidth: 680, alignment: .leading).padding(24).frame(maxWidth: .infinity)
+                }.frame(maxWidth: 740, alignment: .leading).padding(.horizontal, 32).padding(.vertical, 28).frame(maxWidth: .infinity)
             }
             .onChange(of: session.detail?.messages.last?.id) { _, _ in
                 if let last = session.detail?.messages.last?.id { proxy.scrollTo(last, anchor: .bottom) }
@@ -222,10 +215,11 @@ struct ConversationPanel: View {
                 if let activity = message.activity {
                     ConversationActivity(execution: activity, contextInfo: activity.contextInfo,
                         title: "", elapsed: activity.elapsedSeconds, active: false)
+                        .id("saved-activity-" + message.id)
                 } else {
                     Label(L("المساعد التحريري"), systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
                 }
-                RichTextView(text: ConversationPresentation.markdown(message.content, citations: message.citations ?? []), fontSize: 15, lineSpacing: 5, citationPreview: preview(for: message.citations ?? []))
+                RichTextView(text: ConversationPresentation.markdown(message.content, citations: message.citations ?? []), fontSize: 16, lineSpacing: 7, citationPreview: preview(for: message.citations ?? []))
                 ForEach(message.outputs ?? []) { output in
                     ConversationDraftCard(output: output, openDraft: openDraft).disabled(model.busy)
                 }
@@ -270,12 +264,18 @@ struct ConversationPanel: View {
             }
     }
     private var outputPicker: some View {
-            NativeChoicePicker(title: L("نوع نتيجة المحادثة"), selection: $session.format, choices: [
-                .init(value: "discussion", label: L("نقاش")),
-                .init(value: "x_posts", label: L("منشورات X")),
-                .init(value: "youtube_long", label: L("YouTube طويل")),
-                .init(value: "tiktok", label: "TikTok")
-            ]).fixedSize().controlSize(.small)
+        Menu {
+            Picker(L("نوع نتيجة المحادثة"), selection: $session.format) {
+                Text(L("نقاش")).tag("discussion")
+                Text(L("منشورات X")).tag("x_posts")
+                Text(L("YouTube طويل")).tag("youtube_long")
+                Text("TikTok").tag("tiktok")
+            }
+        } label: {
+            Text(session.format == "x_posts" ? L("منشورات X") : session.format == "youtube_long" ? L("YouTube طويل") : session.format == "tiktok" ? "TikTok" : L("نقاش"))
+                .font(.callout)
+        }.menuStyle(.borderlessButton).fixedSize().foregroundStyle(.secondary)
+            .accessibilityLabel(L("نوع نتيجة المحادثة"))
     }
     private var modelPickerButton: some View {
             Button { modelOptions.toggle() } label: {
@@ -333,8 +333,8 @@ struct ConversationPanel: View {
                 }
             }.padding(14).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(
-                    session.composer.count > 12000 ? Color.red.opacity(0.7) : composerFocused ? Color.accentColor.opacity(0.65) : Color.primary.opacity(0.12),
-                    lineWidth: composerFocused ? 1.5 : 1))
+                    session.composer.count > 12000 ? Color.red.opacity(0.7) : composerFocused ? Color.accentColor.opacity(0.4) : Color.primary.opacity(0.12),
+                    lineWidth: 1))
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: composerFocused)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: canSend)
             if session.sending {

@@ -24,18 +24,22 @@ struct FeedLibraryView: View {
     @State private var feeds: [LibraryFeed] = []
     @State private var query = ""
     @State private var category = "all"
-    @State private var feedLanguage = "all"
     @State private var pending = Set<String>()
     @State private var error: String?
     @State private var loading = true
     @State private var adding = false
     @State private var followedOnly = false
     @State private var addedTitle: String?
-    private var categories: [String] { ["all", "news", "technology", "ai", "science", "business", "sports", "podcasts", "gaming", "design", "food", "travel"] }
+    private var categories: [String] { ["all", "news", "technology", "ai", "science", "business", "sports", "podcasts", "gaming", "design", "food", "travel", "security", "movies", "apple", "programming", "music", "world-news", "crypto", "photography", "web-development", "android", "education", "environment", "space"] }
     private var filtered: [LibraryFeed] {
-        let matches = feeds.filter { feed in
-            (!followedOnly || subscription(feed)?.enabled == true) &&
-            (feedLanguage == "all" || feed.language.hasPrefix(feedLanguage))
+        let candidates: [LibraryFeed] = followedOnly ? (model.snapshot?.subscriptions ?? []).map {
+            LibraryFeed(id: $0.id, title: $0.title, url: $0.feedUrl.isEmpty ? $0.url : $0.feedUrl,
+                        category: "general", language: "und", descriptionAr: "", descriptionEn: "",
+                        publisherUrl: $0.url, verifiedAt: "")
+        } : feeds
+        let matches = candidates.filter { feed in
+            !followedOnly || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                (feed.title + " " + feed.url + " " + feed.publisherUrl).localizedCaseInsensitiveContains(query.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return sortAlphabetically ? matches.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : matches
     }
@@ -61,17 +65,12 @@ struct FeedLibraryView: View {
                 .padding(.horizontal, 24).padding(.bottom, 12)
             HStack(spacing: 16) {
                 Menu {
-                    Picker(L("لغة النتائج المحمّلة"), selection: $feedLanguage) {
-                        Text(L("كل اللغات")).tag("all")
-                        Text(L("العربية")).tag("ar")
-                        Text(L("الإنجليزية")).tag("en")
-                    }
                     Toggle(L("مصادري فقط"), isOn: $followedOnly)
                     Toggle(L("ترتيب أبجدي"), isOn: $sortAlphabetically)
                 } label: { Label(L("تصفية النتائج"), systemImage: "line.3.horizontal.decrease") }
                 .fixedSize()
-                if feedLanguage != "all" || followedOnly || sortAlphabetically {
-                    Button(L("مسح الفلاتر")) { feedLanguage = "all"; followedOnly = false; sortAlphabetically = false }.buttonStyle(.borderless)
+                if followedOnly || sortAlphabetically {
+                    Button(L("مسح الفلاتر")) { followedOnly = false; sortAlphabetically = false }.buttonStyle(.borderless)
                 }
                 Spacer()
                 Text(L("{0} مصدر", DisplayFormat.integer(filtered.count))).foregroundStyle(.secondary)
@@ -82,16 +81,17 @@ struct FeedLibraryView: View {
                 Label(L("بدأت متابعة {0}. ستظهر أخباره في الأخبار.", addedTitle), systemImage: "checkmark.circle.fill")
                     .font(.callout).foregroundStyle(.green).padding(.horizontal, 24).padding(.bottom, 12)
             }
+            Text(L(followedOnly ? "كل اشتراكاتك، بما فيها الروابط التي أضفتها والمصادر المتوقفة مؤقتًا." : "مصادر RSS.mobi كاملة؛ البحث يشمل الدليل كله، والمتابعة اختيارية."))
+                .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 12)
             Divider()
             HStack(spacing: 0) {
-                List(selection: Binding<String?>(get: { category }, set: { category = $0 ?? "all" })) {
+                if !followedOnly { List(selection: Binding<String?>(get: { category }, set: { category = $0 ?? "all" })) {
                     ForEach(categories, id: \.self) { item in Text(categoryTitle(item)).lineLimit(2).fixedSize(horizontal: false, vertical: true).tag(item) }
                 }.listStyle(.sidebar).frame(width: 170)
-                Divider()
+                Divider() }
                 ScrollView {
-                    // A bounded page uses eager rows: macOS accessibility scroll-to-end
-                    // can trap while resolving SwiftUI lazy collection identifiers.
-                    VStack(alignment: .leading, spacing: 0) {
+                    // Load the catalog once; construct visible rows lazily.
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         if loading { ProgressView(L("جارٍ فتح المكتبة…")).padding(24) }
                         else if filtered.isEmpty {
                             Text(L("لا توجد مصادر مطابقة. جرّب تصنيفًا آخر أو غيّر البحث.")).foregroundStyle(.secondary).padding(24)
@@ -100,7 +100,7 @@ struct FeedLibraryView: View {
                             feedRow(feed)
                             Divider().padding(.horizontal, 20)
                         }
-                        if !nextCursor.isEmpty, !loading {
+                        if !followedOnly, !nextCursor.isEmpty, !loading {
                             Button(L("تحميل المزيد")) { Task { await load(append: true) } }
                                 .frame(maxWidth: .infinity).padding(20)
                         }
@@ -116,9 +116,10 @@ struct FeedLibraryView: View {
             }
         }.frame(width: 880, height: 700).editorialPresentation()
         .sheet(isPresented: $adding) { AddNewsSubscriptionSheet() }
-        .task(id: query + "|" + category) {
+        .task(id: query + "|" + category + "|" + String(followedOnly)) {
             // Cancellation plus request identity prevents older responses replacing newer searches.
             requestID = UUID()
+            if followedOnly { loading = false; error = nil; stale = false; return }
             guard query.count <= 100 else { loading = false; return }
             loading = true
             do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
@@ -128,6 +129,19 @@ struct FeedLibraryView: View {
     }
     private func categoryTitle(_ value: String) -> String {
         switch value {
+        case "security": return L("أمن سيبراني")
+        case "movies": return L("أفلام")
+        case "apple": return L("Apple")
+        case "programming": return L("برمجة")
+        case "music": return L("موسيقى")
+        case "world-news": return L("أخبار العالم")
+        case "crypto": return L("عملات رقمية")
+        case "photography": return L("تصوير")
+        case "web-development": return L("تطوير الويب")
+        case "android": return L("Android")
+        case "education": return L("تعليم")
+        case "environment": return L("بيئة")
+        case "space": return L("فضاء")
         case "general": return L("عامة")
         case "news": return L("أخبار")
         case "technology": return L("تقنية")
@@ -152,9 +166,9 @@ struct FeedLibraryView: View {
             SiteIcon(address: feed.publisherUrl.isEmpty ? feed.url : feed.publisherUrl, size: 38)
             VStack(alignment: .leading, spacing: 7) {
                 Text(verbatim: feed.title).font(.headline)
-                Text(verbatim: language == "en" ? feed.descriptionEn : feed.descriptionAr).font(.callout).foregroundStyle(.secondary)
+                if !feed.descriptionEn.isEmpty { Text(verbatim: language == "en" ? feed.descriptionEn : feed.descriptionAr).font(.callout).foregroundStyle(.secondary) }
                 HStack(spacing: 10) {
-                    Text(feed.language == "ar" ? L("العربية") : feed.language == "en" ? L("الإنجليزية") : feed.language == "und" ? L("لغة غير محددة") : feed.language)
+                    if feed.language != "und" { Text(feed.language == "ar" ? L("العربية") : feed.language == "en" ? L("الإنجليزية") : feed.language == "und" ? L("لغة غير محددة") : feed.language) }
                     if let url = URL(string: feed.url) { Link("RSS", destination: url) }
                     if !feed.publisherUrl.isEmpty, let url = URL(string: feed.publisherUrl) { Link(L("موقع الناشر"), destination: url) }
                 }.font(.caption)
@@ -185,7 +199,7 @@ struct FeedLibraryView: View {
             let ids = Set(feeds.map(\.id))
             feeds += page.feeds.filter { !ids.contains($0.id) }
             nextCursor = page.nextCursor; fetchedAt = page.fetchedAt; stale = page.stale
-        } catch { if !Task.isCancelled, requestID == token { feeds = []; self.error = error.localizedDescription } }
+        } catch { if !Task.isCancelled, requestID == token { self.error = error.localizedDescription } }
     }
     private func add(_ feed: LibraryFeed) async {
         guard !pending.contains(feed.id) else { return }

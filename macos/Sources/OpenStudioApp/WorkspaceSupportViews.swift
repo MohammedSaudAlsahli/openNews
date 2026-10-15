@@ -94,8 +94,38 @@ struct BackgroundWindowHost: NSViewRepresentable {
 struct ActivitySummary: View {
     @EnvironmentObject private var model: StudioModel
     private var jobs: [Job] { model.snapshot?.jobs ?? [] }
+    private func summaryPhase(_ phase: String) -> String {
+        switch phase {
+        case "disabled": return L("التلخيص التلقائي متوقف")
+        case "low_power": return L("متوقف مؤقتًا أثناء وضع توفير الطاقة")
+        case "cooling": return L("متوقف مؤقتًا حتى تنخفض حرارة الجهاز")
+        case "resting": return L("راحة بين الملخصات لتخفيف استهلاك الجهاز")
+        case "waiting_model": return L("بانتظار انتهاء طلبك؛ المحادثة لها الأولوية")
+        case "retrying": return L("تعذّر التلخيص؛ ستتم إعادة المحاولة تلقائيًا")
+        case "needs_model", "needs_download": return L("اختر نموذجًا متاحًا للتلخيص")
+        case "daily_limit": return L("اكتمل الحد اليومي؛ يستأنف التلخيص غدًا")
+        case "waiting_device": return L("بانتظار التحقق من حالة الجهاز")
+        case "waiting_articles": return L("بانتظار وصول نصوص المقالات الكاملة")
+        case "ready": return L("كل المقالات المتاحة ملخصة")
+        case "summarizing": return L("جارٍ تجهيز الملخصات")
+        default: return L("مقالات جاهزة للتلخيص في الخلفية")
+        }
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let digest = model.digestStatus {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label(L("التلخيص في الخلفية"), systemImage: "doc.text")
+                        Spacer()
+                        Text(L(digest.language == "ar" ? "العربية" : "الإنجليزية")).font(.caption).foregroundStyle(.secondary)
+                    }.font(.callout.weight(.medium))
+                    Text(L("{0} ملخص جاهز · {1} بانتظار التلخيص", digest.prepared, digest.pending)).font(.caption).foregroundStyle(.secondary)
+                    Text(summaryPhase(digest.phase ?? "disabled")).font(.caption).foregroundStyle(.secondary)
+                    if !digest.currentTitle.isEmpty { Text(digest.currentTitle).font(.caption).lineLimit(2) }
+                }
+                Divider()
+            }
             let attention = jobs.filter { $0.state != "completed" }
             if attention.isEmpty {
                 Label(L("لا توجد مهام قيد التنفيذ"), systemImage: "checkmark.circle")

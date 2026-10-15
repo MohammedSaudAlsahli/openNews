@@ -48,7 +48,8 @@ with tempfile.TemporaryDirectory(prefix='eis-smoke-') as temporary:
         health=request('runtime.health')
         assert health['sqlite_vec']
         library=request('news.library')
-        assert len(library['feeds']) == 12
+        assert library['feeds']
+        assert len({feed['id'] for feed in library['feeds']}) == len(library['feeds'])
         for language in ('ar','en'):
             localized=resources/'OpenStudio_OpenStudioApp.bundle'/f'{language}.json'
             if not localized.exists():

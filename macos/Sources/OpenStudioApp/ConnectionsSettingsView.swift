@@ -14,7 +14,7 @@ struct ConnectionsSettingsView: View {
                 if !selectedID.isEmpty {
                     Button { selectedID = "" } label: { Label(L("الاتصالات"), systemImage: "chevron.backward") }
                 } else {
-                    Text(L("الاتصالات")).font(.title2.weight(.semibold))
+                    Text(L("اتصالات النماذج")).font(.title2.weight(.semibold))
                 }
                 Spacer()
                 Button { adding = true } label: { Label(L("ربط مزوّد"), systemImage: "plus") }
@@ -26,7 +26,7 @@ struct ConnectionsSettingsView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(L("اتصالاتك المحفوظة. يمكنك إضافة أكثر من حساب للمزوّد نفسه."))
+                        Text(L("أضف حساباتك وبيانات الدخول هنا. اختر نموذج كل مهمة من الوكلاء أو تلخيص الأخبار."))
                             .foregroundStyle(.secondary).padding(.bottom, 20)
                         if profiles.isEmpty {
                             Text(L("أضف اتصالًا أولًا")).font(.headline).padding(.vertical, 20)
@@ -67,10 +67,11 @@ private struct ConnectionSettingsDetail: View {
     var body: some View {
         let _ = interfaceLanguage
         VStack(alignment: .leading, spacing: 0) {
-            settingsHeading(profile.displayName, subtitle: technicalIdentifier(profile.providerKey))
+            settingsHeading(profile.displayName, subtitle: L("إدارة الحساب وبيانات الدخول؛ نماذج المهام تُختار من إعداداتها."))
             Form {
                 Section(L("حالة الاتصال")) {
                     ConnectionStatusView(profile: profile, detailed: true, checking: checking)
+                    Text(L("يتحقق من جاهزية الحساب. لا يرسل مقالة أو يطلب إجابة من النموذج.")).font(.caption).foregroundStyle(.secondary)
                     HStack {
                         Button(L("تحقق الآن")) {
                             checking = true
@@ -89,8 +90,18 @@ private struct ConnectionSettingsDetail: View {
                 }
                 Section(L("إعداد الاتصال")) {
                     TextField(L("اسم الاتصال"), text: $label)
-                    ConnectionModelPicker(profileID: $profileID, modelID: $modelID, ready: $ready, showsConnection: false)
                     Toggle(L("تحديث قائمة النماذج تلقائيًا"), isOn: $autoRefresh)
+                    Text(L("يجلب النماذج المتاحة لهذا الحساب؛ لا يغيّر النموذج الذي اخترته لأي مهمة.")).font(.caption).foregroundStyle(.secondary)
+                    DisclosureGroup(L("نموذج الاتصال الافتراضي والاختبار")) {
+                        Text(L("اقتراح أولي عند اختيار هذا الاتصال. لا يستبدل نماذج الوكلاء أو التلخيص المحفوظة.")).font(.caption).foregroundStyle(.secondary)
+                        ConnectionModelPicker(profileID: $profileID, modelID: $modelID, ready: $ready, showsConnection: false)
+                        if !consent { ModelPermissionNotice() }
+                        Text(L("يرسل طلبًا قصيرًا للتأكد من الاستجابة، وقد تُحتسب تكلفة.")).font(.caption).foregroundStyle(.secondary)
+                        Button(L("اختبار النموذج")) {
+                            perform("providers.validate", ["profile_id": profile.id, "model_id": modelID, "consent": true], success: L("نجح اختبار النموذج."))
+                        }.disabled(!ready || !consent || working)
+                    }
+
                 }
                 Section(L("بيانات الدخول")) {
                     if profile.providerKey == "openai-chatgpt" {
@@ -107,14 +118,7 @@ private struct ConnectionSettingsDetail: View {
                         Button(L("إظهار الملف في Finder"), action: revealCredentials)
                     }
                 }
-                Section {
-                    DisclosureGroup(L("اختبار الاتصال")) {
-                        if !consent { ModelPermissionNotice() }
-                        Button(L("اختبار النموذج")) {
-                            perform("providers.validate", ["profile_id": profile.id, "model_id": modelID, "consent": true], success: L("نجح اختبار النموذج."))
-                        }.disabled(!ready || !consent || working)
-                    }
-                }
+
             }.formStyle(.grouped).disabled(working)
             if let message { Text(L(message)).font(.callout).foregroundStyle(failed ? Color.red : Color.secondary).textSelection(.enabled).padding(.horizontal, 22).padding(.bottom, 12) }
             Divider()

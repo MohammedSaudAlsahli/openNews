@@ -5,11 +5,12 @@ struct LocalModelChoice: Decodable, Identifiable {
     let size: Int64?
     let installed: Bool
 }
-struct InstalledSummaryModel: Decodable, Identifiable { let id: String; let size: Int64 }
+struct InstalledSummaryModel: Decodable, Identifiable { let id: String; let size: Int64; var capabilities: [String]? = nil }
+struct AvailableLocalModels: Decodable { let installed: [InstalledSummaryModel] }
 struct LocalModelDownload: Decodable {
     let phase, model, error: String
     let completed, total: Int64
-    var active: Bool { ["checking", "preparing", "downloading", "testing"].contains(phase) }
+    var active: Bool { ["checking", "preparing", "downloading", "verifying", "testing"].contains(phase) }
 }
 struct LocalModelsStatus: Decodable {
     let runtime, canStart: Bool
@@ -34,6 +35,7 @@ struct ModelVariant: Decodable, Identifiable { let id: String; let size: Int64?;
 struct ModelVariants: Decodable { let variants: [ModelVariant] }
 
 struct LocalSummaryModels: View {
+    var embedding = false
     var chooseConnected: () -> Void = {}
     @EnvironmentObject private var model: StudioModel
     @AppStorage("appLanguage") private var language = "ar"
@@ -57,8 +59,25 @@ struct LocalSummaryModels: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            summaryControls
+            if embedding { embeddingControls } else { summaryControls }
             Divider()
+            if !embedding && model.digestStatus?.engine != "local" {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text(L("النموذج المتصل")).font(.headline)
+                        Text(L("تُرسل نصوص الأخبار إلى الاتصال الذي تختاره. قد تُحتسب تكلفة حسب مزوّدك.")).font(.callout).foregroundStyle(.secondary)
+                        if model.snapshot?.profiles.isEmpty != false {
+                            Button(L("إضافة اتصال"), action: chooseConnected).buttonStyle(.borderedProminent)
+                        } else {
+                            AgentModelAssignment(role: "news", title: L("ملخّص الأخبار"))
+                        }
+                        DisclosureGroup(L("تعليمات التلخيص")) {
+                            AssistantCustomizationButton(scope: "agent", targetID: "news").padding(.top, 10)
+                        }
+                        if let failure { Text(failure).foregroundStyle(.red).textSelection(.enabled) }
+                    }.frame(maxWidth: 620, alignment: .leading).padding(28).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
             HStack(spacing: 0) {
                 VStack(spacing: 12) {
                     Picker(L("عرض النماذج"), selection: $tab) {
@@ -66,11 +85,12 @@ struct LocalSummaryModels: View {
                         Text(L("المكتبة")).tag("library")
                         Text(L("محمّلة")).tag("installed")
                     }.pickerStyle(.segmented).labelsHidden()
-                    TextField(L("ابحث عن نموذج"), text: Binding(get: { query }, set: { query = $0; tab = "library" })).textFieldStyle(.roundedBorder)
+                    TextField(L("ابحث عن نموذج"), text: Binding(get: { query }, set: { if query != $0 { query = $0; tab = "library" } })).textFieldStyle(.roundedBorder)
                     List(selection: $selected) {
                         ForEach(rows) { row in
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(row.name).font(.body.weight(.medium))
+                                Text(row.capabilities.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary)
                                 Text(row.description).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             }.padding(.vertical, 7).tag(row.id)
                         }
@@ -95,7 +115,7 @@ struct LocalSummaryModels: View {
                     VStack(alignment: .leading, spacing: 20) {
                         if let row = selectedRow { modelDetail(row) }
                         else {
-                            ContentUnavailableView(L("اختر نموذج التلخيص"), systemImage: "text.page", description: Text(L("قارن الحجم وملاءمة جهازك، ثم حمّل وابدأ مباشرة.")))
+                            ContentUnavailableView(L(embedding ? "اختر نموذج البحث بالمعنى" : "اختر نموذج التلخيص"), systemImage: "text.page", description: Text(L("قارن الحجم وملاءمة جهازك، ثم حمّل وابدأ مباشرة.")))
                         }
                         if let status, status.download.phase != "idle" { downloadStatus(status.download) }
                         if let failure {
@@ -104,11 +124,13 @@ struct LocalSummaryModels: View {
                     }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(minWidth: 310, maxWidth: .infinity)
             }
+            }
         }
         .task {
             while !Task.isCancelled {
                 do {
                     status = try await model.decoded("news.local.status", as: LocalModelsStatus.self)
+                    if embedding { model.searchStatus = try await model.decoded("news.search.status", as: NewsSearchStatus.self) }
                     let next = try await model.decoded("news.digest.status", as: NewsDigestStatus.self)
                     if next != model.digestStatus { model.digestStatus = next }
                     try await Task.sleep(for: .seconds(2))
@@ -116,7 +138,7 @@ struct LocalSummaryModels: View {
                 catch { failure = error.localizedDescription; try? await Task.sleep(for: .seconds(5)) }
             }
         }
-        .task(id: tab + "|" + query) {
+        .task(id: tab + "|" + query + "|" + (embedding ? "embedding" : model.digestStatus?.engine ?? "")) {
             do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
             await search()
         }
@@ -124,20 +146,29 @@ struct LocalSummaryModels: View {
         .task(id: variant) { await inspectVariant() }
     }
 
+    private var embeddingControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L("البحث الذكي في الأخبار")).font(.headline)
+            Text(model.searchStatus?.model ?? "EmbeddingGemma 2").font(.callout).foregroundStyle(.secondary)
+            Text(L("اختر نموذجًا يدعم Embedding. الأخبار والبحث بالكلمات يعملان دون تحميله؛ تغيير النموذج يعيد فهرسة البحث فقط."))
+                .font(.caption).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(24)
+    }
+
     private var summaryControls: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 18) {
+            Picker(L("طريقة التلخيص"), selection: Binding(get: { model.digestStatus?.engine ?? "provider" }, set: { updateSettings(["engine": $0, "enabled": false]) })) {
+                Text(L("على جهازي")).tag("local")
+                Text(L("عبر اتصال")).tag("provider")
+            }.pickerStyle(.segmented).frame(maxWidth: 340).disabled(actionBusy || downloadActive || model.digestStatus == nil)
+            Text(L("عند تغيير الطريقة يتوقف التلخيص؛ اختر النموذج ثم فعّل التلخيص التلقائي."))
+                .font(.caption).foregroundStyle(.secondary)
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(L("التلخيص التلقائي")).font(.headline)
-                    Text(currentModel).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                    Text(currentModel.isEmpty ? L("لم يُحدد نموذج بعد") : currentModel).font(.callout).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
-                Menu {
-                    Button(L("استخدام نموذج متصل")) {
-                        updateSettings(["engine":"provider","enabled":false])
-                        chooseConnected()
-                    }
-                } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).fixedSize().help(L("خيارات التلخيص"))
                 Picker(L("لغة الملخصات"), selection: Binding(get: { model.digestStatus?.language ?? language }, set: { updateSettings(["language": $0]) })) {
                     Text("العربية").tag("ar"); Text("English").tag("en")
                 }.fixedSize()
@@ -152,7 +183,7 @@ struct LocalSummaryModels: View {
                 }.font(.caption).foregroundStyle(.secondary)
             }
             if let digest = model.digestStatus {
-                Text(summaryPhase(digest.phase ?? "")).font(.caption).foregroundStyle(.secondary)
+                Label(summaryPhase(digest.phase ?? ""), systemImage: digest.enabled ? "clock" : "pause.circle").font(.callout).foregroundStyle(.secondary)
             }
             if model.digestStatus?.engine == "local" {
                 Label(L("تلخيص هادئ: مقال واحد ثم راحة، مع إيقاف تلقائي عند ارتفاع الحرارة وتفريغ النموذج بعد العمل."), systemImage: "leaf")
@@ -162,6 +193,11 @@ struct LocalSummaryModels: View {
                 DisclosureGroup(L("خيارات النموذج المتصل")) {
                     Stepper(L("حد الملخصات اليومي") + ": \(model.digestStatus?.dailyLimit ?? 20)", value: Binding(get: { model.digestStatus?.dailyLimit ?? 20 }, set: { updateSettings(["daily_limit":$0]) }), in: 1...200)
                         .font(.callout).disabled(actionBusy)
+                }.font(.caption)
+            }
+            if model.digestStatus?.engine == "local" {
+                DisclosureGroup(L("تعليمات التلخيص")) {
+                    AssistantCustomizationButton(scope: "agent", targetID: "news").padding(.top, 8)
                 }.font(.caption)
             }
             if !ModelPermission.allowed() { Text(L("فعّل إذن استخدام النماذج من الصلاحيات لتشغيل التلخيص.")).font(.caption).foregroundStyle(.secondary) }
@@ -190,6 +226,7 @@ struct LocalSummaryModels: View {
     }
 
     private var currentModel: String {
+        if embedding { return model.searchStatus?.model ?? "" }
         if model.digestStatus?.engine == "local" { return model.digestStatus?.localModel ?? "" }
         return model.snapshot?.assignments?.first(where: { $0.role == "news" })?.modelId ?? ""
     }
@@ -199,7 +236,7 @@ struct LocalSummaryModels: View {
             Text(row.name).font(.title2.weight(.semibold)).textSelection(.enabled)
             Text(row.description).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
-        if row.capabilities.contains("embedding") {
+        if !embedding && row.capabilities.contains("embedding") {
             Label(L("هذا النموذج للبحث، وليس لكتابة الملخصات."), systemImage: "info.circle").font(.callout)
         } else if !variants.isEmpty {
             if variants.count > 1 {
@@ -215,7 +252,11 @@ struct LocalSummaryModels: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text(bytes(plan.size)).font(.title.weight(.semibold)).monospacedDigit()
-                        Text(L("حجم التحميل")).font(.callout).foregroundStyle(.secondary)
+                        Text(L("حجم النموذج")).font(.callout).foregroundStyle(.secondary)
+                    }
+                    if plan.runtimeSize > 0 {
+                        Text(L("تجهيز التشغيل لأول مرة يحتاج تحميل {0} إضافية.", bytes(plan.runtimeSize)))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     Label(L(plan.fit == "fits" ? "يناسب جهازك مبدئيًا" : plan.fit == "disk" ? "المساحة لا تكفي" : "يحتاج جهازًا بذاكرة أكبر"), systemImage: plan.fit == "fits" ? "checkmark.circle" : "exclamationmark.circle")
                         .foregroundStyle(plan.canDownload ? Color.primary : Color.orange)
@@ -224,11 +265,11 @@ struct LocalSummaryModels: View {
                     } else if plan.fit == "memory" {
                         Text(L("اختر نسخة أصغر ليبقى جهازك مستجيبًا أثناء التلخيص.")).font(.callout)
                     } else {
-                        Text(L("نجهّز كل ما يحتاجه، ثم نختبر تشغيله ونبدأ التلخيص تلقائيًا.")).font(.callout).foregroundStyle(.secondary)
+                        Text(L(embedding ? "نختبر النموذج قبل استخدامه، ثم نفهرس الأخبار بهدوء في الخلفية." : "نجهّز كل ما يحتاجه، ثم نختبر تشغيله ونبدأ التلخيص تلقائيًا.")).font(.callout).foregroundStyle(.secondary)
                     }
-                    Button(L(currentModel == variant && model.digestStatus?.enabled == true ? "يُستخدم الآن" : status?.installed.contains(where: { $0.id == variant }) == true ? "استخدام هذا النموذج" : "تحميل واستخدام")) { activate() }
+                    Button(L(currentModel == variant && (embedding ? model.searchStatus?.enabled == true && model.searchStatus?.phase != "unavailable" && model.searchStatus?.phase != "needs_download" : model.digestStatus?.enabled == true) ? "يُستخدم الآن" : status?.installed.contains(where: { $0.id == variant }) == true ? "استخدام هذا النموذج" : "تحميل واستخدام")) { activate() }
                         .buttonStyle(.borderedProminent).controlSize(.large)
-                        .disabled(!plan.canDownload || downloadActive || actionBusy || !ModelPermission.allowed() || (currentModel == variant && model.digestStatus?.enabled == true))
+                        .disabled(!plan.canDownload || downloadActive || actionBusy || !ModelPermission.allowed() || (currentModel == variant && (embedding ? model.searchStatus?.enabled == true && model.searchStatus?.phase != "unavailable" && model.searchStatus?.phase != "needs_download" : model.digestStatus?.enabled == true)))
                 }
                 DisclosureGroup(L("تفاصيل الملاءمة والجودة")) {
                     VStack(alignment: .leading, spacing: 10) {
@@ -236,7 +277,7 @@ struct LocalSummaryModels: View {
                         LabeledContent(L("مساحة مطلوبة مع هامش أمان"), value: bytes(plan.requiredDisk))
                         LabeledContent(L("ذاكرة جهازك"), value: bytes(plan.memory))
                         LabeledContent(L("ذاكرة تشغيل تقديرية"), value: bytes(plan.estimatedMemory))
-                        Text(L("تقدير الملاءمة ليس ضمانًا للسرعة. نتحقق من التشغيل قبل تفعيل النموذج. جودة التلخيص بالعربية والإنجليزية لم تُقاس داخل التطبيق بعد."))
+                        Text(L("تقدير الملاءمة ليس ضمانًا للسرعة أو الجودة. نختبر التشغيل قبل التفعيل؛ الجودة تختلف حسب النموذج واللغة."))
                             .font(.caption).foregroundStyle(.secondary)
                         if let url = URL(string: row.source) { Link(L("معلومات النموذج"), destination: url) }
                     }.padding(.top, 8)
@@ -249,7 +290,7 @@ struct LocalSummaryModels: View {
         Divider()
         VStack(alignment: .leading, spacing: 10) {
             Text(download.model).font(.callout.weight(.medium)).lineLimit(1)
-            Text(L(download.phase == "checking" ? "نفحص المساحة والذاكرة…" : download.phase == "preparing" ? "نجهّز التلخيص على جهازك…" : download.phase == "testing" ? "نتحقق من التشغيل قبل البدء…" : download.phase == "downloading" ? "جارٍ التحميل…" : download.phase == "ready" ? "جاهز؛ بدأ التلخيص التلقائي" : download.phase == "cancelled" ? "توقف التحميل" : download.error))
+            Text(L(download.phase == "checking" ? "نفحص المساحة والذاكرة…" : download.phase == "preparing" ? "نجهّز النموذج على جهازك…" : download.phase == "verifying" ? "نتحقق من ملفات النموذج…" : download.phase == "testing" ? "نتحقق من التشغيل قبل البدء…" : download.phase == "downloading" ? "جارٍ التحميل…" : download.phase == "ready" ? "النموذج جاهز للاستخدام" : download.phase == "cancelled" ? "توقف التحميل" : download.error))
                 .font(.callout).foregroundStyle(.secondary)
             if download.active {
                 if download.total > 0 && ["preparing", "downloading"].contains(download.phase) {
@@ -261,6 +302,7 @@ struct LocalSummaryModels: View {
         }
     }
     private func search(append: Bool = false) async {
+        guard embedding || model.digestStatus?.engine == "local" else { return }
         let requestedTab = tab, requestedQuery = query
         loading = true; failure = nil
         defer { loading = false }
@@ -268,14 +310,22 @@ struct LocalSummaryModels: View {
             var results: [ModelLibraryRow]
             if tab == "library" {
                 let next = append ? page+1 : 1
-                let result = try await model.decoded("news.local.search", ["query":query,"page":next], as: ModelLibraryPage.self)
+                let result = try await model.decoded("news.local.search", ["query":query,"page":next,"capability":embedding ? "embedding" : ""], as: ModelLibraryPage.self)
                 guard !Task.isCancelled, requestedTab == tab, requestedQuery == query else { return }
                 page = next; more = result.hasMore; results = result.models
             } else {
                 let state = try await model.decoded("news.local.status", as: LocalModelsStatus.self)
                 guard !Task.isCancelled, requestedTab == tab, requestedQuery == query else { return }
                 status = state; more = false
+                if tab == "installed" {
+                    let available = try await model.decoded("news.local.available", ["capability":embedding ? "embedding" : "completion"], as: AvailableLocalModels.self)
+                    guard !Task.isCancelled, requestedTab == tab else { return }
+                    results = available.installed.map { ModelLibraryRow(id:$0.id,name:$0.id,description:bytes($0.size),capabilities:$0.capabilities ?? [],source:"https://ollama.com/library") }
+                } else if embedding && tab == "suggested" {
+                    results = [ModelLibraryRow(id:"embeddinggemma-2:270m",name:"EmbeddingGemma 2 · 270M",description:L("نموذج بحث متعدد اللغات · تحميل اختياري"),capabilities:["embedding"],source:"https://ollama.com/library/embeddinggemma-2")]
+                } else {
                 results = tab == "installed" ? state.installed.map { ModelLibraryRow(id:$0.id,name:$0.id,description:bytes($0.size),capabilities:[],source:"https://ollama.com/library") } : state.models.map { ModelLibraryRow(id:$0.id,name:$0.name,description:L("تلخيص بالعربية والإنجليزية · مرشح للتجربة"),capabilities:[],source:$0.source) }
+                }
             }
             if append { let existing = Set(rows.map(\.id)); rows += results.filter { !existing.contains($0.id) } }
             else { rows = results; selected = results.first?.id }
@@ -283,7 +333,7 @@ struct LocalSummaryModels: View {
     }
     private func loadVariants() async {
         variants = []; variant = ""; plan = nil; failure = nil
-        guard let row = selectedRow, !row.capabilities.contains("embedding") else { return }
+        guard let row = selectedRow, embedding || !row.capabilities.contains("embedding") else { return }
         inspecting = true
         defer { inspecting = false }
         do {
@@ -308,7 +358,7 @@ struct LocalSummaryModels: View {
         } catch { if !Task.isCancelled { failure = error.localizedDescription } }
     }
     private func activate() {
-        perform("news.local.download", ["model":variant,"language":model.digestStatus?.language ?? language,"consent":true])
+        perform("news.local.download", ["model":variant,"language":model.digestStatus?.language ?? language,"consent":true,"purpose":embedding ? "embedding" : "summary"])
     }
     private func updateSettings(_ values: [String: Any]) {
         var payload: [String: Any] = ["enabled":model.digestStatus?.enabled == true]

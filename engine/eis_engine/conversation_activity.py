@@ -3,7 +3,13 @@ import time
 
 
 class ConversationActivity:
-    def __init__(self):
+    def __init__(self, language=None):
+        self.language = language
+        self.summaries = {}
+        self.translated_source = ''
+        self.translation_state = 'pending'
+        self.translation_updates = []
+        self.translation_error = None
         self.started = time.monotonic()
         self.steps = []
         self.reasoning_summary = ''
@@ -26,5 +32,10 @@ class ConversationActivity:
             self.reasoning_summary = (self.reasoning_summary + text)[:16000]
 
     def snapshot(self):
-        return {'steps': list(self.steps), 'reasoning_summary': self.reasoning_summary,
+        return {'steps': list(self.steps),
+                'reasoning_summary': self.summaries.get(self.language, '') if self.language else self.reasoning_summary,
+                'reasoning_summaries': dict(self.summaries), 'summary_language': self.language,
+                'summary_translation_state': self.translation_state,
+                'summary_update_seconds': self.translation_updates,
+                'summary_translation_error': self.translation_error,
                 'elapsed_seconds': int(time.monotonic() - self.started)}

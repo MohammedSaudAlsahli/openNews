@@ -1,6 +1,4 @@
-# قائمة مصادر قابلة للتعديل. إضافة مصدر هنا لا تفعّل الاشتراك تلقائيًا.
-# الحقول المطلوبة: id, title, url, category, language
-# يمكن إضافة تصنيفات جديدة، وحذف verified_at للمصادر غير المتحققة.
+# Curated suggestions. Following is always opt-in.
 version: 1
 feeds:
 - id: bbc-ar
@@ -111,3 +109,111 @@ feeds:
   description_ar: حلقات ووصف بودكاست New Heights؛ دون تفريغ صوتي.
   description_en: New Heights episodes and descriptions; no audio transcription.
   publisher_url: https://rss.art19.com/new-heights
+- id: curated-0
+  title: OpenAI
+  url: https://openai.com/news/rss.xml
+  category: ai
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://openai.com/news/
+  description_ar: إعلانات OpenAI الرسمية وتحديثات النماذج والأبحاث.
+  description_en: Official OpenAI model releases, product updates and research.
+- id: curated-1
+  title: Google AI
+  url: https://blog.google/technology/ai/rss/
+  category: ai
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://blog.google/technology/ai/
+  description_ar: إعلانات Google للذكاء الاصطناعي وتحديثات Gemini والمنتجات.
+  description_en: Official Google AI, Gemini and product announcements.
+- id: curated-2
+  title: Microsoft Research
+  url: https://www.microsoft.com/en-us/research/feed/
+  category: ai
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://www.microsoft.com/en-us/research/
+  description_ar: أبحاث Microsoft الأصلية وتطبيقات الذكاء الاصطناعي.
+  description_en: First-party Microsoft research and AI applications.
+- id: curated-3
+  title: Hugging Face
+  url: https://huggingface.co/blog/feed.xml
+  category: ai
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://huggingface.co/blog
+  description_ar: النماذج المفتوحة وأدواتها وشروحها التقنية من Hugging Face.
+  description_en: Open models, tooling and technical guides from Hugging Face.
+- id: curated-4
+  title: NVIDIA
+  url: https://blogs.nvidia.com/feed/
+  category: technology
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://blogs.nvidia.com/
+  description_ar: إعلانات NVIDIA للشرائح والحوسبة والذكاء الاصطناعي.
+  description_en: NVIDIA announcements on chips, computing and AI.
+- id: curated-6
+  title: Cloudflare
+  url: https://blog.cloudflare.com/rss/
+  category: technology
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://blog.cloudflare.com/
+  description_ar: تقارير Cloudflare الهندسية والأمنية وحوادث الشبكة.
+  description_en: Cloudflare engineering, security and network incident reports.
+- id: curated-7
+  title: Ars Technica
+  url: https://feeds.arstechnica.com/arstechnica/index
+  category: technology
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://arstechnica.com/
+  description_ar: تقارير وتحليل تقني وعلمي مستقل عن إعلانات الشركات.
+  description_en: Technology and science reporting beyond company announcements.
+- id: curated-8
+  title: TechCrunch
+  url: https://techcrunch.com/feed/
+  category: technology
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://techcrunch.com/
+  description_ar: أخبار الشركات الناشئة والتمويل والمنتجات التقنية.
+  description_en: Startups, funding rounds and technology product news.
+- id: curated-9
+  title: MIT Technology Review
+  url: https://www.technologyreview.com/feed/
+  category: technology
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://www.technologyreview.com/
+  description_ar: تحليل آثار التقنيات الجديدة والذكاء الاصطناعي على المجتمع.
+  description_en: Reporting on emerging technology and its impact on society.
+- id: curated-10
+  title: البوابة التقنية
+  url: https://aitnews.com/feed/
+  category: technology
+  language: ar
+  verified_at: '2026-10-15'
+  publisher_url: https://aitnews.com/
+  description_ar: أخبار التقنية والذكاء الاصطناعي والمنتجات باللغة العربية.
+  description_en: Arabic coverage of technology, AI and consumer products.
+- id: curated-11
+  title: عالم التقنية
+  url: https://www.tech-wd.com/wd/feed/
+  category: technology
+  language: ar
+  verified_at: '2026-10-15'
+  publisher_url: https://www.tech-wd.com/
+  description_ar: تغطية عربية للتقنية والشركات والخدمات الرقمية.
+  description_en: Arabic technology, company and digital services coverage.
+- id: curated-12
+  title: Nature
+  url: https://www.nature.com/nature.rss
+  category: science
+  language: en
+  verified_at: '2026-10-15'
+  publisher_url: https://www.nature.com/
+  description_ar: أبحاث وأخبار علمية؛ فرّق بين الدراسة الأصلية والتغطية الصحفية.
+  description_en: Research and science news; distinguish studies from news coverage.

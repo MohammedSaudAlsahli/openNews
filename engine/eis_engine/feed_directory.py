@@ -1,20 +1,16 @@
-"""Read-only RSS.mobi discovery. Following uses the normal news subscription path.
-
-API contract: https://github.com/dstengine/rss-mobi/blob/main/src/pages/api/v1/feeds/index.ts
-Only catalog metadata and explicit search terms leave this module; no workspace content.
-"""
+"""Complete read-only RSS.mobi OPML catalog, cached locally for search."""
 import asyncio
 import hashlib
 import json
 import re
 import time
 from datetime import datetime, timezone
-from urllib.parse import urlencode, urlsplit, parse_qs
+
+import xml.etree.ElementTree as ElementTree
 
 from .contracts import Failure
 from .news import canonical_url, fetch_public, NewsError
 
-ENDPOINT = "https://rss.mobi/api/v1/feeds"
 TTL = 3600
 MAX_STALE = 7 * 86400
 PAGE_SIZE = 30
@@ -22,18 +18,7 @@ MAX_PAGES = 40
 UNAVAILABLE = "تعذّر تحميل دليل RSS.mobi. أعد المحاولة أو أضف رابط المصدر مباشرة."
 
 
-def cursor(value):
-    if not value:
-        return ""
-    if not isinstance(value, str) or len(value) > 40:
-        raise ValueError("Invalid cursor")
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        raise ValueError("Cursor needs timezone")
-    return value
-
-
-def normalize(payload, current_cursor=""):
+def normalize(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get("feeds"), list) or len(payload["feeds"]) > PAGE_SIZE:
         raise ValueError("Invalid directory page")
     feeds, seen = [], set()
@@ -67,21 +52,33 @@ def normalize(payload, current_cursor=""):
                       "category": tags[0] if tags else "general", "tags": tags,
                       "language": lang, "description_ar": description, "description_en": description,
                       "verified_at": ""})
-    next_cursor = ""
-    if payload.get("next"):
-        # Never follow a URL supplied by the directory. Extract only a validated timestamp.
-        if not isinstance(payload["next"], str) or len(payload["next"]) > 2048:
-            raise ValueError("Invalid next page")
-        target = urlsplit(payload["next"])
-        if target.scheme or target.netloc or target.path != "/api/v1/feeds":
-            raise ValueError("Invalid next page")
-        values = parse_qs(target.query).get("before", [])
-        if len(values) != 1:
-            raise ValueError("Missing cursor")
-        next_cursor = cursor(values[0])
-        if next_cursor == current_cursor:
-            raise ValueError("Repeated cursor")
-    return {"feeds": feeds, "next_cursor": next_cursor}
+    return {"feeds": feeds, "next_cursor": ""}
+
+
+def parse_opml(body, category="all"):
+    if len(body) > 4 * 1024 * 1024 or b"\x00" in body or re.search(br"<!\s*(DOCTYPE|ENTITY)", body, re.I):
+        raise ValueError("Directory too large")
+    try:
+        root = ElementTree.fromstring(body)
+    except (ElementTree.ParseError, ValueError) as exc:
+        raise ValueError("Invalid directory XML") from exc
+    if root.tag != "opml" or root.find("body") is None:
+        raise ValueError("Invalid OPML directory")
+    feeds, seen = [], set()
+    for node in root.findall(".//outline"):
+        if len(feeds) >= 10000:
+            raise ValueError("Directory too large")
+        url = node.get("xmlUrl")
+        if not url:
+            continue
+        row = {"title": node.get("title") or node.get("text") or url,
+               "url": url, "siteUrl": node.get("htmlUrl"), "status": "active",
+               "format": "rss", "tags": [category] if category != "all" else []}
+        for feed in normalize({"feeds": [row]})["feeds"]:
+            if feed["url"] not in seen:
+                feeds.append(feed)
+                seen.add(feed["url"])
+    return {"feeds": feeds, "next_cursor": ""}
 
 
 class FeedDirectory:
@@ -99,15 +96,9 @@ class FeedDirectory:
         tag = params.get("category", "all")
         if not isinstance(query, str) or len(query) > 100 or not isinstance(tag, str) or not re.fullmatch(r"[a-z0-9-]{1,80}", tag):
             raise Failure("VALIDATION_ERROR", "أدخل بحثًا لا يتجاوز 100 حرف وتصنيفًا صالحًا.")
-        try:
-            before = cursor(params.get("cursor", ""))
-        except (ValueError, TypeError):
-            raise Failure("VALIDATION_ERROR", "صفحة دليل المصادر غير صالحة.") from None
-        values = {"limit": PAGE_SIZE}
-        if query.strip(): values["q"] = query.strip()
-        if tag != "all": values["tag"] = tag
-        if before: values["before"] = before
-        request = urlencode(values)
+        # The official complete OPML export avoids the failing paginated JSON API.
+        # Search locally across the whole export, never just the first page.
+        request = "opml-v1:" + tag
         async with self.lock:
             row = self.store.db.execute("SELECT fetched,payload FROM feed_directory_cache WHERE workspace_id=? AND request=?", (self.store.workspace, request)).fetchone()
             cached, fetched = None, 0
@@ -119,21 +110,27 @@ class FeedDirectory:
                     cached = None
             age = time.time() - fetched
             if cached is not None and 0 <= age < TTL and params.get("refresh") is not True:
-                return self.result(cached, fetched, cached=True)
+                return self.filtered_result(cached, fetched, query, cached=True)
             try:
-                response = await self.fetch(ENDPOINT + "?" + request)
+                response = await self.fetch("https://rss.mobi/" + ("opml.xml" if tag == "all" else "tag/" + tag + "/opml.xml"))
                 if response["status"] != 200:
                     raise ValueError("Directory unavailable")
-                page = normalize(json.loads(response["body"]), before)
+                page = parse_opml(response["body"], tag)
             except (NewsError, ValueError, TypeError, KeyError, OSError):
                 if cached is not None and 0 <= age < MAX_STALE:
-                    return self.result(cached, fetched, cached=True, stale=True)
+                    return self.filtered_result(cached, fetched, query, cached=True, stale=True)
                 raise Failure("DIRECTORY_UNAVAILABLE", UNAVAILABLE) from None
             fetched = time.time()
             with self.store.db:
                 self.store.db.execute("INSERT OR REPLACE INTO feed_directory_cache VALUES(?,?,?,?)", (self.store.workspace, request, fetched, json.dumps(page)))
                 self.store.db.execute("DELETE FROM feed_directory_cache WHERE workspace_id=? AND request NOT IN (SELECT request FROM feed_directory_cache WHERE workspace_id=? ORDER BY fetched DESC LIMIT ?)", (self.store.workspace, self.store.workspace, MAX_PAGES))
-            return self.result(page, fetched)
+            return self.filtered_result(page, fetched, query)
+
+    @classmethod
+    def filtered_result(cls, page, fetched, query, **flags):
+        terms = query.casefold().split()
+        feeds = [f for f in page["feeds"] if all(term in (f["title"] + " " + f["url"]).casefold() for term in terms)]
+        return cls.result({**page, "feeds": feeds, "total": len(page["feeds"])}, fetched, **flags)
 
     @staticmethod
     def result(page, fetched, cached=False, stale=False):

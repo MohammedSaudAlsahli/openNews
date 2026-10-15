@@ -54,13 +54,13 @@ struct WorkspaceSidebar: View {
                             pane = "conversation"
                             Task { await chat.select(item.id, model) }
                         } label: {
-                            HStack(alignment: .top, spacing: 8) {
+                            HStack(alignment: .center, spacing: 10) {
                                 Image(systemName: "bubble.left").foregroundStyle(.secondary)
-                                Text(item.title).lineLimit(2).multilineTextAlignment(.leading)
+                                Text(item.title).font(.system(size: 13, weight: chat.conversationID == item.id ? .medium : .regular)).lineLimit(1).truncationMode(.tail).multilineTextAlignment(.leading)
                                 Spacer(minLength: 0)
                                 if item.activeJobId != nil {
                                     ProgressView().controlSize(.mini).help(L("يعمل في الخلفية"))
-                                } else if chat.conversationID == item.id { Image(systemName: "checkmark").font(.caption).foregroundStyle(.secondary) }
+                                }
                             }.padding(10).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                         }.buttonStyle(.plain).help(item.title)
                             .background(chat.conversationID == item.id && pane == "conversation" ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
@@ -88,7 +88,7 @@ struct WorkspaceSidebar: View {
                     Label(L("الإعدادات"), systemImage: "gearshape").frame(maxWidth: .infinity, alignment: .leading).padding(8).contentShape(Rectangle())
                 }.buttonStyle(.plain).help(L("الإعدادات (⌘,)"))
             }.padding(10)
-        }.frame(width: 220).background(theme.page)
+        }.frame(width: 244).background(theme.page)
             .task(id: model.snapshot?.jobs.map { $0.id + $0.state }) {
                 guard model.health != nil else { return }
                 await chat.refreshList(model)

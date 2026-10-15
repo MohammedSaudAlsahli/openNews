@@ -36,6 +36,7 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         self.factory = factory or ModelFactory()
         self.tasks = {}
         self.model_lock = asyncio.Lock()
+        self.activity_translation_lock = asyncio.Lock()
         self.catalog_locks = {}
         self.catalog_task = None
         self.news_task = None
@@ -133,8 +134,11 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
     async def model(self, profile, instructions, data, schema):
         return await self.invoke_model(profile, SAFE_SYSTEM+"\n"+instructions, data, schema)
 
-    async def invoke_model(self, profile, instructions, data, schema, on_delta=None, on_start=None, tools=None, on_turn=None, on_reasoning=None, session_id=None, user_id=None, run_id=None):
-        async with self.model_lock:
+    async def invoke_model(self, profile, instructions, data, schema, on_delta=None, on_start=None, tools=None, on_turn=None, on_reasoning=None, session_id=None, user_id=None, run_id=None, activity_translation=False):
+        # A single auxiliary translation may run alongside cloud generation.
+        # Local models retain the device-wide inference limit.
+        lock = self.activity_translation_lock if activity_translation and profile.get("provider_key") != "ollama" else self.model_lock
+        async with lock:
             self.connections.ensure_enabled(profile)
             generation = self.connections.generation(profile["id"])
             try:

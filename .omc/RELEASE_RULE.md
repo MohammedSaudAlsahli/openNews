@@ -1,5 +1,5 @@
 # Release Rules
-<!-- last-analyzed: 2026-10-14 -->
+<!-- last-analyzed: 2026-10-15 -->
 
 ## Version Sources
 VERSION (marketing version), BUILD_VERSION (monotonically increasing Sparkle version),
@@ -7,8 +7,8 @@ engine/pyproject.toml, engine/eis_engine/__init__.py, engine/eis_engine/service_
 refresh engine/uv.lock with uv lock. Package Info.plist derives from VERSION/BUILD_VERSION.
 
 ## Release Trigger
-Local scripts/publish_release.sh after tests, build, source commit and green CI.
-GitHub prerelease v0.2.0 is explicitly authorized. Future releases require an explicit
+Local scripts/publish_release.py after tests, build, source commit and green CI.
+GitHub prerelease v0.2.1 is explicitly authorized in this chat. Future releases require an explicit
 publish request. Existing CI runs tests and bundle smoke tests on push/pull requests.
 
 ## Test Gate

@@ -372,7 +372,10 @@ class ChatGPTResponses(OpenAIResponses):
         items=self._format_messages(messages,compress_tool_results,tools=tools)
         tool_options = {"tools": self._format_tool_params(messages=messages, tools=tools)} if tools else {}
         if tool_choice is not None: tool_options["tool_choice"] = tool_choice
-        if self.reasoning_summary: tool_options["reasoning"] = {"summary": self.reasoning_summary}
+        reasoning = {}
+        if self.reasoning_summary: reasoning["summary"] = self.reasoning_summary
+        if self.reasoning_effort: reasoning["effort"] = self.reasoning_effort
+        if reasoning: tool_options["reasoning"] = reasoning
         if self.on_response_start: self.on_response_start()
         assistant_message.metrics.start_timer()
         complete=None

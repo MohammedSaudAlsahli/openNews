@@ -2,6 +2,8 @@
 import asyncio
 import json
 import os
+import platform
+import hashlib
 import re
 import shutil
 from pathlib import Path
@@ -26,6 +28,30 @@ def model_name(value):
     if 'cloud' in value.lower():
         raise Failure('VALIDATION_ERROR', 'اختر نموذجًا محليًا قابلًا للتحميل؛ النماذج السحابية ضمن الاتصالات.')
     return value if ':' in value else value+':latest'
+
+
+async def registry_size(client, repository, tag):
+    """Match Ollama's runner choice; a legacy manifest can undercount Apple MLX downloads."""
+    base = 'https://registry.ollama.ai/v2/'+repository
+    response = await client.get(base+'/manifests/'+tag, headers={'Accept':
+        'application/vnd.ollama.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json'})
+    response.raise_for_status()
+    manifest = response.json()
+    if 'manifests' in manifest:
+        preferences = ['mlx','llamacpp','ggml'] if platform.system()=='Darwin' and platform.machine()=='arm64' else ['llamacpp','ggml','mlx']
+        child = next((m for runner in preferences for m in manifest['manifests'] if m.get('runner')==runner), None)
+        if not child: raise ValueError('No compatible model')
+        if child.get('layers'): manifest = child
+        else:
+            digest = child['digest']
+            if not re.fullmatch(r'sha256:[a-f0-9]{64}',digest): raise ValueError('Invalid manifest digest')
+            response = await client.get(base+'/blobs/'+digest)
+            response.raise_for_status()
+            if hashlib.sha256(response.content).hexdigest()!=digest.split(':')[1]: raise ValueError('Manifest checksum mismatch')
+            manifest = response.json()
+    size = sum(int(x['size']) for x in manifest['layers']) + int(manifest.get('config',{}).get('size',0))
+    if size<=0: raise ValueError('Empty model')
+    return size
 
 
 class LocalSummaryModels:
@@ -123,39 +149,51 @@ class LocalSummaryModels:
         repository, tag = name.rsplit(':',1)
         if '/' not in repository: repository = 'library/'+repository
         try:
-            async with httpx.AsyncClient(trust_env=False, timeout=6) as client:
-                response = await client.get('https://registry.ollama.ai/v2/'+repository+'/manifests/'+tag,
-                    headers={'Accept':'application/vnd.docker.distribution.manifest.v2+json'})
-                response.raise_for_status()
-                layers = response.json()['layers']
-                size = sum(int(x['size']) for x in layers)
-                if size<=0: raise ValueError('Empty model')
+            size = self.installed.get(name)
+            if size is None:
+                async with httpx.AsyncClient(trust_env=False, timeout=10, follow_redirects=True) as client:
+                    size = await registry_size(client, repository, tag)
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             raise Failure('MODEL_UNSUPPORTED', 'تعذّر قراءة حجم النموذج. تحقق من الاسم والاتصال ثم أعد المحاولة.')
+        size = self.installed.get(name, size)
         self.checked[name] = size
-        runtime_size = await self.runner.metadata()
+        needs_upgrade = name.startswith('embeddinggemma-2:') and not await self.runner.compatible((0,40,0))
+        runtime_size = await self.runner.metadata(force=True) if needs_upgrade else await self.runner.metadata()
         return {'id':name,'size':size,'runtime_size':runtime_size,**self.capacity(name,runtime_size)}
 
-    async def begin(self, name, language='ar'):
+    async def begin(self, name, language='ar', purpose='summary'):
         name = model_name(name)
+        if purpose not in {'summary','embedding'}: raise Failure('VALIDATION_ERROR','Invalid purpose')
         if language not in {'ar','en'}: raise Failure('VALIDATION_ERROR','لغة غير صالحة.')
         if self.task and not self.task.done(): raise Failure('BUSY','يوجد تحميل قيد التنفيذ.')
         self.download = {'phase':'checking','model':name,'completed':0,'total':0,'error':''}
-        self.task = asyncio.create_task(self.prepare(name,language))
+        self.task = asyncio.create_task(self.prepare(name,language,purpose))
         return self.status()
 
-    async def prepare(self, name, language):
+    async def prepare(self, name, language, purpose='summary'):
         try:
             plan = await self.inspect(name)
             if not plan['can_download']:
                 raise Failure('CAPACITY', 'المساحة لا تكفي. حرر مساحة أو اختر نموذجًا أصغر.' if plan['fit']=='disk' else 'هذا النموذج أكبر من ذاكرة جهازك المتاحة للتلخيص. اختر إصدارًا أصغر.')
-            if not self.executable(): await self.runner.install(self.download)
+            needs_upgrade = name.startswith('embeddinggemma-2:') and not await self.runner.compatible((0,40,0))
+            if needs_upgrade:
+                async with self.service.model_lock:
+                    if self.process and self.process.returncode is None:
+                        self.process.terminate()
+                        await asyncio.wait_for(self.process.wait(),5)
+                        self.runtime = False
+                    await self.runner.install(self.download,force=True)
+            elif not self.executable(): await self.runner.install(self.download)
             await self.start_runtime()
             if name not in self.installed:
                 self.download.update(phase='downloading',completed=0,total=self.checked[name])
                 await self.pull(name)
                 if self.download['phase']=='failed': return
             self.download['phase']='testing'
+            if purpose == 'embedding':
+                await self.prepare_embedding(name)
+                self.download['phase']='ready'
+                return
             await self.check_generation(name)
             # Verify that this model can actually load and produce the structured summary schema.
             from .article_summary import ArticleSummary
@@ -171,8 +209,42 @@ class LocalSummaryModels:
         except Exception:
             self.download.update(phase='failed',error='تعذّر تجهيز النموذج. جرّب إصدارًا أصغر أو أعد المحاولة.')
 
+    async def available(self, capability):
+        if capability not in {'embedding','completion'}: raise Failure('VALIDATION_ERROR','Invalid capability')
+        if not self.executable(): return {'installed':[]}
+        await self.start_runtime()
+        result = []
+        async with httpx.AsyncClient(trust_env=False, timeout=5) as client:
+            for name,size in self.installed.items():
+                response = await client.post(HOST+'/api/show',json={'model':name})
+                response.raise_for_status()
+                info = response.json()
+                if not info.get('remote_host') and not info.get('remote_model') and capability in info.get('capabilities',[]):
+                    result.append({'id':name,'size':size,'capabilities':info['capabilities']})
+        return {'installed':result}
+
+    async def prepare_embedding(self, name):
+        from .news_embeddings import LocalNewsEmbeddings
+        async with self.service.model_lock:
+            async with httpx.AsyncClient(trust_env=False, timeout=90) as client:
+                shown = await client.post(HOST+'/api/show', json={'model':name})
+                shown.raise_for_status()
+                info = shown.json()
+                if info.get('remote_model') or info.get('remote_host') or 'embedding' not in info.get('capabilities',[]):
+                    raise Failure('MODEL_UNSUPPORTED','هذا النموذج لا يدعم البحث بالمعنى. اختر نموذج Embedding.')
+                tags = await client.get(HOST+'/api/tags'); tags.raise_for_status()
+                digest = next(m['digest'] for m in tags.json()['models'] if m['name']==name)
+                probe = await client.post(HOST+'/api/embed', json={'model':name,'input':'اختبار البحث / search test',
+                    'keep_alive':0,'options':{'num_thread':2}})
+                probe.raise_for_status()
+                dimensions = len(probe.json()['embeddings'][0])
+                if not 1<=dimensions<=8192: raise ValueError('Invalid dimensions')
+            encoder = LocalNewsEmbeddings(name=name, dimensions=dimensions, digest=digest)
+            await asyncio.to_thread(encoder.encode, ['اختبار البحث / search test'], query=True)
+        await self.service.news.knowledge.select_model(name, dimensions, digest)
+
     async def pull(self, name):
-        layers = {}
+        layers, totals = {}, {}
         try:
             async with httpx.AsyncClient(trust_env=False, timeout=httpx.Timeout(120,connect=5)) as client:
                 async with client.stream('POST',HOST+'/api/pull',json={'model':name,'stream':True}) as response:
@@ -184,8 +256,11 @@ class LocalSummaryModels:
                         event = json.loads(line)
                         if event.get('error'): raise ValueError(event['error'])
                         if event.get('digest'):
-                            layers[event['digest']] = min(event.get('completed',0),event.get('total',0))
+                            totals[event['digest']] = max(totals.get(event['digest'],0),event.get('total',0))
+                            self.download['total'] = max(self.download['total'],sum(totals.values()))
+                            layers[event['digest']] = max(layers.get(event['digest'],0),min(event.get('completed',0),event.get('total',0)))
                             self.download['completed'] = min(sum(layers.values()),self.download['total'])
+                        if event.get('status','').startswith(('verifying','writing manifest')): self.download['phase'] = 'verifying'
                         if event.get('status') == 'success': self.download['phase'] = 'testing'
             await self.refresh()
             if name not in self.installed: raise ValueError('Model not found after download')
@@ -230,7 +305,7 @@ class LocalSummaryModels:
                            request_params={'think':False} if 'thinking' in self.capabilities.get(name,[]) else None)
             agent = Agent(model=model,instructions=instructions,output_schema=schema,markdown=False)
             try:
-                result = await asyncio.wait_for(agent.arun(json.dumps(data,ensure_ascii=False)),timeout=120)
+                result = await asyncio.wait_for(agent.arun(json.dumps({**data, "output_language": "العربية فقط؛ ترجم الملخص ولا تنسخ النص الإنجليزي." if "Arabic." in instructions else "English only."},ensure_ascii=False)),timeout=120)
             finally:
                 # Also release weights on cancellation/error; keep_alive covers normal completion.
                 try:

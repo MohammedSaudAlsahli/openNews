@@ -10,7 +10,14 @@ struct NewsPanel: View {
     @State private var syncing = false
     @State private var error: String?
     private var feeds: [NewsSubscription] { model.snapshot?.subscriptions ?? [] }
-    private var articles: [NewsArticle] { (model.snapshot?.articles ?? []).filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || $0.sourceTitle.localizedCaseInsensitiveContains(query) } }
+    @State private var articles: [NewsArticle] = []
+    @State private var sourceID = ""
+    @State private var more = false
+    @State private var loadingArticles = false
+    @State private var articleRequest = UUID()
+    private var articleRefreshKey: String {
+        query + "|" + sourceID + "|" + feeds.map { $0.id + ($0.lastSuccess ?? "") }.joined(separator: "|")
+    }
     private var feedsBusy: Bool { feeds.contains { ["queued", "syncing", "fetching", "running"].contains($0.status) } }
     var body: some View {
         let _ = interfaceLanguage
@@ -19,7 +26,7 @@ struct NewsPanel: View {
                 Text(L("مراجع المحادثة")).font(.headline)
                 Spacer()
                 Button { subscriptions.toggle() } label: { Image(systemName: "list.bullet.rectangle") }.help(L("إدارة الاشتراكات")).accessibilityLabel(L("إدارة الاشتراكات"))
-                Button { adding = true } label: { Image(systemName: "plus") }.help(L("إضافة RSS أو Reddit")).accessibilityLabel(L("إضافة RSS أو Reddit"))
+                Button { adding = true } label: { Image(systemName: "plus") }.help(L("إضافة مصدر أخبار")).accessibilityLabel(L("إضافة مصدر أخبار"))
             }.padding(16)
             Text(L("اختر مقالات لإرفاقها، أو اطلب البحث في أي فترة من المحادثة."))
                 .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 16).padding(.bottom, 12)
@@ -40,6 +47,11 @@ struct NewsPanel: View {
             }.padding(14)
         }
         .sheet(isPresented: $adding) { AddNewsSubscriptionSheet() }
+        .task(id: articleRefreshKey) {
+            articleRequest = UUID()
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+            await loadArticles()
+        }
 
     }
     private var subscriptionList: some View {
@@ -63,7 +75,7 @@ struct NewsPanel: View {
                                 catch { self.error = error.localizedDescription }
                             }
                         }
-                        Text(feed.kind == "reddit" ? "Reddit" : "RSS").font(.caption).foregroundStyle(.secondary)
+                        Text(feed.kind == "x_rss" ? "X · RSS" : feed.kind.hasPrefix("reddit") ? "Reddit" : "RSS").font(.caption).foregroundStyle(.secondary)
                         if let url = URL(string: feed.url), ["https", "http"].contains(url.scheme?.lowercased() ?? "") { Link(L("فتح المصدر"), destination: url).font(.caption) }
                         if let date = feed.lastSuccess { Text(L("آخر جلب ناجح: {0}", DisplayFormat.date(date))).font(.caption2).foregroundStyle(.secondary) }
                         if let failure = feed.error, !failure.isEmpty { Text(L(failure)).font(.caption).foregroundStyle(.red) }
@@ -78,6 +90,11 @@ struct NewsPanel: View {
     private var articleList: some View {
         VStack(spacing: 0) {
             TextField(L("ابحث في الأخبار"), text: $query).textFieldStyle(.roundedBorder).padding(.horizontal, 16).padding(.bottom, 12)
+            Picker(L("المصدر"), selection: $sourceID) {
+                Text(L("كل المصادر")).tag("")
+                ForEach(feeds) { Text($0.title).tag($0.id) }
+            }.padding(.horizontal, 16).padding(.bottom, 12)
+            if loadingArticles { ProgressView().controlSize(.small) }
             if articles.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(feeds.isEmpty ? L("تابع المصادر التي تهمك") : L("لا توجد أخبار لعرضها")).font(.headline)
@@ -102,10 +119,27 @@ struct NewsPanel: View {
                             }.padding(.horizontal, 16).padding(.vertical, 13)
                             Divider().padding(.horizontal, 16)
                         }
+                        if more {
+                            Button(L("تحميل المزيد")) { Task { await loadArticles(append: true) } }
+                                .disabled(loadingArticles).padding(16)
+                        }
                     }
                 }
             }
         }
+    }
+    private func loadArticles(append: Bool = false) async {
+        guard model.health != nil, !append || (!loadingArticles && more) else { return }
+        let token = UUID(); articleRequest = token
+        loadingArticles = true; error = nil
+        defer { if articleRequest == token { loadingArticles = false } }
+        do {
+            let page = try await model.decoded("news.list", ["query": query, "source_id": sourceID, "limit": 40, "offset": append ? articles.count : 0], as: NewsArticlePage.self)
+            guard !Task.isCancelled, articleRequest == token else { return }
+            if append { let ids = Set(articles.map(\.id)); articles += page.articles.filter { !ids.contains($0.id) } }
+            else { articles = page.articles }
+            more = page.hasMore
+        } catch { if !Task.isCancelled, articleRequest == token { self.error = error.localizedDescription } }
     }
     private func selection(_ id: String) -> Binding<Bool> {
         Binding(get: { selectedArticleIDs.contains(id) }, set: { value in
@@ -136,7 +170,7 @@ struct AddNewsSubscriptionSheet: View {
         let _ = interfaceLanguage
         VStack(alignment: .leading, spacing: 18) {
             Text(L("اشتراك أخبار جديد")).font(.title2.weight(.semibold))
-            Text(L("أضف رابط RSS أو رابط مجتمع Reddit لجلب مواده. سيُتصل بالمصدر عند الإضافة والتحديث.")).font(.callout).foregroundStyle(.secondary)
+            Text(L("اختر نوع المصدر وأضف رابطه. لحسابات X استخدم رابط RSS من خدمة التحويل.")).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Form {
                 LabeledContent(L("الرابط")) {
                     TextField("", text: $url, prompt: Text("https://…"))
@@ -149,10 +183,23 @@ struct AddNewsSubscriptionSheet: View {
                     NativeChoicePicker(title: L("نوع المصدر"), selection: $kind, choices: [
                         .init(value: "auto", label: L("تحديد تلقائي")),
                         .init(value: "rss", label: "RSS / Atom"),
-                        .init(value: "reddit", label: "Reddit")
+                        .init(value: "reddit", label: L("مجتمع Reddit مباشر")),
+                        .init(value: "reddit_rss", label: "Reddit · RSS"),
+                        .init(value: "x_rss", label: "X · RSS")
                     ])
                 }
             }.formStyle(.grouped).frame(height: 190)
+            if kind == "reddit" {
+                Text(L("أدخل r/LocalLLaMA أو رابط المجتمع. أعلنت Reddit إيقاف RSS في 13 نوفمبر 2026؛ هذا المسار مؤقت وقد يُحجب."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if kind == "x_rss" || kind == "reddit_rss" {
+                Text(L("ألصق رابط RSS الذي أنشأته خدمة التحويل. اكتب اسم الحساب أو المجتمع في اسم المصدر. التوفر والتكلفة يتبعان الخدمة."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if kind.hasPrefix("reddit") || kind == "x_rss" {
+                Label(L("منشورات اجتماعية: مؤشرات مبكرة تحتاج تحققًا قبل النشر."), systemImage: "bubble.left.and.bubble.right").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             if let error { Text(L(error)).font(.callout).foregroundStyle(.red) }
             HStack {
                 Button(L("إلغاء"), role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)

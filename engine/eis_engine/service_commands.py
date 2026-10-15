@@ -55,9 +55,11 @@ class ServiceCommandsMixin:
             await asyncio.gather(*(self.news_digest.local.inspect(x['id']) for x in CATALOG),return_exceptions=True)
             return await self.news_digest.local.refresh()
         if command == "news.local.search":
-            return await self.news_digest.local.library.search(p.get('query',''),p.get('page',1))
+            return await self.news_digest.local.library.search(p.get('query',''),p.get('page',1),p.get('capability',''))
         if command == "news.local.variants":
             return await self.news_digest.local.library.variants(p.get('model'))
+        if command == "news.local.available":
+            return await self.news_digest.local.available(p.get("capability","embedding"))
         if command == "news.local.status":
             return await self.news_digest.local.refresh()
         if command == "news.local.start":
@@ -66,7 +68,7 @@ class ServiceCommandsMixin:
             return await self.news_digest.local.inspect(p.get('model'))
         if command == "news.local.download":
             if p.get('consent') is not True: raise Failure('PERMISSION_DENIED','فعّل استخدام النماذج من إعدادات الصلاحيات للمتابعة.')
-            return await self.news_digest.local.begin(p.get('model'),p.get('language','ar'))
+            return await self.news_digest.local.begin(p.get('model'),p.get('language','ar'),p.get('purpose','summary'))
         if command == "news.local.cancel":
             return await self.news_digest.local.cancel()
         if command == "news.local.select":
@@ -78,6 +80,9 @@ class ServiceCommandsMixin:
         if command == "news.library.path":
             from .feed_library import library_path
             return library_path(self.store)
+        if command == "news.curated":
+            from .feed_library import parse_library, SEED_PATH
+            return parse_library(SEED_PATH.read_text(encoding="utf-8"))
         if command == "news.library":
             from .feed_library import library
             return library(self.store)
@@ -117,7 +122,7 @@ class ServiceCommandsMixin:
                 self.db.execute("INSERT INTO source_roles VALUES(?,?,?) ON CONFLICT(item_id) DO UPDATE SET purpose=excluded.purpose",(item["id"],self.ws,purpose))
             return {"updated":True}
         if command == "runtime.health":
-            return {"engine_version":"0.2.0","schema_version":1,"sqlite_version":sqlite3.sqlite_version,"sqlite_vec":self.store.vec_version,"workspace_id":self.ws,"transport":"unix_socket","release_status":"development"}
+            return {"engine_version":"0.2.1","schema_version":1,"sqlite_version":sqlite3.sqlite_version,"sqlite_vec":self.store.vec_version,"workspace_id":self.ws,"transport":"unix_socket","release_status":"development"}
         if command == "workspace.snapshot":
             return self.snapshot()
         if command == "sources.detail":

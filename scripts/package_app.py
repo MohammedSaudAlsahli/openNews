@@ -41,6 +41,11 @@ if site.exists():
     shutil.rmtree(site)
 site.mkdir(parents=True)
 subprocess.run(['uv','pip','install','--target',str(site),'--require-hashes','-r',str(ROOT/'build/requirements.lock')],check=True)
+# NumPy/Pandas ship large developer regression suites that are never used by the app.
+# Keep their runtime testing helpers, all data files, native libraries and licenses.
+for package in ('numpy','pandas'):
+    for tests in sorted((site/package).rglob('tests'),key=lambda p:len(p.parts),reverse=True):
+        if tests.is_dir(): shutil.rmtree(tests)
 shutil.copytree(ROOT/'engine/eis_engine',resources/'engine/eis_engine',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
 shutil.copy2(ROOT/'engine/bootstrap.py',resources/'engine/bootstrap.py')
 shutil.copy2(ROOT/'engine/uv.lock',resources/'uv.lock')

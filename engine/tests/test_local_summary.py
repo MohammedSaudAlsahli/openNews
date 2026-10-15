@@ -82,7 +82,7 @@ def test_arabic_and_english_manual_summary_use_selected_local_model(service):
         prompts=[]
         async def generate(name,instructions,data,schema):
             prompts.append(instructions)
-            return ArticleSummary(summary='Summary')
+            return ArticleSummary(summary='ملخص عربي للخبر يوضح التفاصيل الأساسية.' if 'Arabic.' in instructions else 'A concise English summary of the story.')
         local.run=generate
         for language in ['ar','en']:
             result=await summarize(service,{'consent':True,'article_id':'story','language':language})
