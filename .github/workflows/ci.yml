@@ -15,6 +15,18 @@ jobs:
         run: bash scripts/test.sh
       - name: Build and smoke-test embedded runtime
         run: bash scripts/build_app.sh
+      - uses: actions/setup-node@v4
+        if: hashFiles('desktop/package-lock.json') != ''
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Tauri frontend contracts
+        if: hashFiles('desktop/package-lock.json') != ''
+        run: |
+          npm --prefix desktop ci
+          npm --prefix desktop test
+          npm --prefix desktop run build
       - uses: actions/upload-artifact@v4
         with:
           name: development-evidence
