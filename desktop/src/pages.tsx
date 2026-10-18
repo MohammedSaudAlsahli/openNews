@@ -1,4 +1,4 @@
-import { readerMarkdown } from "./reader-format";
+import { readerMarkdown, readerLayout } from "./reader-format";
 import { ArticleSite } from "./article-site";
 import { ArticleExplanation } from "./article-explanation";
 import { t, getLocale } from "./locale";
@@ -265,6 +265,7 @@ export function Articles({
       onError(String(e));
     }
   }
+  const layout = selected ? readerLayout(selected.reader?.blocks || [], selected.cover_image_id) : undefined;
   if (selected)
     return (
       <div className={`reader ${siteMode ? "reader-site-mode" : ""}`} key={selected.id}>
@@ -341,10 +342,20 @@ export function Articles({
           className="reader-content"
           style={{ "--reading-size": `${fontSize}px` } as React.CSSProperties}
         >
-          <p className="eyebrow">
-            {selected.source_title} · {date(selected.published_at)}
-          </p>
-          <h1 dir="auto">{selected.title}</h1>
+          <header className={`article-heading${layout?.cover ? " has-cover" : ""}`}>
+            <div className="article-heading-copy">
+              <div className="reader-source">
+                {layout?.logo && <div className="reader-source-logo"><ArticleImage article={selected.id} id={layout.logo.id} /></div>}
+                <span dir="auto">{selected.source_title}</span>
+                <span className="muted">· {date(selected.published_at)}</span>
+              </div>
+              <h1 dir="auto">{selected.title}</h1>
+            </div>
+            {layout?.cover && <figure className="reader-cover">
+              <ArticleImage article={selected.id} id={layout.cover.id} />
+              <figcaption>{getLocale() === "ar" ? "غلاف المقالة" : "Article cover"}</figcaption>
+            </figure>}
+          </header>
           {selected.body_status !== "full" && (
             <p className="notice">
               {reading
@@ -374,7 +385,7 @@ export function Articles({
           {(selected.body_status === "full" || selected.prepared_summary?.summary) && <ArticleExplanation key={selected.id} article={selected} />}
           {selected.body_status === "full" &&
           selected.reader?.blocks?.length ? (
-            selected.reader.blocks.map((b: RecordData, i: number) =>
+            layout!.body.map((b: RecordData, i: number) =>
               b.type === "image" ? (
                 <ArticleImage key={i} article={selected.id} id={b.id} />
               ) : (

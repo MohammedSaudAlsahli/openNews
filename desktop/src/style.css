@@ -1332,3 +1332,22 @@ button:active:not(:disabled) { filter: brightness(.94); }
 .reader-image-toggle.expanded { cursor: zoom-out; }
 .reader-content .reader-image-toggle.expanded .article-image { max-height: none; }
 .reader-content .image-placeholder { height: min(300px, 40vh); aspect-ratio: auto; }
+
+.article-heading { margin-bottom: 32px; }
+.article-heading.has-cover { display: grid; grid-template-columns: minmax(0,1fr) 160px; gap: 28px; align-items: center; }
+.article-heading-copy { min-width: 0; }
+.reader-source { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:12px; margin-bottom:18px; }
+.article-heading h1 { font-size:32px; line-height:1.45; margin:0; font-weight:600; text-align:start; }
+.reader-cover { margin:0; text-align:center; }
+.reader-cover .reader-image-toggle { margin:0; }
+.reader-content .reader-cover .article-image { max-height:200px; }
+.reader-cover figcaption { font-size:11px; color:var(--muted); margin-top:8px; }
+.reader-source-logo { width:38px; height:38px; padding:5px; border-radius:8px; background:#f3f1eb; flex:none; }
+.reader-source-logo .reader-image-toggle { margin:0; pointer-events:none; }
+.reader-content .reader-source-logo .article-image { width:28px; height:28px; object-fit:contain; border-radius:0; }
+.reader-source-logo .image-placeholder { height:28px; margin:0; }
+@media(max-width:700px) {
+  .article-heading.has-cover { grid-template-columns:minmax(0,1fr) 100px; gap:16px; }
+  .article-heading h1 { font-size:25px; }
+  .reader-content .reader-cover .article-image { max-height:140px; }
+}
