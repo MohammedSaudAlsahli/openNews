@@ -84,7 +84,7 @@ function App() {
         await refresh();
       } catch (e) {
         if (alive) {
-          setError(String(e));
+          if (!String(e).includes("Engine is starting")) setError(String(e));
           timer = setTimeout(boot, 1500);
         }
       }

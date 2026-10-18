@@ -43,14 +43,29 @@ export function Trace({
   if (!data) return null;
   const execution = data.execution || data;
   const summary = execution.reasoning_summary || "";
-  const labels: Record<string, string> = {
-    context: "Preparing context",
-    search: "Searching articles",
-    reading: "Reading a source",
-    web_search: "Searching the web",
-    web_read: "Reading a page",
-    complete: "Completed",
-  };
+  const arabic = execution.summary_language === "ar";
+  const labels: Record<string, string> = arabic
+    ? {
+        context: "تجهيز سياق المحادثة",
+        library: "البحث في المقالات المحفوظة",
+        reading: "قراءة مصدر",
+        web: "البحث على الويب",
+        history: "مراجعة المحادثة",
+        skill: "تطبيق تعليمات المهمة",
+        complete: "اكتمل",
+      }
+    : {
+        library: "Searching saved articles",
+        web: "Searching the web",
+        history: "Reviewing conversation",
+        skill: "Using task instructions",
+        context: "Preparing context",
+        search: "Searching articles",
+        reading: "Reading a source",
+        web_search: "Searching the web",
+        web_read: "Reading a page",
+        complete: "Completed",
+      };
   const steps = execution.steps || [];
   return (
     <section className="trace">
@@ -60,8 +75,16 @@ export function Trace({
         aria-expanded={open}
       >
         {running ? <LoaderCircle className="spin" size={14} /> : null}
-        {running ? "Working" : "Worked"} for{" "}
-        {duration(data.elapsed_seconds || execution.elapsed_seconds || 0)}
+        {arabic
+          ? running
+            ? "جارٍ العمل منذ"
+            : "اكتمل العمل خلال"
+          : running
+            ? "Working for"
+            : "Worked for"}{" "}
+        {arabic
+          ? `${Math.floor((data.elapsed_seconds || execution.elapsed_seconds || 0) / 60)} د ${(data.elapsed_seconds || execution.elapsed_seconds || 0) % 60} ث`
+          : duration(data.elapsed_seconds || execution.elapsed_seconds || 0)}
         <ChevronDown size={14} className={open ? "rotated" : ""} />
       </button>
       {open && (
@@ -83,7 +106,11 @@ export function Trace({
             </div>
           ))}
           {!summary && !steps.length && (
-            <p>{data.activity || "Preparing the response…"}</p>
+            <p>
+              {arabic
+                ? "جارٍ تجهيز الرد…"
+                : data.activity || "Preparing the response…"}
+            </p>
           )}
         </div>
       )}
