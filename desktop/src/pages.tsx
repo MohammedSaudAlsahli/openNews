@@ -217,7 +217,7 @@ export function Articles({
   }
   if (selected)
     return (
-      <div className="reader">
+      <div className="reader" key={selected.id}>
         <div className="reader-toolbar">
           <button
             onClick={() => {
