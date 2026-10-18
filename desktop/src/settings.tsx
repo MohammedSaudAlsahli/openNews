@@ -1,3 +1,11 @@
+import { Updates } from "./updates";
+import { t, useLocale, setLocale } from "./locale";
+import { invoke } from "@tauri-apps/api/core";
+import { Agents } from "./agents";
+import { WritingLibrary } from "./writing-library";
+import { TaskInstructions } from "./task-instructions";
+import { ModelLibrary } from "./model-library";
+import { Connections } from "./connections";
 import { useEffect, useState } from "react";
 import {
   Check,
@@ -26,16 +34,18 @@ export default function Settings({
   setTheme: (s: string) => void;
   onError: (s: string) => void;
 }) {
-  const [tab, setTab] = useState("instructions"),
+  const locale = useLocale();
+  const [tab, setTab] = useState(
+      sessionStorage.getItem("settings-tab") || "instructions",
+    ),
     [data, setData] = useState<RecordData>({}),
     [section, setSection] = useState("role"),
+    [instructionScope, setInstructionScope] = useState("general"),
+    [skill, setSkill] = useState("research"),
     [preview, setPreview] = useState(false),
     [busy, setBusy] = useState(false),
     [saved, setSaved] = useState(false),
-    [provider, setProvider] = useState("ollama"),
-    [model, setModel] = useState(""),
-    [label, setLabel] = useState(""),
-    [catalog, setCatalog] = useState<RecordData[]>([]);
+    [indexedArticles, setIndexedArticles] = useState<RecordData[]>([]);
   const statusLabels: Record<string, string> = {
     enabled: "Background processing",
     language: "Explanation language",
@@ -84,16 +94,22 @@ export default function Settings({
         daily: "daily.get",
         search: "news.search.status",
         summaries: "news.digest.status",
-        connections: "providers.catalog",
       } as Record<string, string>
     )[tab];
     if (!command) return;
     setBusy(true);
-    call(command, tab === "instructions" ? { scope: "general" } : {})
+    call(
+      command,
+      tab === "instructions"
+        ? {
+            scope: instructionScope === "general" ? "general" : "agent",
+            target_id: instructionScope === "general" ? "" : instructionScope,
+          }
+        : {},
+    )
       .then((r) => {
         if (live) {
           setData(r);
-          if (tab === "connections") setCatalog(r.providers || []);
         }
       })
       .catch((e) => onError(String(e)))
@@ -103,6 +119,28 @@ export default function Settings({
     return () => {
       live = false;
     };
+  }, [tab, instructionScope]);
+  useEffect(() => {
+    if (tab !== "search" && tab !== "summaries") return;
+    let live = true,
+      inFlight = false;
+    const timer = setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const result = await call(
+          tab === "search" ? "news.search.status" : "news.digest.status",
+        );
+        if (live) setData(result);
+      } catch {
+      } finally {
+        inFlight = false;
+      }
+    }, 5000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
   }, [tab]);
   async function save() {
     setBusy(true);
@@ -110,7 +148,8 @@ export default function Settings({
     try {
       if (tab === "instructions")
         await call("assistant.save", {
-          scope: "general",
+          scope: instructionScope === "general" ? "general" : "agent",
+          target_id: instructionScope === "general" ? "" : instructionScope,
           settings: data.settings,
         });
       if (tab === "daily")
@@ -130,11 +169,14 @@ export default function Settings({
   return (
     <div className="settings-layout">
       <aside className="settings-nav">
-        <p className="eyebrow">MAKE IT YOURS</p>
-        <h1>Settings</h1>
+        <p className="eyebrow">{t("MAKE IT YOURS")}</p>
+        <h1>{t("Settings")}</h1>
         {[
           [SlidersHorizontal, "instructions", "Assistant instructions"],
           [Cpu, "connections", "Model connections"],
+          [SlidersHorizontal, "agents", "Assistants"],
+          [BookOpen, "writing", "Writing & references"],
+          [BookOpen, "skills", "Writing skills"],
           [BookOpen, "summaries", "Article explanations"],
           [Search, "search", "News memory"],
           [Calendar, "daily", "Daily report"],
@@ -149,7 +191,7 @@ export default function Settings({
               onClick={() => setTab(id as string)}
             >
               <I size={16} />
-              {title as string}
+              {t(title as string)}
             </button>
           );
         })}
@@ -158,11 +200,25 @@ export default function Settings({
         {busy && <LoaderCircle className="spin busy-indicator" size={17} />}{" "}
         {tab === "instructions" ? (
           <>
-            <h2>Give your assistant a little direction.</h2>
+            <h2>{t("Give your assistant a little direction.")}</h2>
             <p className="muted">
-              These are the instructions it actually uses. Read them, make them
-              yours, and save.
+              {t(
+                "These are the instructions it actually uses. Read them, make them yours, and save.",
+              )}
             </p>
+            <label className="field">
+              {t("Applies to")}
+              <select
+                value={instructionScope}
+                onChange={(e) => setInstructionScope(e.target.value)}
+              >
+                <option value="general">
+                  {t("All assistants and conversations")}
+                </option>
+                <option value="writer">{t("Writing assistant")}</option>
+                <option value="analyst">{t("Analysis assistant")}</option>
+              </select>
+            </label>
             <div className="instruction-tabs">
               {Object.entries(sections).map(([k, v]) => (
                 <button
@@ -170,24 +226,24 @@ export default function Settings({
                   className={section === k ? "selected" : ""}
                   onClick={() => setSection(k)}
                 >
-                  {v}
+                  {t(v)}
                 </button>
               ))}
             </div>
             <div className="editor-header">
-              <h3>{sections[section]}</h3>
+              <h3>{t(sections[section])}</h3>
               <div className="segments">
                 <button
                   className={!preview ? "selected" : ""}
                   onClick={() => setPreview(false)}
                 >
-                  Write
+                  {t("Write")}
                 </button>
                 <button
                   className={preview ? "selected" : ""}
                   onClick={() => setPreview(true)}
                 >
-                  Preview
+                  {t("Preview")}
                 </button>
               </div>
             </div>
@@ -203,13 +259,13 @@ export default function Settings({
               <textarea
                 className="editor"
                 dir="auto"
-                aria-label={sections[section]}
+                aria-label={t(sections[section])}
                 value={data.settings?.[section] || ""}
                 onChange={(e) => setting(section, e.target.value)}
               />
             )}
             <div className="save-row">
-              <small>Saved locally · Applied to new responses</small>
+              <small>{t("Saved locally · Applied to new responses")}</small>
               <button
                 className="primary"
                 disabled={busy}
@@ -218,7 +274,7 @@ export default function Settings({
                 {saved ? (
                   <>
                     <Check size={15} />
-                    Saved
+                    {t("Saved")}
                   </>
                 ) : (
                   "Save instructions"
@@ -226,109 +282,65 @@ export default function Settings({
               </button>
             </div>
           </>
-        ) : tab === "connections" ? (
+        ) : tab === "skills" ? (
           <>
-            <h2>Your models. Your choice.</h2>
+            <h2>{t("Writing skills")}</h2>
             <p className="muted">
-              Use a local Ollama model or an existing connection.
+              {t(
+                "Use a / command or describe what you need. The assistant can select the relevant writing guide from your request.",
+              )}
             </p>
-            <div className="source-list">
-              {(snapshot.profiles || []).map((p: RecordData) => (
-                <div key={p.id}>
-                  <Cpu size={20} />
-                  <span>
-                    <strong>{p.label || p.provider_key}</strong>
-                    <small>{p.model_id}</small>
-                  </span>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await call("providers.check", { profile_id: p.id });
-                        await refresh();
-                      } catch (e) {
-                        onError(String(e));
-                      }
-                    }}
-                  >
-                    Check connection
-                  </button>
-                </div>
-              ))}
-            </div>
-            <h3>Add a connection</h3>
             <label className="field">
-              Provider
-              <select
-                value={provider}
-                onChange={(e) => setProvider(e.target.value)}
-              >
-                {catalog
-                  .filter((p) => p.status === "ready")
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name || p.id}
-                    </option>
-                  ))}
+              {t("Skill")}
+              <select value={skill} onChange={(e) => setSkill(e.target.value)}>
+                {[
+                  "research",
+                  "summarize",
+                  "x",
+                  "thread",
+                  "linkedin",
+                  "youtube",
+                  "shorts",
+                  "rewrite",
+                  "plan",
+                  "hooks",
+                ].map((id) => (
+                  <option key={id} value={id}>
+                    /{id}
+                  </option>
+                ))}
               </select>
             </label>
-            <label className="field">
-              Name
-              <input
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="My local model"
-              />
-            </label>
-            <label className="field">
-              Model
-              <input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="Model name from your provider"
-              />
-            </label>
-            <p className="muted">
-              Preview: local Ollama connections work without a key. API-key
-              storage and browser sign-in are migration acceptance gates.
-            </p>
-            <button
-              className="primary"
-              disabled={provider !== "ollama" || !model}
-              onClick={async () => {
-                try {
-                  const connection = await call("providers.save", {
-                    provider_key: provider,
-                    model_id: model,
-                    label,
-                  });
-                  await call("providers.models", {
-                    profile_id: connection.profile_id,
-                    refresh: true,
-                  });
-                  await call("agents.assign", {
-                    role: "writer",
-                    profile_id: connection.profile_id,
-                    model_id: model,
-                  });
-                  await refresh();
-                  setModel("");
-                } catch (e) {
-                  onError(String(e));
-                }
-              }}
-            >
-              Connect local model
-            </button>
+            <TaskInstructions
+              key={skill}
+              id={"skill:" + skill}
+              title={"Instructions for /" + skill}
+              onError={onError}
+            />
           </>
+        ) : tab === "agents" ? (
+          <Agents snapshot={snapshot} refresh={refresh} onError={onError} />
+        ) : tab === "writing" ? (
+          <WritingLibrary
+            snapshot={snapshot}
+            refresh={refresh}
+            onError={onError}
+          />
+        ) : tab === "connections" ? (
+          <Connections
+            snapshot={snapshot}
+            refresh={refresh}
+            onError={onError}
+          />
         ) : tab === "daily" ? (
           <>
-            <h2>Your day, explained.</h2>
+            <h2>{t("Your day, explained.")}</h2>
             <p className="muted">
-              Choose when to prepare a report from your sources.
+              {t("Choose when to prepare a report from your sources.")}
             </p>
             <div className="settings-group">
               <label className="setting-row">
-                Daily report
+                {t("Daily report")}
                 <input
                   type="checkbox"
                   checked={!!data.settings?.enabled}
@@ -336,7 +348,7 @@ export default function Settings({
                 />
               </label>
               <label className="setting-row">
-                Report time
+                {t("Report time")}
                 <input
                   type="time"
                   value={`${String(data.settings?.hour ?? 22).padStart(2, "0")}:${String(data.settings?.minute ?? 0).padStart(2, "0")}`}
@@ -352,30 +364,36 @@ export default function Settings({
                 />
               </label>
               <label className="setting-row">
-                Time zone
+                {t("Time zone")}
                 <input
                   value={data.settings?.timezone || "Asia/Riyadh"}
                   onChange={(e) => setting("timezone", e.target.value)}
                 />
               </label>
               <label className="setting-row">
-                Language
+                {t("Language")}
                 <select
                   value={data.settings?.language || "ar"}
                   onChange={(e) => setting("language", e.target.value)}
                 >
                   <option value="ar">العربية</option>
-                  <option value="en">English</option>
+                  <option value="en">{t("English")}</option>
                 </select>
               </label>
             </div>
             <button className="primary" onClick={() => void save()}>
-              {saved ? "Saved" : "Save schedule"}
+              {t(saved ? t("Saved") : t("Save schedule"))}
             </button>
             <p className="notice">
-              Notification delivery is not enabled in this preview. The native
-              app remains your working daily-report app.
+              {t(
+                "Reports run while OpenStudio is open, including with its window closed. If your Mac sleeps, the report is prepared when you return. Enable OpenStudio notifications in macOS System Settings.",
+              )}
             </p>
+            <TaskInstructions
+              id="daily-report"
+              title={t("Daily report instructions")}
+              onError={onError}
+            />
             {(data.reports || []).map((r: RecordData) => (
               <details key={r.id || r.day}>
                 <summary>{r.day}</summary>
@@ -385,10 +403,20 @@ export default function Settings({
           </>
         ) : tab === "appearance" ? (
           <>
-            <h2>A calmer place to work.</h2>
+            <h2>{t("A calmer place to work.")}</h2>
             <p className="muted">
-              A focused workspace, in the light that suits you.
+              {t("A focused workspace, in the light that suits you.")}
             </p>
+            <label className="setting-row">
+              {t("Interface language")}
+              <select
+                value={locale}
+                onChange={(e) => setLocale(e.target.value as "ar" | "en")}
+              >
+                <option value="en">English</option>
+                <option value="ar">العربية</option>
+              </select>
+            </label>
             <div className="theme-options">
               <button
                 aria-pressed={theme === "light"}
@@ -396,8 +424,8 @@ export default function Settings({
                 onClick={() => setTheme("light")}
               >
                 <Sun size={28} />
-                <strong>Daylight</strong>
-                <small>Warm paper and soft contrast</small>
+                <strong>{t("Daylight")}</strong>
+                <small>{t("Warm paper and soft contrast")}</small>
               </button>
               <button
                 aria-pressed={theme === "dark"}
@@ -405,68 +433,220 @@ export default function Settings({
                 onClick={() => setTheme("dark")}
               >
                 <Moon size={28} />
-                <strong>After hours</strong>
-                <small>Quiet charcoal, readable text</small>
+                <strong>{t("After hours")}</strong>
+                <small>{t("Quiet charcoal, readable text")}</small>
               </button>
             </div>
           </>
         ) : tab === "privacy" ? (
           <>
-            <h2>On your Mac. Under your control.</h2>
+            <h2>{t("On your Mac. Under your control.")}</h2>
+            <Updates onError={onError} />
             <p className="muted">
-              This preview has its own workspace. Your current app and its data
-              remain separate.
+              {t(
+                "This preview has its own workspace. Your current app and its data remain separate.",
+              )}
             </p>
+            <section className="notice">
+              <h3>{t("Bring your original workspace")}</h3>
+              <p>
+                {t(
+                  "Quit the original OpenStudio first. Import copies your articles, conversations, credentials, models and cached images. Your current preview workspace is backed up; the original stays intact. Automatic explanations, indexing and reports are paused until you enable them again.",
+                )}
+              </p>
+              <div className="reader-actions">
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await invoke("transfer_workspace", { restore: false });
+                      window.location.reload();
+                    } catch (e) {
+                      onError(String(e));
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  {t("Import original workspace")}
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await invoke("transfer_workspace", { restore: true });
+                      window.location.reload();
+                    } catch (e) {
+                      onError(String(e));
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  {t("Restore previous workspace")}
+                </button>
+              </div>
+            </section>
             <div className="settings-group">
               <div className="setting-row">
-                Storage<span>Local SQLite</span>
+                {t("Storage")}
+                <span>{t("Local SQLite")}</span>
               </div>
               <div className="setting-row">
-                Engine<span>Python + Agno</span>
+                {t("Engine")}
+                <span>{t("Python + Agno")}</span>
               </div>
               <div className="setting-row">
-                Preview updates<span>Manual builds</span>
+                {t("Preview updates")}
+                <span>{t("Signed preview channel")}</span>
               </div>
             </div>
             <p>
-              Automatic updates and importing your existing workspace must pass
-              a real upgrade test before this version replaces the native app.
+              {t(
+                "Your original workspace remains unchanged. The Tauri update channel must be published and tested before this preview replaces the original app.",
+              )}
             </p>
           </>
         ) : (
           <>
             <h2>
               {tab === "search"
-                ? "A memory for your news."
-                : "Understand the whole story."}
+                ? t("A memory for your news.")
+                : t("Understand the whole story.")}
             </h2>
             <p className="muted">
               {tab === "search"
-                ? "Search uses your saved articles. Indexing and explanations are separate tasks."
-                : "Explanations use the summary model selected in your workspace."}
+                ? t(
+                    "Search uses your saved articles. Indexing and explanations are separate tasks.",
+                  )
+                : t(
+                    "Explanations use the summary model selected in your workspace.",
+                  )}
             </p>
+            <label className="setting-row">
+              {tab === "search"
+                ? t("Search by meaning")
+                : t("Automatic explanations")}
+              <input
+                type="checkbox"
+                checked={!!data.enabled}
+                onChange={async (e) => {
+                  try {
+                    setData(
+                      await call(
+                        tab === "search"
+                          ? "news.search.set"
+                          : "news.digest.set",
+                        { enabled: e.target.checked },
+                      ),
+                    );
+                  } catch (error) {
+                    onError(String(error));
+                  }
+                }}
+              />
+            </label>
+            {tab === "summaries" && (
+              <>
+                <label className="setting-row">
+                  {t("Language")}
+                  <select
+                    value={data.language || "ar"}
+                    onChange={async (e) => {
+                      try {
+                        setData(
+                          await call("news.digest.set", {
+                            enabled: !!data.enabled,
+                            language: e.target.value,
+                          }),
+                        );
+                      } catch (error) {
+                        onError(String(error));
+                      }
+                    }}
+                  >
+                    <option value="ar">العربية</option>
+                    <option value="en">{t("English")}</option>
+                  </select>
+                </label>
+                <label className="setting-row">
+                  {t("Explanation source")}
+                  <select
+                    value={data.engine || "provider"}
+                    onChange={async (e) => {
+                      try {
+                        setData(
+                          await call("news.digest.set", {
+                            enabled: false,
+                            engine: e.target.value,
+                          }),
+                        );
+                      } catch (error) {
+                        onError(String(error));
+                      }
+                    }}
+                  >
+                    <option value="provider">{t("Connected provider")}</option>
+                    <option value="local">{t("Local model")}</option>
+                  </select>
+                </label>
+              </>
+            )}
             <div className="settings-group">
               {Object.entries(data)
                 .filter(([k, v]) => k in statusLabels && v !== "" && v != null)
                 .map(([k, v]) => (
                   <div className="setting-row" key={k}>
-                    <span>{statusLabels[k]}</span>
+                    <span>{t(statusLabels[k])}</span>
                     <span>
                       {k === "phase"
-                        ? phases[String(v)] || String(v).replaceAll("_", " ")
+                        ? t(phases[String(v)] || String(v).replaceAll("_", " "))
                         : k === "language"
                           ? v === "ar"
                             ? "العربية"
-                            : "English"
+                            : t("English")
                           : typeof v === "boolean"
                             ? v
-                              ? "On"
-                              : "Off"
+                              ? t("On")
+                              : t("Off")
                             : String(v)}
                     </span>
                   </div>
                 ))}
             </div>
+            <ModelLibrary
+              key={tab}
+              embedding={tab === "search"}
+              onError={onError}
+            />
+            {tab === "search" && (
+              <details
+                onToggle={(e) => {
+                  if (e.currentTarget.open)
+                    void call("news.search.inspect")
+                      .then((r) => setIndexedArticles(r.articles))
+                      .catch((e) => onError(String(e)));
+                }}
+              >
+                <summary>{t("Index details")}</summary>
+                {indexedArticles.map((a) => (
+                  <div className="notice" key={a.id}>
+                    <strong dir="auto">{a.title}</strong>
+                    <p>
+                      {t("Text segments")}: {a.segments} ·{" "}
+                      {t("Embedded segments")}: {a.embedded}
+                    </p>
+                  </div>
+                ))}
+              </details>
+            )}
+            {tab === "summaries" && (
+              <TaskInstructions
+                id="article-summary"
+                title={t("Article explanation instructions")}
+                onError={onError}
+              />
+            )}
           </>
         )}
       </div>

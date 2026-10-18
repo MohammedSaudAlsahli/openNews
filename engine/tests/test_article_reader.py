@@ -177,3 +177,32 @@ def test_empty_extraction_keeps_saved_text_and_allows_explicit_retry(saved):
     assert recovered['body_status'] == 'full'
     assert 'Article evidence' in recovered['text']
     assert not recovered['reader'].get('refresh_failed')
+
+
+def test_short_failed_refresh_does_not_replace_full_evidence(saved):
+    manager, store, _ = saved
+    before = asyncio.run(manager.reader('article'))
+    async def short(url, conditional=None):
+        return result(url, b'<html><article><p>Temporarily unavailable.</p></article></html>')
+    manager.fetch = short
+    after = asyncio.run(manager.reader('article', force=True))
+    assert after['text'] == before['text']
+    assert after['reader']['blocks'] == before['reader']['blocks']
+    assert after['reader']['refresh_failed'] is True
+
+
+def test_utf8_fragments_preserve_arabic_and_smart_punctuation():
+    text = 'شرح المقالة بالعربية — Why don’t we read “full articles”? ' * 8
+    reader = extract_reader(('<article><p>' + text + '</p></article>').encode('utf-8'), BASE)
+    body = '\n'.join(b.get('text', '') for b in reader['blocks'])
+    assert 'شرح المقالة بالعربية' in body
+    assert 'don’t' in body and '“full articles”' in body
+    assert 'â' not in body
+
+
+def test_site_banner_and_gravatar_are_not_article_images():
+    from eis_engine.article_reader import extract_reader
+    body = '<html><head><meta property="og:image" content="https://secure.gravatar.com/blavatar/site?s=200"></head><body><div id="header-image"><img src="https://example.com/banner.jpg"></div><article><p>' + ('A useful article about science and mathematics. ' * 35) + '</p><img src="https://example.com/actual.jpg"></article></body></html>'
+    reader = extract_reader(body, 'https://example.com/story', fragment=True)
+    images = [b['url'] for b in reader['blocks'] if b['type'] == 'image']
+    assert images == ['https://example.com/actual.jpg']

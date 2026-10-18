@@ -1,3 +1,7 @@
+import { Onboarding } from "./onboarding";
+import { ConversationOptions } from "./conversation-options";
+import { t, useLocale } from "./locale";
+import { listen } from "@tauri-apps/api/event";
 import React, {
   useEffect,
   useState,
@@ -42,16 +46,36 @@ const Drafts = lazy(() =>
   import("./pages").then((x) => ({ default: x.Drafts })),
 );
 function App() {
+  useLocale();
+  const [showWelcome, setShowWelcome] = useState(
+    localStorage.getItem("welcome-dismissed") !== "true",
+  );
+  const [newVersion, setNewVersion] = useState("");
+  const [options, setOptions] = useState(false);
+  const [attachments, setAttachments] = useState<Record<string, RecordData[]>>(
+    {},
+  );
+  const [includeNews, setIncludeNews] = useState(true),
+    [researchWeb, setResearchWeb] = useState(true);
+  const [availableModels, setAvailableModels] = useState<RecordData[]>([]);
   const [page, setPage] = useState("chat"),
     [sidebar, setSidebar] = useState(true),
     [ready, setReady] = useState(false),
     [error, setError] = useState("");
+  const [agents, setAgents] = useState<RecordData[]>([]),
+    [agent, setAgent] = useState("");
   const [snapshot, setSnapshot] = useState<RecordData>({}),
     [chats, setChats] = useState<RecordData[]>([]),
     [selected, setSelected] = useState(""),
     [detail, setDetail] = useState<RecordData>(),
     [progress, setProgress] = useState<Record<string, RecordData>>({});
-  const [drafts, setDrafts] = useState<Record<string, string>>({}),
+  const [drafts, setDrafts] = useState<Record<string, string>>(() => {
+      try {
+        return JSON.parse(localStorage.getItem("composer-drafts") || "{}");
+      } catch {
+        return {};
+      }
+    }),
     [profile, setProfile] = useState(""),
     [model, setModel] = useState(""),
     [search, setSearch] = useState(""),
@@ -59,17 +83,41 @@ function App() {
     [consent, setConsent] = useState(
       localStorage.getItem("model-consent") === "true",
     );
+  useEffect(() => {
+    localStorage.setItem("composer-drafts", JSON.stringify(drafts));
+  }, [drafts]);
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("theme", theme);
   }, [theme]);
+  useEffect(() => {
+    const listener = listen<string>("navigate", (event) => {
+      if (event.payload === "articles") setPage("articles");
+      else if (event.payload === "reports") {
+        sessionStorage.setItem("settings-tab", "daily");
+        setPage("settings");
+      } else setPage("chat");
+    });
+    return () => {
+      void listener.then((unlisten) => unlisten());
+    };
+  }, []);
+  useEffect(() => {
+    const handler = listen<RecordData>("update-available", (event) =>
+      setNewVersion(event.payload.version),
+    );
+    return () => {
+      void handler.then((stop) => stop());
+    };
+  }, []);
   const refresh = useCallback(async () => {
     const [s, c] = await Promise.all([
       call("workspace.snapshot"),
       call("chat.list"),
     ]);
     setSnapshot(s);
+    setAgents((await call("agents.list")).agents || []);
     setChats(c.conversations || []);
   }, []);
   useEffect(() => {
@@ -151,6 +199,21 @@ function App() {
       setModel(p.model_id);
     }
   }, [snapshot, profile]);
+  useEffect(() => {
+    let live = true;
+    setAvailableModels([]);
+    if (profile)
+      void call("providers.models", { profile_id: profile })
+        .then((r) => {
+          if (live) setAvailableModels(r.models || []);
+        })
+        .catch((e) => {
+          if (live) setError(String(e));
+        });
+    return () => {
+      live = false;
+    };
+  }, [profile]);
   async function send() {
     const key = selected || "new",
       text = drafts[key]?.trim();
@@ -187,8 +250,13 @@ function App() {
         consent: true,
         idempotency_key: crypto.randomUUID(),
         format: "auto",
+        article_ids: (attachments[key] || []).map((a) => a.id),
+        include_news: includeNews,
+        research_web: researchWeb,
+        ...(agent ? { agent_id: agent } : {}),
       });
       setDrafts((d) => ({ ...d, [key]: "" }));
+      setAttachments((a) => ({ ...a, [key]: [] }));
       setProgress((p) => ({
         ...p,
         [id]: { job_id: result.job_id, state: "queued" },
@@ -232,14 +300,15 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">◒</span>
-          <strong>OpenStudio</strong>
-          <button title="Hide sidebar" onClick={() => setSidebar(false)}>
+          <strong>{t("OpenStudio")}</strong>
+          <button title={t("Hide sidebar")} onClick={() => setSidebar(false)}>
             <PanelLeftClose size={17} />
           </button>
         </div>
         <button className="new-chat" onClick={() => choose("")}>
           <Plus size={17} />
-          New conversation<span>⌘ N</span>
+          {t("New conversation")}
+          <span>{t("⌘ N")}</span>
         </button>
         <nav>
           {[
@@ -255,16 +324,16 @@ function App() {
                 onClick={() => setPage(id as string)}
               >
                 <I size={17} />
-                {label as string}
+                {t(label as string)}
               </button>
             );
           })}
         </nav>
-        <div className="chat-heading">Conversations</div>
+        <div className="chat-heading">{t("Conversations")}</div>
         <label className="sidebar-search">
           <Search size={14} />
           <input
-            placeholder="Search conversations"
+            placeholder={t("Search conversations")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -288,7 +357,7 @@ function App() {
         <div className="sidebar-bottom">
           <button onClick={() => setPage("activity")}>
             <Activity size={16} />
-            Background activity
+            {t("Background activity")}
             <span className="count">
               {
                 (snapshot.jobs || []).filter((j: RecordData) => active(j.state))
@@ -301,48 +370,72 @@ function App() {
             onClick={() => setPage("settings")}
           >
             <SettingsIcon size={16} />
-            Settings
+            {t("Settings")}
           </button>
           <div className="preview-note">
             <Circle size={7} fill="currentColor" />
-            Tauri preview · Separate workspace
+            {t("Tauri preview · Separate workspace")}
           </div>
         </div>
       </aside>
       <main>
+        {newVersion && (
+          <button
+            className="update-banner"
+            onClick={() => {
+              sessionStorage.setItem("settings-tab", "privacy");
+              setPage("settings");
+            }}
+          >
+            {t("Update available")}: {newVersion}
+          </button>
+        )}
+        {ready &&
+          showWelcome &&
+          !(snapshot.subscriptions?.length || snapshot.profiles?.length) && (
+            <Onboarding
+              go={setPage}
+              close={() => {
+                setShowWelcome(false);
+                localStorage.setItem("welcome-dismissed", "true");
+              }}
+            />
+          )}
         <header className="topbar">
           {!sidebar && (
-            <button title="Show sidebar" onClick={() => setSidebar(true)}>
+            <button title={t("Show sidebar")} onClick={() => setSidebar(true)}>
               <PanelLeftOpen size={18} />
             </button>
           )}
           <span>
             {page === "chat"
-              ? detail?.title || "New conversation"
-              : {
-                  articles: "Your reading room",
-                  sources: "Sources",
-                  drafts: "Saved drafts",
-                  settings: "Settings",
-                  activity: "Background activity",
-                }[page]}
+              ? detail?.title || t("New conversation")
+              : t(
+                  {
+                    articles: "Your reading room",
+                    sources: "Sources",
+                    drafts: "Saved drafts",
+                    settings: "Settings",
+                    activity: "Background activity",
+                  }[page] || page,
+                )}
           </span>
           <span className="connection">
             <i className={ready ? "online" : ""} />
-            {ready ? "Saved on this Mac" : "Starting engine…"}
+            {ready ? t("Saved on this Mac") : t("Starting engine…")}
           </span>
         </header>
         {error && (
           <div className="error" role="alert">
             {error}
-            <button onClick={() => setError("")}>Dismiss</button>
+            <button onClick={() => setError("")}>{t("Dismiss")}</button>
           </div>
         )}
         <Suspense
           fallback={
             <div className="loading">
               <LoaderCircle className="spin" />
-              Opening…
+              {t("Opening…")}
             </div>
           }
         >
@@ -363,14 +456,18 @@ function App() {
                 {!selected ? (
                   <div className="welcome">
                     <div className="welcome-symbol">◒</div>
-                    <p className="eyebrow">YOUR SPACE TO THINK & CREATE</p>
+                    <p className="eyebrow">
+                      {t("YOUR SPACE TO THINK & CREATE")}
+                    </p>
                     <h1>
-                      Good stories start
+                      {t("Good stories start")}
                       <br />
-                      with a little curiosity.
+                      {t("with a little curiosity.")}
                     </h1>
                     <p>
-                      Explore your news. Connect the dots. Make it your own.
+                      {t(
+                        "Explore your news. Connect the dots. Make it your own.",
+                      )}
                     </p>
                     <div className="suggestions">
                       {[
@@ -407,7 +504,7 @@ function App() {
                           }
                         }}
                       >
-                        Load earlier messages
+                        {t("Load earlier messages")}
                       </button>
                     )}
                     {detail?.messages?.map((m: RecordData) => (
@@ -416,7 +513,10 @@ function App() {
                         <Markdown text={m.content} />
                         {m.citations?.length > 0 && (
                           <details className="citations">
-                            <summary>Sources · {m.citations.length}</summary>
+                            <summary>
+                              {t("Sources ·")}
+                              {m.citations.length}
+                            </summary>
                             {m.citations.map((c: RecordData) => (
                               <p key={c.id || c.url}>
                                 {c.title}
@@ -434,7 +534,7 @@ function App() {
                                 navigator.clipboard.writeText(o.text || "")
                               }
                             >
-                              Copy draft
+                              {t("Copy draft")}
                             </button>
                           </div>
                         ))}
@@ -450,11 +550,44 @@ function App() {
                 )}
               </div>
               <div className="composer-wrap">
+                {options && (
+                  <ConversationOptions
+                    conversation={selected}
+                    selected={attachments[selected || "new"] || []}
+                    onSelect={(rows) =>
+                      setAttachments((old) => ({
+                        ...old,
+                        [selected || "new"]: rows,
+                      }))
+                    }
+                    onError={setError}
+                  />
+                )}
                 <div className="composer">
+                  {(attachments[selected || "new"] || []).length > 0 && (
+                    <div className="attached-articles">
+                      {(attachments[selected || "new"] || []).map((a) => (
+                        <button
+                          key={a.id}
+                          onClick={() =>
+                            setAttachments((old) => ({
+                              ...old,
+                              [selected || "new"]: (
+                                old[selected || "new"] || []
+                              ).filter((row) => row.id !== a.id),
+                            }))
+                          }
+                          title={t("Remove attachment")}
+                        >
+                          {a.title} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <textarea
-                    aria-label="Message"
+                    aria-label={t("Message")}
                     rows={2}
-                    placeholder="Ask a question, explore an idea…"
+                    placeholder={t("Ask a question, explore an idea…")}
                     value={message}
                     dir="auto"
                     onChange={(e) =>
@@ -480,6 +613,9 @@ function App() {
                         "research",
                         "summarize",
                         "x",
+                        "thread",
+                        "shorts",
+                        "hooks",
                         "linkedin",
                         "youtube",
                         "rewrite",
@@ -502,10 +638,18 @@ function App() {
                     </div>
                   )}
                   <div className="composer-tools">
+                    <button
+                      onClick={() => setOptions(!options)}
+                      aria-expanded={options}
+                      title={t("Articles and conversation instructions")}
+                    >
+                      <Plus size={18} />
+                    </button>
                     <select
-                      aria-label="Model connection"
+                      aria-label={t("Model connection")}
                       value={profile}
                       onChange={(e) => {
+                        setAgent("");
                         setProfile(e.target.value);
                         setModel(
                           profiles.find(
@@ -514,17 +658,76 @@ function App() {
                         );
                       }}
                     >
-                      <option value="">Select a model</option>
+                      <option value="">{t("Select a model")}</option>
                       {profiles.map((p: RecordData) => (
                         <option key={p.id} value={p.id}>
                           {p.label || p.model_id || p.provider_key}
                         </option>
                       ))}
                     </select>
-                    <span className="mode-label">Auto</span>
+                    {availableModels.length > 0 && (
+                      <select
+                        aria-label={t("Model")}
+                        value={model}
+                        onChange={(e) => {
+                          setAgent("");
+                          setModel(e.target.value);
+                        }}
+                      >
+                        {availableModels.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name || m.id}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {agents.length > 0 && (
+                      <select
+                        aria-label={t("Assistant")}
+                        value={agent}
+                        onChange={(e) => {
+                          setAgent(e.target.value);
+                          const chosen = agents.find(
+                            (a) => a.id === e.target.value,
+                          );
+                          if (chosen) {
+                            setProfile(chosen.profile_id);
+                            setModel(chosen.model_id);
+                          }
+                        }}
+                      >
+                        <option value="">{t("Default assistant")}</option>
+                        {agents.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <details className="context-options">
+                      <summary>{t("Context")}</summary>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={includeNews}
+                          onChange={(e) => setIncludeNews(e.target.checked)}
+                        />
+                        {t("Use saved news")}
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={researchWeb}
+                          onChange={(e) => setResearchWeb(e.target.checked)}
+                        />
+                        {t("Allow web research")}
+                      </label>
+                    </details>
                     <button
                       className="send"
-                      title={running ? "Stop response" : "Send message"}
+                      title={t(
+                        running ? t("Stop response") : t("Send message"),
+                      )}
                       disabled={
                         !running && (!message.trim() || sending || !ready)
                       }
@@ -554,18 +757,20 @@ function App() {
                           );
                         }}
                       />
-                      Allow sending messages and context to my selected model.
+                      {t(
+                        "Allow sending messages and context to my selected model.",
+                      )}
                     </label>
                   ) : running ? (
                     "You can switch conversations. Your response will keep running."
                   ) : (
-                    "Your ideas stay here. Review sources before publishing."
+                    t("Your ideas stay here. Review sources before publishing.")
                   )}
                 </div>
               </div>
             </div>
           ) : page === "articles" ? (
-            <Articles onError={setError} />
+            <Articles snapshot={snapshot} onError={setError} />
           ) : page === "sources" ? (
             <Sources snapshot={snapshot} refresh={refresh} onError={setError} />
           ) : page === "drafts" ? (
@@ -580,17 +785,21 @@ function App() {
             />
           ) : (
             <div className="page">
-              <p className="eyebrow">HAPPENING IN YOUR WORKSPACE</p>
-              <h1>Background activity</h1>
+              <p className="eyebrow">{t("HAPPENING IN YOUR WORKSPACE")}</p>
+              <h1>{t("Background activity")}</h1>
               <p className="muted">
-                Work continues as you move between conversations and articles.
+                {t(
+                  "Work continues as you move between conversations and articles.",
+                )}
               </p>
               <div className="activity-list">
                 {(snapshot.jobs || []).length === 0 ? (
                   <div className="empty">
                     <Check />
-                    <h3>All quiet for now</h3>
-                    <p>Searches, reading and responses will appear here.</p>
+                    <h3>{t("All quiet for now")}</h3>
+                    <p>
+                      {t("Searches, reading and responses will appear here.")}
+                    </p>
                   </div>
                 ) : (
                   (snapshot.jobs || []).map((j: RecordData) => (
@@ -609,7 +818,7 @@ function App() {
                             )
                           }
                         >
-                          Stop
+                          {t("Stop")}
                         </button>
                       )}
                     </div>
@@ -623,4 +832,42 @@ function App() {
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+function QuickReader() {
+  useLocale();
+  const [snapshot, setSnapshot] = useState<RecordData>({});
+  const [error, setError] = useState("");
+  useEffect(() => {
+    document.documentElement.dataset.theme =
+      localStorage.getItem("theme") || "light";
+    let alive = true;
+    const refresh = () =>
+      void call("workspace.snapshot", {})
+        .then((value) => {
+          if (alive) setSnapshot(value);
+        })
+        .catch((e) => {
+          if (alive) setError(String(e));
+        });
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+  return (
+    <main className="quick-reader">
+      {error && <p role="alert">{error}</p>}
+      <Suspense fallback={<p>{t("Retrieving article text…")}</p>}>
+        <Articles snapshot={snapshot} onError={setError} />
+      </Suspense>
+    </main>
+  );
+}
+createRoot(document.getElementById("root")!).render(
+  new URLSearchParams(window.location.search).has("reader") ? (
+    <QuickReader />
+  ) : (
+    <App />
+  ),
+);

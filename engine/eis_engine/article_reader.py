@@ -1,7 +1,7 @@
 """Structured, image-aware reading content, separate from model evidence text."""
 import re
 from itertools import islice
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from lxml import html
 from trafilatura import extract
 from .news import MAX_TEXT, MarkdownSummary, canonical_url, NewsError, plain, safe_content_link
@@ -38,6 +38,11 @@ def image_source(node, base):
 
 
 def prepare_tree(body, base):
+    # Browser captures and feed fragments have no charset meta. Prefer valid UTF-8
+    # instead of lxml's Latin-1 fallback, while preserving legacy-encoded pages.
+    if isinstance(body, bytes):
+        try: body = body.decode('utf-8-sig')
+        except UnicodeDecodeError: pass
     tree = html.fromstring(body, parser=html.HTMLParser(no_network=True, remove_comments=True))
     for node in tree.xpath('//script|//style|//iframe|//object|//embed|//base|//svg|//noscript'):
         node.drop_tree()
@@ -55,6 +60,10 @@ def prepare_tree(body, base):
     for node in tree.xpath('//img'):
         url = image_source(node, base)
         decorative = bool(re.search(r'(^|[ _-])(emoji|avatar|icon)([ _-]|$)', node.get('class', ''), re.I)) or '/images/core/emoji/' in (url or '')
+        chrome = any(re.search(r'(^|[ _-])(header-image|site-header|site-logo|site-branding|masthead)([ _-]|$)',
+                               (p.get('id', '') + ' ' + p.get('class', '')), re.I)
+                     for p in [node, *node.iterancestors()])
+        decorative = decorative or chrome or (url and urlsplit(url).hostname in {'gravatar.com', 'secure.gravatar.com', '0.gravatar.com', '1.gravatar.com', '2.gravatar.com'})
         tiny = any(re.fullmatch(r'\d+', node.get(k, '')) and int(node.get(k)) <= 2 for k in ('width', 'height'))
         if not url or tiny or decorative or url in seen or len(images) >= MAX_IMAGES:
             node.drop_tree(); continue
@@ -144,6 +153,8 @@ def extract_reader(body, base, fragment=False):
     # Prefer the publisher's explicit editorial cover over inline logos/banners.
     meta = tree.xpath('//meta[@property="og:image"]/@content | //meta[@name="twitter:image"]/@content')
     cover = next((url for value in meta if (url := image_url(value, base))), None)
+    if cover and (urlsplit(cover).hostname or '').endswith('gravatar.com'):
+        cover = None
     if cover:
         existing = next((b for b in blocks if b.get('url') == cover), None)
         if existing:
@@ -152,5 +163,5 @@ def extract_reader(body, base, fragment=False):
         else:
             blocks.insert(0, {'type':'image','id':'cover','url':cover,'alt':'','caption':''})
     authors = tree.xpath('//meta[@name="author"]/@content')
-    return {'version':3, 'blocks':blocks, 'author':plain(authors[0])[:300] if authors else '',
+    return {'version':4, 'blocks':blocks, 'author':plain(authors[0])[:300] if authors else '',
             'origin':'feed' if fragment else 'article'}

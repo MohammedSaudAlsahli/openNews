@@ -1024,3 +1024,156 @@ main {
   border-radius: 10px;
   margin-bottom: 18px;
 }
+
+/* Approved editorial grid: fixed cover ratio, naturally sized text-only cards. */
+.article-grid {
+  align-items: start;
+}
+.article-card footer {
+  margin-top: 22px;
+}
+.cover-frame {
+  aspect-ratio: 16 / 9;
+  margin-bottom: 18px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--surface);
+}
+.article-card .cover-frame .article-image {
+  height: 100%;
+  margin: 0;
+  display: block;
+}
+.cover-frame .image-placeholder {
+  margin: 0;
+}
+.cover-fallback {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.reader-actions {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.model-library {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr);
+  gap: 28px;
+  margin: 24px 0;
+}
+.model-library .source-list > button {
+  text-align: start;
+  width: 100%;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.task-instructions {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.task-instructions .editor {
+  min-height: 260px;
+}
+.source-list > section {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.reader-actions {
+  flex-wrap: wrap;
+}
+progress {
+  width: 100%;
+}
+
+.revision-diff {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    13px/1.6 ui-monospace,
+    monospace;
+}
+:root[dir="rtl"] h1,
+:root[dir="rtl"] h2,
+:root[dir="rtl"] .article-card h3 {
+  font-family: system-ui, sans-serif;
+  letter-spacing: 0;
+}
+:root[dir="rtl"] .prose {
+  line-height: 1.85;
+}
+:root[dir="rtl"] .sidebar {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+
+.conversation-options {
+  max-height: 42vh;
+  overflow: auto;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  margin-bottom: 10px;
+}
+.context-list {
+  max-height: 180px;
+  overflow: auto;
+}
+.context-list label {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  font-size: 13px;
+}
+.attached-articles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+.attached-articles button {
+  font-size: 12px;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+.context-options {
+  font-size: 12px;
+}
+.context-options label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.composer-tools select {
+  max-width: 180px;
+}
+
+.welcome-guide {
+  padding: 28px 36px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.quick-reader { height:100vh; overflow:auto; }
+.quick-reader .page, .quick-reader .reader-content { padding:24px; }
+.quick-reader .article-grid { grid-template-columns:1fr; }
+.quick-reader .page > .eyebrow, .quick-reader .page > .muted { display:none; }
+.quick-reader .page-title h1 { font-size:26px; }
+.quick-reader .reader-content > h1 { font-size:30px; }
+.quick-reader .filters { flex-wrap:wrap; gap:12px; }
+.quick-reader .article-card { min-height:0; }
+.quick-reader .reader-toolbar { top:0; padding:16px 24px; }

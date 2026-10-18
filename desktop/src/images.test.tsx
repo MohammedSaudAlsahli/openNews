@@ -42,3 +42,30 @@ it("requests an image only when it approaches the viewport", async () => {
   unmount();
   expect(disconnect).toHaveBeenCalled();
 });
+it("keeps the cover footprint and displays a fallback after an image failure", async () => {
+  let observed: IntersectionObserverCallback = () => {};
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        observed = callback;
+      }
+      observe = vi.fn();
+      disconnect = vi.fn();
+    },
+  );
+  vi.mocked(invoke).mockRejectedValue(new Error("Image unavailable"));
+  const { container } = render(
+    <ArticleImage article="article" id="cover" cover />,
+  );
+  await act(async () =>
+    observed(
+      [{ isIntersecting: true }] as IntersectionObserverEntry[],
+      {} as IntersectionObserver,
+    ),
+  );
+  expect(screen.getByText("No cover available")).toBeTruthy();
+  expect(container.querySelector(".cover-frame")?.hasAttribute("hidden")).toBe(
+    false,
+  );
+});

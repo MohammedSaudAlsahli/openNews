@@ -1,4 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod credentials;
+mod updates;
 use serde_json::{json, Value};
 use std::{
     io::{BufRead, BufReader, Read, Write},
@@ -8,7 +10,8 @@ use std::{
     sync::Mutex,
     time::{Duration, Instant},
 };
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 
 const MAX_FRAME: usize = 1024 * 1024;
 struct Engine {
@@ -36,6 +39,7 @@ impl Drop for Engine {
 struct Runtime {
     engine: Mutex<Option<Engine>>,
     failure: Mutex<Option<String>>,
+    stopping: std::sync::atomic::AtomicBool,
 }
 fn start(resources: PathBuf, workspace: PathBuf) -> Result<Engine, String> {
     std::fs::create_dir_all(&workspace).map_err(|e| e.to_string())?;
@@ -222,6 +226,268 @@ async fn article_image(
     .await
     .map_err(|e| e.to_string())?
 }
+fn native_status(helper: &std::path::Path) -> Result<Value, String> {
+    let output = Command::new(helper)
+        .arg("device")
+        .output()
+        .map_err(|_| "Device status unavailable")?;
+    if !output.status.success() {
+        return Err("Device status unavailable".into());
+    }
+    serde_json::from_slice(&output.stdout).map_err(|_| "Invalid device status".into())
+}
+fn background(app: tauri::AppHandle, helper: PathBuf, workspace: PathBuf) {
+    std::thread::spawn(move || {
+        let notified = workspace.join("daily-notified.json");
+        let mut next_update = Instant::now();
+        let mut last: String = std::fs::read(&notified)
+            .ok()
+            .and_then(|v| serde_json::from_slice(&v).ok())
+            .unwrap_or_default();
+        while !app
+            .state::<Runtime>()
+            .stopping
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            if Instant::now() >= next_update {
+                tauri::async_runtime::spawn(updates::notify_available(app.clone()));
+                next_update = Instant::now() + Duration::from_secs(6 * 60 * 60);
+            }
+            let socket = app
+                .state::<Runtime>()
+                .engine
+                .lock()
+                .ok()
+                .and_then(|e| e.as_ref().map(|e| e.socket.clone()));
+            if let Some(socket) = socket {
+                if let Ok(device) = native_status(&helper) {
+                    let _ = exchange(socket.clone(), "news.digest.device".into(), device);
+                }
+                if let Ok(status) = exchange(
+                    socket.clone(),
+                    "daily.check".into(),
+                    json!({"consent":true}),
+                ) {
+                    if status["settings"]["enabled"] == true {
+                        if let Some(report) = status["reports"].as_array().and_then(|r| r.first()) {
+                            let day = report["day"].as_str().unwrap_or("");
+                            if report["state"] == "ready" && !day.is_empty() && day != last {
+                                let ar = status["settings"]["language"] == "ar";
+                                if app
+                                    .notification()
+                                    .builder()
+                                    .title(if ar {
+                                        "تقرير أخبارك اليومي جاهز"
+                                    } else {
+                                        "Your daily news report is ready"
+                                    })
+                                    .body(if ar {
+                                        "افتح التقرير اليومي في OpenStudio لقراءته."
+                                    } else {
+                                        "Open Daily report in OpenStudio to read it."
+                                    })
+                                    .show()
+                                    .is_ok()
+                                {
+                                    last = day.to_string();
+                                    if let Ok(mut file) =
+                                        tempfile::NamedTempFile::new_in(&workspace)
+                                    {
+                                        if serde_json::to_writer(&mut file, &last).is_ok()
+                                            && file.as_file().sync_all().is_ok()
+                                        {
+                                            let _ = file.persist(&notified);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // One leased public page at a time; the helper exits within 12 seconds.
+                // Do not compete with inference or run while the device is warm/on low power.
+                if native_status(&helper)
+                    .is_ok_and(|d| d["thermal"] == "nominal" && d["low_power"] == false)
+                {
+                    if let Ok(pending) =
+                        exchange(socket.clone(), "news.reader.pending".into(), json!({}))
+                    {
+                        if let (Some(id), Some(url)) = (
+                            pending["article"]["id"].as_str(),
+                            pending["article"]["url"].as_str(),
+                        ) {
+                            if let Ok(output) = Command::new(helper.with_file_name("public-reader"))
+                                .arg(url)
+                                .output()
+                            {
+                                if output.status.success() && output.stdout.len() <= 1024 * 1024 {
+                                    if let Ok(rendered) =
+                                        serde_json::from_slice::<Value>(&output.stdout)
+                                    {
+                                        if rendered["html"]
+                                            .as_str()
+                                            .is_some_and(|html| !html.is_empty())
+                                        {
+                                            let _ = exchange(
+                                                socket.clone(),
+                                                "news.reader.capture".into(),
+                                                json!({"article_id":id,"html":rendered["html"]}),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            for _ in 0..10 {
+                if app
+                    .state::<Runtime>()
+                    .stopping
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                {
+                    return;
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+        }
+    });
+}
+#[tauri::command]
+async fn device_state(app: tauri::AppHandle) -> Result<Value, String> {
+    let root = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("runtime");
+    let helper = if root.join("system-services").exists() {
+        root.join("system-services")
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/system-services")
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let output = Command::new(helper)
+            .arg("device")
+            .output()
+            .map_err(|_| "Device status unavailable")?;
+        if !output.status.success() {
+            return Err("Device status unavailable".into());
+        }
+        serde_json::from_slice(&output.stdout).map_err(|_| "Invalid device status".into())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn export_draft(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Runtime>,
+    draft_id: String,
+) -> Result<String, String> {
+    let export = engine_call(state, "drafts.export".into(), json!({"draft_id":draft_id})).await?;
+    let directory = app.path().download_dir().map_err(|e| e.to_string())?;
+    let path = directory.join(format!("OpenStudio-{}.md", uuid::Uuid::new_v4()));
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|_| "Could not save export")?;
+    file.write_all(
+        export["text"]
+            .as_str()
+            .ok_or("No export content")?
+            .as_bytes(),
+    )
+    .map_err(|_| "Could not save export")?;
+    file.sync_all().map_err(|_| "Could not save export")?;
+    Ok(path.to_string_lossy().into_owned())
+}
+#[tauri::command]
+async fn transfer_workspace(app: tauri::AppHandle, restore: bool) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<Runtime>();
+        // Hold the lock through replacement so a second import cannot race this one.
+        let mut slot = state.engine.lock().map_err(|_| "Workspace busy")?;
+        let bundled = app
+            .path()
+            .resource_dir()
+            .map_err(|e| e.to_string())?
+            .join("runtime");
+        let resources = if !bundled.join("python/bin/python3.12").exists() && cfg!(debug_assertions)
+        {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime")
+        } else {
+            bundled
+        };
+        let workspace = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("default");
+        let source = app
+            .path()
+            .home_dir()
+            .map_err(|e| e.to_string())?
+            .join("Library/Application Support/com.editorialintelligence.studio/default");
+        drop(slot.take());
+        let result = Command::new(resources.join("python/bin/python3.12"))
+            .args(["-I", "-B"])
+            .arg(resources.join("engine/workspace_transfer.py"))
+            .arg(if restore {
+                std::ffi::OsStr::new("--restore")
+            } else {
+                source.as_os_str()
+            })
+            .arg(&workspace)
+            .output()
+            .map_err(|_| "Could not start workspace transfer".to_string())
+            .and_then(|output| {
+                let result: Value = serde_json::from_slice(&output.stdout)
+                    .map_err(|_| "Invalid transfer response")?;
+                if !output.status.success() {
+                    return Err(result["error"]
+                        .as_str()
+                        .unwrap_or("Transfer failed")
+                        .to_string());
+                }
+                Ok(result)
+            });
+        match start(resources, workspace) {
+            Ok(engine) => *slot = Some(engine),
+            Err(error) => {
+                *state.failure.lock().map_err(|_| "Engine lock failed")? = Some(error.clone());
+                return Err(error);
+            }
+        }
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn save_credentials(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Runtime>,
+    profile_id: String,
+    values: Value,
+) -> Result<(), String> {
+    let snapshot = engine_call(state, "workspace.snapshot".into(), json!({})).await?;
+    if !snapshot["profiles"]
+        .as_array()
+        .is_some_and(|rows| rows.iter().any(|p| p["id"] == profile_id))
+    {
+        return Err("Connection not found".into());
+    }
+    credentials::save(
+        &app.path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("default"),
+        &profile_id,
+        values,
+    )
+}
 #[tauri::command]
 fn open_external(address: String) -> Result<(), String> {
     let url = url::Url::parse(&address).map_err(|_| "Invalid URL")?;
@@ -239,13 +505,93 @@ fn open_external(address: String) -> Result<(), String> {
 }
 fn main() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::Pending::default())
         .manage(Runtime::default())
         .invoke_handler(tauri::generate_handler![
+            updates::check_update,
+            updates::install_update,
             engine_call,
             article_image,
-            open_external
+            open_external,
+            save_credentials,
+            device_state,
+            transfer_workspace,
+            export_draft
         ])
         .setup(|app| {
+            let menu = tauri::menu::Menu::with_items(
+                app,
+                &[
+                    &tauri::menu::MenuItem::with_id(
+                        app,
+                        "open",
+                        "Open OpenStudio",
+                        true,
+                        None::<&str>,
+                    )?,
+                    &tauri::menu::MenuItem::with_id(
+                        app,
+                        "articles",
+                        "Read articles",
+                        true,
+                        None::<&str>,
+                    )?,
+                    &tauri::menu::MenuItem::with_id(
+                        app,
+                        "reports",
+                        "Daily report",
+                        true,
+                        None::<&str>,
+                    )?,
+                    &tauri::menu::MenuItem::with_id(
+                        app,
+                        "quit",
+                        "Quit OpenStudio",
+                        true,
+                        None::<&str>,
+                    )?,
+                ],
+            )?;
+            let mut tray = tauri::tray::TrayIconBuilder::new()
+                .tooltip("OpenStudio")
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    if event.id.as_ref() == "quit" {
+                        app.exit(0);
+                        return;
+                    }
+                    if event.id.as_ref() == "articles" {
+                        let reader = app.get_webview_window("reader").or_else(|| {
+                            tauri::WebviewWindowBuilder::new(
+                                app,
+                                "reader",
+                                tauri::WebviewUrl::App("index.html?reader=1".into()),
+                            )
+                            .title("OpenStudio · Reader")
+                            .inner_size(500.0, 760.0)
+                            .min_inner_size(400.0, 500.0)
+                            .skip_taskbar(true)
+                            .build()
+                            .ok()
+                        });
+                        if let Some(reader) = reader {
+                            let _ = reader.show();
+                            let _ = reader.set_focus();
+                        }
+                        return;
+                    }
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                    let _ = app.emit("navigate", event.id.as_ref());
+                });
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+            tray.build(app)?;
             let handle = app.handle().clone();
             let bundled = app.path().resource_dir()?.join("runtime");
             let resources = if bundled.join("python/bin/python3.12").exists() {
@@ -258,8 +604,12 @@ fn main() {
             let workspace = app.path().app_data_dir()?.join("default");
             tauri::async_runtime::spawn_blocking(move || {
                 let state = handle.state::<Runtime>();
-                match start(resources, workspace) {
-                    Ok(engine) => *state.engine.lock().unwrap() = Some(engine),
+                let helper = resources.join("system-services");
+                match start(resources, workspace.clone()) {
+                    Ok(engine) => {
+                        *state.engine.lock().unwrap() = Some(engine);
+                        background(handle.clone(), helper, workspace);
+                    }
                     Err(error) => *state.failure.lock().unwrap() = Some(error),
                 }
             });
@@ -285,6 +635,10 @@ fn main() {
             }
         }
         tauri::RunEvent::Exit => {
+            handle
+                .state::<Runtime>()
+                .stopping
+                .store(true, std::sync::atomic::Ordering::Relaxed);
             handle.state::<Runtime>().engine.lock().unwrap().take();
         }
         _ => {}

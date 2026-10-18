@@ -59,6 +59,27 @@ class PinnedHTTP(http.client.HTTPConnection):
     def __init__(self, host, port, address, secure):
         super().__init__(host, port, timeout=12)
         self.address, self.secure = address, secure
+    def request(self, method, url, body=None, headers=None, *, encode_chunked=False):
+        import sys
+        if sys.platform == 'darwin' and method == 'GET' and body is None:
+            from .public_transport import start
+            self.public_process = start(self.host, self.port, self.address, self.secure, url, headers or {}, self.timeout)
+            return
+        return super().request(method, url, body, headers or {}, encode_chunked=encode_chunked)
+
+    def getresponse(self):
+        if getattr(self, 'public_process', None):
+            from .public_transport import response
+            return response(self.public_process)
+        return super().getresponse()
+
+    def close(self):
+        process = getattr(self, 'public_process', None)
+        if process and process.poll() is None:
+            process.kill()
+            process.wait()
+        super().close()
+
     def connect(self):
         # Numeric address only: no second DNS lookup can change the destination.
         family = socket.AF_INET6 if ":" in self.address else socket.AF_INET
@@ -92,6 +113,8 @@ def _fetch(url, conditional=None):
         connection.timeout = min(12, remaining)
         # A wall-clock deadline also interrupts slow-drip headers and bodies.
         def expire(connection=connection):
+            process = getattr(connection, "public_process", None)
+            if process and process.poll() is None: process.kill()
             connection_socket = getattr(connection, "sock", None)
             if connection_socket:
                 try: connection_socket.shutdown(socket.SHUT_RDWR)

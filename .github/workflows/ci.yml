@@ -15,6 +15,8 @@ jobs:
         run: bash scripts/test.sh
       - name: Build and smoke-test embedded runtime
         run: bash scripts/build_app.sh
+        env:
+          EIS_APP_OUTPUT_DIR: ${{ runner.temp }}/openstudio-native
       - uses: actions/setup-node@v4
         if: hashFiles('desktop/package-lock.json') != ''
         with:
@@ -27,6 +29,14 @@ jobs:
           npm --prefix desktop ci
           npm --prefix desktop test
           npm --prefix desktop run build
+      - uses: dtolnay/rust-toolchain@stable
+        if: hashFiles('desktop/src-tauri/Cargo.lock') != ''
+      - name: Tauri bridge and bundle
+        if: hashFiles('desktop/src-tauri/Cargo.lock') != ''
+        run: |
+          python3 desktop/scripts/stage-runtime.py "$RUNNER_TEMP/openstudio-native/OpenStudio.app"
+          cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
+          npm --prefix desktop run tauri -- build --bundles app
       - uses: actions/upload-artifact@v4
         with:
           name: development-evidence
