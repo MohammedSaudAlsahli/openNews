@@ -4,6 +4,10 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+ "Open in browser": "فتح في المتصفح الخارجي",
+ "Article view": "عرض المقالة",
+ "Reading": "قراءة",
+ "Original website": "الموقع الأصلي",
   "Hide technical instructions": "إخفاء التعليمات التقنية",
   "Technical instructions": "التعليمات التقنية",
   "Optional. Create a separate assistant only when a task needs its own instructions or model.":

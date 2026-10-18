@@ -1,3 +1,4 @@
+import { ArticleSite } from "./article-site";
 import { ArticleExplanation } from "./article-explanation";
 import { t, getLocale } from "./locale";
 import { useEffect, useState, useRef } from "react";
@@ -114,6 +115,7 @@ export function Articles({
     [more, setMore] = useState(false),
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState<RecordData>(),
+    [siteMode, setSiteMode] = useState(false),
     [reading, setReading] = useState(false),
     [related, setRelated] = useState<RecordData[]>([]),
     [states, setStates] = useState<RecordData>({});
@@ -217,6 +219,7 @@ export function Articles({
   async function open(id: string, refresh = false) {
     const token = ++selection.current;
     setReading(true);
+    setSiteMode(false);
     setRelated([]);
     setHistory([]);
     setRevision(undefined);
@@ -259,7 +262,7 @@ export function Articles({
   }
   if (selected)
     return (
-      <div className="reader" key={selected.id}>
+      <div className={`reader ${siteMode ? "reader-site-mode" : ""}`} key={selected.id}>
         <div className="reader-toolbar">
           <button
             onClick={() => {
@@ -272,6 +275,10 @@ export function Articles({
             <ArrowLeft size={16} />
             {t("Articles")}
           </button>
+          <div className="segments" role="group" aria-label={t("Article view")}>
+            <button aria-pressed={!siteMode} className={!siteMode ? "selected" : ""} onClick={() => setSiteMode(false)}>{t("Reading")}</button>
+            <button aria-pressed={siteMode} className={siteMode ? "selected" : ""} onClick={() => setSiteMode(true)}>{t("Original website")}</button>
+          </div>
           <span />
           {onDiscuss && (
             <button onClick={() => onDiscuss(selected)}>
@@ -279,9 +286,9 @@ export function Articles({
             </button>
           )}
           <button
-            title={t("Read original")}
+            title={t("Open in browser")}
             onClick={() =>
-              void invoke("open_article_site", { address: selected.url }).catch(
+              void invoke("open_external", { address: selected.url }).catch(
                 (e) => onError(String(e)),
               )
             }
@@ -323,7 +330,9 @@ export function Articles({
             />
           </button>
         </div>
+        {siteMode && <ArticleSite key={selected.id} address={selected.url} onError={onError} />}
         <div
+          hidden={siteMode}
           className="reader-content"
           style={{ "--reading-size": `${fontSize}px` } as React.CSSProperties}
         >
@@ -350,11 +359,7 @@ export function Articles({
                 {t("Retry full article")}
               </button>
               <button
-                onClick={() =>
-                  void invoke("open_article_site", { address: selected.url }).catch(
-                    (e) => onError(String(e)),
-                  )
-                }
+                onClick={() => setSiteMode(true)}
               >
                 {t("Read original")}
                 <ArrowUpRight size={15} />

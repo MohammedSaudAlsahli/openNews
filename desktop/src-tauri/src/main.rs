@@ -505,21 +505,31 @@ fn open_external(address: String) -> Result<(), String> {
 }
 // Remote sites have no capability grant and cannot invoke the local engine.
 #[tauri::command]
-async fn open_article_site(app: tauri::AppHandle, address: String) -> Result<(), String> {
+async fn open_article_site(app: tauri::AppHandle, webview: tauri::Webview, address: String, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
     let url = url::Url::parse(&address).map_err(|_| "Invalid article URL")?;
     if !["https", "http"].contains(&url.scheme()) || url.host_str().is_none() || !url.username().is_empty() || url.password().is_some() {
         return Err("Only web article URLs are supported".into());
     }
-    if let Some(window) = app.get_webview_window("article-site") {
-        window.navigate(url).map_err(|e| e.to_string())?;
-        window.show().map_err(|e| e.to_string())?;
-        return window.set_focus().map_err(|e| e.to_string());
+    if ![x,y,width,height].iter().all(|v| v.is_finite() && *v >= 0.0) || width < 1.0 || height < 1.0 { return Err("Invalid browser bounds".into()); }
+    let label = format!("article-site-{}", webview.window().label());
+    let position = tauri::LogicalPosition::new(x, y);
+    let size = tauri::LogicalSize::new(width, height);
+    if let Some(site) = app.get_webview(&label) {
+        site.set_position(position).map_err(|e| e.to_string())?;
+        site.set_size(size).map_err(|e| e.to_string())?;
+        return Ok(());
     }
-    tauri::WebviewWindowBuilder::new(&app, "article-site", tauri::WebviewUrl::External(url))
-        .title("OpenStudio — Original article")
-        .inner_size(1100.0, 800.0)
-        .on_navigation(|url| ["http", "https"].contains(&url.scheme()))
-        .build().map_err(|e| e.to_string())?;
+    webview.window().add_child(
+        tauri::webview::WebviewBuilder::new(label, tauri::WebviewUrl::External(url))
+            .on_navigation(|url| ["http", "https"].contains(&url.scheme())),
+        position, size,
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+#[tauri::command]
+async fn close_article_site(app: tauri::AppHandle, webview: tauri::Webview) -> Result<(), String> {
+    let label = format!("article-site-{}", webview.window().label());
+    if let Some(site) = app.get_webview(&label) { site.close().map_err(|e| e.to_string())?; }
     Ok(())
 }
 #[tauri::command]
@@ -552,6 +562,7 @@ fn main() {
             article_image,
             open_external,
             open_article_site,
+            close_article_site,
             recover_article,
             save_credentials,
             device_state,
