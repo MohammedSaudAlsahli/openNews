@@ -28,7 +28,13 @@ struct ArticlesWorkspace: View {
     private var filters: String { "\(query)|\(sourceID)|\(scope)|\(days)|\(order)" }
     private var summaryRefreshKey: String {
         let digest = model.digestStatus
-        return [articles.map { $0.id + ":" + $0.bodyStatus }.joined(separator: "|"), String(digest?.prepared ?? 0), digest?.currentId ?? "", digest?.localModel ?? "", digest?.engine ?? "", digest?.language ?? ""].joined(separator: "|")
+        let articleKeys: [String] = articles.map { article in
+            "\(article.id):\(article.bodyStatus)"
+        }
+        let parts: [String] = [articleKeys.joined(separator: "|"), String(digest?.prepared ?? 0),
+                               digest?.currentId ?? "", digest?.localModel ?? "",
+                               digest?.engine ?? "", digest?.language ?? ""]
+        return parts.joined(separator: "|")
     }
     var body: some View {
         ZStack {
@@ -72,15 +78,7 @@ struct ArticlesWorkspace: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .editorialArticleContentChanged)) { notification in
                 guard let id = notification.object as? String else { return }
-                Task {
-                    if let updated = try? await model.decoded("news.preview", ["article_id": id], as: NewsArticle.self),
-                       let index = articles.firstIndex(where: { $0.id == id }) {
-                        articles[index] = updated
-                    }
-                    if let result = try? await model.decoded("news.summary.states", ["ids": [id]], as: ArticleSummaryStates.self) {
-                        summaryStates.merge(result.states) { _, new in new }
-                    }
-                }
+                Task { await refreshArticleContent(id) }
             }
             .onReceive(NotificationCenter.default.publisher(for: .editorialBookmarksChanged)) { notification in
                 guard let id = (notification.object as? String) ?? selected?.id else { return }
@@ -92,6 +90,15 @@ struct ArticlesWorkspace: View {
                     }
                 }
             }
+    }
+    private func refreshArticleContent(_ id: String) async {
+        if let updated = try? await model.decoded("news.preview", ["article_id": id], as: NewsArticle.self),
+           let index = articles.firstIndex(where: { $0.id == id }) {
+            articles[index] = updated
+        }
+        if let result = try? await model.decoded("news.summary.states", ["ids": [id]], as: ArticleSummaryStates.self) {
+            summaryStates.merge(result.states) { _, new in new }
+        }
     }
     private var library: some View {
         VStack(spacing: 0) {
