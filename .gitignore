@@ -28,3 +28,5 @@ desktop/node_modules/
 desktop/src-tauri/target/
 desktop/src-tauri/runtime/
 desktop/src-tauri/gen/
+
+desktop/*.tsbuildinfo
