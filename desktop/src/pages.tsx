@@ -14,7 +14,7 @@ import {
 import { call, articleExcerpt, type RecordData } from "./engine";
 import { Markdown } from "./components";
 import { invoke } from "@tauri-apps/api/core";
-function Image({ article, id }: { article: string; id: string }) {
+export function ArticleImage({ article, id }: { article: string; id: string }) {
   const [src, setSrc] = useState("");
   const [failed, setFailed] = useState(false);
   const placeholder = useRef<HTMLDivElement>(null);
@@ -43,11 +43,14 @@ function Image({ article, id }: { article: string; id: string }) {
       observer.disconnect();
     };
   }, [article, id]);
-  if (failed) return null;
-  return src ? (
-    <img className="article-image" src={src} alt="" loading="lazy" />
-  ) : (
-    <div ref={placeholder} className="image-placeholder" aria-hidden="true" />
+  return (
+    <div ref={placeholder} hidden={failed}>
+      {src ? (
+        <img className="article-image" src={src} alt="" loading="lazy" />
+      ) : (
+        <div className="image-placeholder" aria-hidden="true" />
+      )}
+    </div>
   );
 }
 
@@ -193,7 +196,7 @@ export function Articles({ onError }: Props) {
           {selected.reader?.blocks?.length ? (
             selected.reader.blocks.map((b: RecordData, i: number) =>
               b.type === "image" ? (
-                <Image key={i} article={selected.id} id={b.id} />
+                <ArticleImage key={i} article={selected.id} id={b.id} />
               ) : (
                 <Markdown key={i} text={b.text || ""} />
               ),
@@ -287,7 +290,7 @@ export function Articles({ onError }: Props) {
           {articles.map((a) => (
             <article className="article-card" key={a.id}>
               {a.cover_image_id && (
-                <Image article={a.id} id={a.cover_image_id} />
+                <ArticleImage article={a.id} id={a.cover_image_id} />
               )}
               <p className="eyebrow">{a.source_title}</p>
               <button

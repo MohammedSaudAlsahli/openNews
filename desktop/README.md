@@ -35,8 +35,8 @@ to the installed native application or its data.
 
 ## Verified
 
-Four React tests cover live activity updates, auto collapse/reopen, language isolation,
-RTL/inert HTML and aggregator excerpts. Two Rust tests run the real embedded engine,
+Five React tests cover live activity updates, auto collapse/reopen, language isolation,
+RTL/inert HTML, aggregator excerpts and viewport-triggered image loading. Two Rust tests run the real embedded engine,
 checking persistence across restart, validation and instruction defaults. Manual UI
 checks covered dark/light settings, visible instructions, subscribing to Hacker News,
 and reading a fetched article. Optimized app builds successfully.
