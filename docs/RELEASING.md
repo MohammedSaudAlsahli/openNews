@@ -7,8 +7,10 @@ run tests, review all changes, commit, push main, and verify GitHub CI is green.
 Then run on the release Mac:
 
 ```sh
-python3 scripts/publish_release.py
+uv run --project engine python scripts/publish_release.py
 ```
+
+Use the project Python (3.12+) rather than macOS system Python, which may be older.
 
 This re-tests, builds, signs the update archive using the existing Sparkle key in
 login Keychain, creates an immutable annotated tag, uploads a draft GitHub prerelease,
