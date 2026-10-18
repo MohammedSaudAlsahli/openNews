@@ -16,20 +16,39 @@ import { Markdown } from "./components";
 import { invoke } from "@tauri-apps/api/core";
 function Image({ article, id }: { article: string; id: string }) {
   const [src, setSrc] = useState("");
+  const [failed, setFailed] = useState(false);
+  const placeholder = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let live = true;
-    invoke<string>("article_image", { articleId: article, imageId: id })
-      .then((x) => {
-        if (live) setSrc(x);
-      })
-      .catch(() => {});
+    setSrc("");
+    setFailed(false);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        // The engine keeps the disk cache; only visible images enter webview memory.
+        invoke<string>("article_image", { articleId: article, imageId: id })
+          .then((value) => {
+            if (live) setSrc(value);
+          })
+          .catch(() => {
+            if (live) setFailed(true);
+          });
+      },
+      { rootMargin: "300px" },
+    );
+    if (placeholder.current) observer.observe(placeholder.current);
     return () => {
       live = false;
+      observer.disconnect();
     };
   }, [article, id]);
+  if (failed) return null;
   return src ? (
     <img className="article-image" src={src} alt="" loading="lazy" />
-  ) : null;
+  ) : (
+    <div ref={placeholder} className="image-placeholder" aria-hidden="true" />
+  );
 }
 
 type Props = { onError: (e: string) => void };
