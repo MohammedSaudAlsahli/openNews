@@ -28,18 +28,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app"
-    ],
+    "targets": ["app"],
     "resources": {
       "runtime/": "runtime/"
     },
     "macOS": {
       "minimumSystemVersion": "14.0"
     },
-    "icon": [
-      "icons/icon.png",
-      "icons/icon.icns"
-    ]
+    "icon": ["icons/icon.png", "icons/icon.icns"]
   }
 }

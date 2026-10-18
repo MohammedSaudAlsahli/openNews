@@ -1,32 +1,626 @@
-import React, { useEffect, useState, useCallback, useRef, lazy, Suspense } from 'react';
-import { createRoot } from 'react-dom/client';
-import { ArrowUp, Plus, Search, PanelLeftClose, PanelLeftOpen, MessageSquare, Newspaper, Compass, FileText, Settings as SettingsIcon, Activity, Circle, Check, Square, ChevronDown, ChevronLeft, BookOpen, LoaderCircle } from 'lucide-react';
-import {Markdown,Trace} from './components';
-import { call, active, duration, language, type RecordData } from './engine';
-import './style.css';
-import { invoke } from '@tauri-apps/api/core';
-const Articles = lazy(() => import('./pages').then(x=>({default:x.Articles})));
-const Sources = lazy(() => import('./pages').then(x=>({default:x.Sources})));
-const Settings = lazy(() => import('./settings'));
-const Drafts = lazy(() => import('./pages').then(x=>({default:x.Drafts})));
-function App(){
- const [page,setPage]=useState('chat'),[sidebar,setSidebar]=useState(true),[ready,setReady]=useState(false),[error,setError]=useState('');
- const [snapshot,setSnapshot]=useState<RecordData>({}),[chats,setChats]=useState<RecordData[]>([]),[selected,setSelected]=useState(''),[detail,setDetail]=useState<RecordData>(),[progress,setProgress]=useState<Record<string,RecordData>>({});
- const [drafts,setDrafts]=useState<Record<string,string>>({}),[profile,setProfile]=useState(''),[model,setModel]=useState(''),[search,setSearch]=useState(''),[sending,setSending]=useState(false),[consent,setConsent]=useState(localStorage.getItem('model-consent')==='true');
- const [theme,setTheme]=useState(localStorage.getItem('theme')||'light');
- useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('theme',theme)},[theme]);
- const refresh=useCallback(async()=>{const [s,c]=await Promise.all([call('workspace.snapshot'),call('chat.list')]);setSnapshot(s);setChats(c.conversations||[])},[]);
- useEffect(()=>{let alive=true;let timer:ReturnType<typeof setTimeout>; const boot=async()=>{try{await call('runtime.health');if(!alive)return;setReady(true);setError('');await refresh()}catch(e){if(alive){setError(String(e));timer=setTimeout(boot,1500)}}};void boot();return()=>{alive=false;clearTimeout(timer)}},[refresh]);
- useEffect(()=>{if(!ready)return;let busy=false;const timer=setInterval(async()=>{if(busy)return;busy=true;try{await refresh();const running=chats.filter(c=>c.active_job_id);await Promise.all(running.map(async c=>{const p=await call('chat.progress',{job_id:c.active_job_id});setProgress(old=>({...old,[c.id]:p}))}))}catch(e){setError(String(e))}finally{busy=false}},chats.some(c=>c.active_job_id)?1200:10000);return()=>clearInterval(timer)},[ready,refresh,chats.map(c=>c.active_job_id).join()]);
- const selectionRef=useRef(selected);selectionRef.current=selected;
- const running=chats.find(c=>c.id===selected)?.active_job_id;
- useEffect(()=>{if(!selected){setDetail(undefined);return}let live=true;call('chat.detail',{conversation_id:selected}).then(d=>{if(live)setDetail(d)}).catch(e=>setError(String(e)));return()=>{live=false}},[selected,running]);
- useEffect(()=>{if(!profile&&snapshot.profiles?.length){const p=snapshot.profiles[0];setProfile(p.id);setModel(p.model_id)}},[snapshot,profile]);
- async function send(){const key=selected||'new',text=drafts[key]?.trim();if(!text||sending||running)return;if(!profile||!model){setPage('settings');setError('Connect a model in Settings before sending.');return}if(!consent){setError('Enable model access below. Your message and selected context will be sent to your chosen provider.');return}setSending(true);setError('');try{let id=selected;if(!id){id=(await call('chat.create',{title:text.slice(0,80)})).conversation_id;selectionRef.current=id;setSelected(id)}const result=await call('chat.send',{conversation_id:id,message:text,profile_id:profile,model_id:model,consent:true,idempotency_key:crypto.randomUUID(),format:'auto'});setDrafts(d=>({...d,[key]:''}));setProgress(p=>({...p,[id]:{job_id:result.job_id,state:'queued'}}));await refresh();const updated=await call('chat.detail',{conversation_id:id});if(selectionRef.current===id)setDetail(updated)}catch(e){setError(String(e))}finally{setSending(false)}}
- function choose(id:string){selectionRef.current=id;setSelected(id);setPage('chat');setDetail(undefined)}
- useEffect(()=>{const shortcut=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='n'){event.preventDefault();choose('')}};window.addEventListener('keydown',shortcut);return()=>window.removeEventListener('keydown',shortcut)},[]);
- const message=drafts[selected||'new']||'';
- const profiles=snapshot.profiles||[];
- return <div className={`app ${sidebar?'':'collapsed'}`}><aside className="sidebar"><div className="brand"><span className="brand-mark">◒</span><strong>OpenStudio</strong><button title="Hide sidebar" onClick={()=>setSidebar(false)}><PanelLeftClose size={17}/></button></div><button className="new-chat" onClick={()=>choose('')}><Plus size={17}/>New conversation<span>⌘ N</span></button><nav>{[[Newspaper,'articles','Articles'],[Compass,'sources','Sources'],[FileText,'drafts','Saved drafts']].map(([Icon,id,label])=>{const I=Icon as typeof Newspaper;return <button key={id as string} className={page===id?'selected':''} onClick={()=>setPage(id as string)}><I size={17}/>{label as string}</button>})}</nav><div className="chat-heading">Conversations</div><label className="sidebar-search"><Search size={14}/><input placeholder="Search conversations" value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="chat-list">{chats.filter(c=>c.title.toLowerCase().includes(search.toLowerCase())).map(c=><button className={selected===c.id&&page==='chat'?'selected':''} key={c.id} onClick={()=>choose(c.id)}><span dir="auto">{c.title}</span>{c.active_job_id&&<LoaderCircle size={13} className="spin"/>}</button>)}</div><div className="sidebar-bottom"><button onClick={()=>setPage('activity')}><Activity size={16}/>Background activity<span className="count">{(snapshot.jobs||[]).filter((j:RecordData)=>active(j.state)).length}</span></button><button className={page==='settings'?'selected':''} onClick={()=>setPage('settings')}><SettingsIcon size={16}/>Settings</button><div className="preview-note"><Circle size={7} fill="currentColor"/>Tauri preview · Separate workspace</div></div></aside><main><header className="topbar">{!sidebar&&<button title="Show sidebar" onClick={()=>setSidebar(true)}><PanelLeftOpen size={18}/></button>}<span>{page==='chat'?(detail?.title||'New conversation'):({articles:'Your reading room',sources:'Sources',drafts:'Saved drafts',settings:'Settings',activity:'Background activity'}[page])}</span><span className="connection"><i className={ready?'online':''}/>{ready?'Saved on this Mac':'Starting engine…'}</span></header>{error&&<div className="error" role="alert">{error}<button onClick={()=>setError('')}>Dismiss</button></div>}<Suspense fallback={<div className="loading"><LoaderCircle className="spin"/>Opening…</div>}>{page==='chat'?<div className="chat"><div className="messages">{!selected?<div className="welcome"><div className="welcome-symbol">◒</div><p className="eyebrow">YOUR SPACE TO THINK & CREATE</p><h1>Good stories start<br/>with a little curiosity.</h1><p>Explore your news. Connect the dots. Make it your own.</p><div className="suggestions">{["What’s happening in AI today?","Explain a story from my sources","Turn an idea into a post"].map(t=><button key={t} onClick={()=>setDrafts(d=>({...d,new:t}))}>{t}<span>↗</span></button>)}</div></div>:<div className="transcript">{detail?.has_more&&<button onClick={async()=>{try{const older=await call('chat.detail',{conversation_id:selected,before_message_id:detail.next_before_message_id});setDetail({...older,messages:[...older.messages,...detail.messages]})}catch(e){setError(String(e))}}}>Load earlier messages</button>}{detail?.messages?.map((m:RecordData)=><article key={m.id} className={'message '+m.role}>{m.activity&&<Trace data={m.activity}/>}<Markdown text={m.content}/>{m.citations?.length>0&&<details className="citations"><summary>Sources · {m.citations.length}</summary>{m.citations.map((c:RecordData)=><p key={c.id||c.url}>{c.title}<small>{c.url}</small></p>)}</details>}{m.outputs?.map((o:RecordData,i:number)=><div className="draft-artifact" key={i}><span>{o.format?.replaceAll('_',' ')}</span><Markdown text={o.text||''}/><button onClick={()=>navigator.clipboard.writeText(o.text||'')}>Copy draft</button></div>)}</article>)}{running&&<article className="message assistant"><Trace data={progress[selected]||{}} running/><Markdown text={progress[selected]?.message||''}/></article>}</div>}</div><div className="composer-wrap"><div className="composer"><textarea aria-label="Message" rows={2} placeholder="Ask a question, explore an idea…" value={message} dir="auto" onChange={e=>setDrafts(d=>({...d,[selected||'new']:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send()}}}/>{message.startsWith('/')&&<div className="slash-menu">{['research','summarize','x','linkedin','youtube','rewrite','plan'].filter(x=>x.startsWith(message.slice(1))).map(x=><button key={x} onClick={()=>setDrafts(d=>({...d,[selected||'new']:'/'+x+' '}))}>/{x}</button>)}</div>}<div className="composer-tools"><select aria-label="Model connection" value={profile} onChange={e=>{setProfile(e.target.value);setModel(profiles.find((p:RecordData)=>p.id===e.target.value)?.model_id||'')}}><option value="">Select a model</option>{profiles.map((p:RecordData)=><option key={p.id} value={p.id}>{p.label||p.model_id||p.provider_key}</option>)}</select><span className="mode-label">Auto</span><button className="send" title={running?'Stop response':'Send message'} disabled={!running&&(!message.trim()||sending||!ready)} onClick={()=>{if(running)void call('jobs.cancel',{job_id:running}).then(refresh).catch(e=>setError(String(e)));else void send()}}>{running?<Square size={16}/>:<ArrowUp size={18}/>}</button></div></div><div className="composer-hint">{!consent?<label><input type="checkbox" checked={consent} onChange={e=>{setConsent(e.target.checked);localStorage.setItem('model-consent',String(e.target.checked))}}/>Allow sending messages and context to my selected model.</label>:running?'You can switch conversations. Your response will keep running.':'Your ideas stay here. Review sources before publishing.'}</div></div></div>:page==='articles'?<Articles onError={setError}/>:page==='sources'?<Sources snapshot={snapshot} refresh={refresh} onError={setError}/>:page==='drafts'?<Drafts snapshot={snapshot} onError={setError}/>:page==='settings'?<Settings snapshot={snapshot} refresh={refresh} theme={theme} setTheme={setTheme} onError={setError}/>:<div className="page"><p className="eyebrow">HAPPENING IN YOUR WORKSPACE</p><h1>Background activity</h1><p className="muted">Work continues as you move between conversations and articles.</p><div className="activity-list">{(snapshot.jobs||[]).length===0?<div className="empty"><Check/><h3>All quiet for now</h3><p>Searches, reading and responses will appear here.</p></div>:(snapshot.jobs||[]).map((j:RecordData)=><div key={j.id}><Activity size={17}/><span>{j.type}<small>{j.error_code||j.updated_at}</small></span><span className={'status '+j.state}>{j.state}</span>{active(j.state)&&<button onClick={()=>void call('jobs.cancel',{job_id:j.id}).then(refresh)}>Stop</button>}</div>)}</div></div>}</Suspense></main></div>
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  lazy,
+  Suspense,
+} from "react";
+import { createRoot } from "react-dom/client";
+import {
+  ArrowUp,
+  Plus,
+  Search,
+  PanelLeftClose,
+  PanelLeftOpen,
+  MessageSquare,
+  Newspaper,
+  Compass,
+  FileText,
+  Settings as SettingsIcon,
+  Activity,
+  Circle,
+  Check,
+  Square,
+  ChevronDown,
+  ChevronLeft,
+  BookOpen,
+  LoaderCircle,
+} from "lucide-react";
+import { Markdown, Trace } from "./components";
+import { call, active, duration, language, type RecordData } from "./engine";
+import "./style.css";
+import { invoke } from "@tauri-apps/api/core";
+const Articles = lazy(() =>
+  import("./pages").then((x) => ({ default: x.Articles })),
+);
+const Sources = lazy(() =>
+  import("./pages").then((x) => ({ default: x.Sources })),
+);
+const Settings = lazy(() => import("./settings"));
+const Drafts = lazy(() =>
+  import("./pages").then((x) => ({ default: x.Drafts })),
+);
+function App() {
+  const [page, setPage] = useState("chat"),
+    [sidebar, setSidebar] = useState(true),
+    [ready, setReady] = useState(false),
+    [error, setError] = useState("");
+  const [snapshot, setSnapshot] = useState<RecordData>({}),
+    [chats, setChats] = useState<RecordData[]>([]),
+    [selected, setSelected] = useState(""),
+    [detail, setDetail] = useState<RecordData>(),
+    [progress, setProgress] = useState<Record<string, RecordData>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({}),
+    [profile, setProfile] = useState(""),
+    [model, setModel] = useState(""),
+    [search, setSearch] = useState(""),
+    [sending, setSending] = useState(false),
+    [consent, setConsent] = useState(
+      localStorage.getItem("model-consent") === "true",
+    );
+  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+  const refresh = useCallback(async () => {
+    const [s, c] = await Promise.all([
+      call("workspace.snapshot"),
+      call("chat.list"),
+    ]);
+    setSnapshot(s);
+    setChats(c.conversations || []);
+  }, []);
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const boot = async () => {
+      try {
+        await call("runtime.health");
+        if (!alive) return;
+        setReady(true);
+        setError("");
+        await refresh();
+      } catch (e) {
+        if (alive) {
+          setError(String(e));
+          timer = setTimeout(boot, 1500);
+        }
+      }
+    };
+    void boot();
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [refresh]);
+  useEffect(() => {
+    if (!ready) return;
+    let busy = false;
+    const timer = setInterval(
+      async () => {
+        if (busy) return;
+        busy = true;
+        try {
+          await refresh();
+          const running = chats.filter((c) => c.active_job_id);
+          await Promise.all(
+            running.map(async (c) => {
+              const p = await call("chat.progress", {
+                job_id: c.active_job_id,
+              });
+              setProgress((old) => ({ ...old, [c.id]: p }));
+            }),
+          );
+        } catch (e) {
+          setError(String(e));
+        } finally {
+          busy = false;
+        }
+      },
+      chats.some((c) => c.active_job_id) ? 1200 : 10000,
+    );
+    return () => clearInterval(timer);
+  }, [ready, refresh, chats.map((c) => c.active_job_id).join()]);
+  const navigationVersion = useRef(0);
+  const transcript = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  const selectionRef = useRef(selected);
+  selectionRef.current = selected;
+  const running = chats.find((c) => c.id === selected)?.active_job_id;
+  useEffect(() => {
+    if (!selected) {
+      setDetail(undefined);
+      return;
+    }
+    let live = true;
+    call("chat.detail", { conversation_id: selected })
+      .then((d) => {
+        if (live) setDetail(d);
+      })
+      .catch((e) => setError(String(e)));
+    return () => {
+      live = false;
+    };
+  }, [selected, running]);
+  useEffect(() => {
+    if (!profile && snapshot.profiles?.length) {
+      const p = snapshot.profiles[0];
+      setProfile(p.id);
+      setModel(p.model_id);
+    }
+  }, [snapshot, profile]);
+  async function send() {
+    const key = selected || "new",
+      text = drafts[key]?.trim();
+    if (!text || sending || running) return;
+    if (!profile || !model) {
+      setPage("settings");
+      setError("Connect a model in Settings before sending.");
+      return;
+    }
+    if (!consent) {
+      setError(
+        "Enable model access below. Your message and selected context will be sent to your chosen provider.",
+      );
+      return;
+    }
+    const startedAtNavigation = navigationVersion.current;
+    setSending(true);
+    setError("");
+    try {
+      let id = selected;
+      if (!id) {
+        id = (await call("chat.create", { title: text.slice(0, 80) }))
+          .conversation_id;
+        if (navigationVersion.current === startedAtNavigation) {
+          selectionRef.current = id;
+          setSelected(id);
+        }
+      }
+      const result = await call("chat.send", {
+        conversation_id: id,
+        message: text,
+        profile_id: profile,
+        model_id: model,
+        consent: true,
+        idempotency_key: crypto.randomUUID(),
+        format: "auto",
+      });
+      setDrafts((d) => ({ ...d, [key]: "" }));
+      setProgress((p) => ({
+        ...p,
+        [id]: { job_id: result.job_id, state: "queued" },
+      }));
+      await refresh();
+      const updated = await call("chat.detail", { conversation_id: id });
+      if (selectionRef.current === id) setDetail(updated);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSending(false);
+    }
+  }
+  function choose(id: string) {
+    navigationVersion.current += 1;
+    followLatest.current = true;
+    selectionRef.current = id;
+    setSelected(id);
+    setPage("chat");
+    setDetail(undefined);
+  }
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        choose("");
+      }
+    };
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  }, []);
+  useEffect(() => {
+    if (followLatest.current && transcript.current) {
+      transcript.current.scrollTop = transcript.current.scrollHeight;
+    }
+  }, [selected, detail, progress, page]);
+  const message = drafts[selected || "new"] || "";
+  const profiles = snapshot.profiles || [];
+  return (
+    <div className={`app ${sidebar ? "" : "collapsed"}`}>
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark">◒</span>
+          <strong>OpenStudio</strong>
+          <button title="Hide sidebar" onClick={() => setSidebar(false)}>
+            <PanelLeftClose size={17} />
+          </button>
+        </div>
+        <button className="new-chat" onClick={() => choose("")}>
+          <Plus size={17} />
+          New conversation<span>⌘ N</span>
+        </button>
+        <nav>
+          {[
+            [Newspaper, "articles", "Articles"],
+            [Compass, "sources", "Sources"],
+            [FileText, "drafts", "Saved drafts"],
+          ].map(([Icon, id, label]) => {
+            const I = Icon as typeof Newspaper;
+            return (
+              <button
+                key={id as string}
+                className={page === id ? "selected" : ""}
+                onClick={() => setPage(id as string)}
+              >
+                <I size={17} />
+                {label as string}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="chat-heading">Conversations</div>
+        <label className="sidebar-search">
+          <Search size={14} />
+          <input
+            placeholder="Search conversations"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <div className="chat-list">
+          {chats
+            .filter((c) => c.title.toLowerCase().includes(search.toLowerCase()))
+            .map((c) => (
+              <button
+                className={
+                  selected === c.id && page === "chat" ? "selected" : ""
+                }
+                key={c.id}
+                onClick={() => choose(c.id)}
+              >
+                <span dir="auto">{c.title}</span>
+                {c.active_job_id && <LoaderCircle size={13} className="spin" />}
+              </button>
+            ))}
+        </div>
+        <div className="sidebar-bottom">
+          <button onClick={() => setPage("activity")}>
+            <Activity size={16} />
+            Background activity
+            <span className="count">
+              {
+                (snapshot.jobs || []).filter((j: RecordData) => active(j.state))
+                  .length
+              }
+            </span>
+          </button>
+          <button
+            className={page === "settings" ? "selected" : ""}
+            onClick={() => setPage("settings")}
+          >
+            <SettingsIcon size={16} />
+            Settings
+          </button>
+          <div className="preview-note">
+            <Circle size={7} fill="currentColor" />
+            Tauri preview · Separate workspace
+          </div>
+        </div>
+      </aside>
+      <main>
+        <header className="topbar">
+          {!sidebar && (
+            <button title="Show sidebar" onClick={() => setSidebar(true)}>
+              <PanelLeftOpen size={18} />
+            </button>
+          )}
+          <span>
+            {page === "chat"
+              ? detail?.title || "New conversation"
+              : {
+                  articles: "Your reading room",
+                  sources: "Sources",
+                  drafts: "Saved drafts",
+                  settings: "Settings",
+                  activity: "Background activity",
+                }[page]}
+          </span>
+          <span className="connection">
+            <i className={ready ? "online" : ""} />
+            {ready ? "Saved on this Mac" : "Starting engine…"}
+          </span>
+        </header>
+        {error && (
+          <div className="error" role="alert">
+            {error}
+            <button onClick={() => setError("")}>Dismiss</button>
+          </div>
+        )}
+        <Suspense
+          fallback={
+            <div className="loading">
+              <LoaderCircle className="spin" />
+              Opening…
+            </div>
+          }
+        >
+          {page === "chat" ? (
+            <div className="chat">
+              <div
+                className="messages"
+                ref={transcript}
+                onScroll={(event) => {
+                  const element = event.currentTarget;
+                  followLatest.current =
+                    element.scrollHeight -
+                      element.scrollTop -
+                      element.clientHeight <
+                    100;
+                }}
+              >
+                {!selected ? (
+                  <div className="welcome">
+                    <div className="welcome-symbol">◒</div>
+                    <p className="eyebrow">YOUR SPACE TO THINK & CREATE</p>
+                    <h1>
+                      Good stories start
+                      <br />
+                      with a little curiosity.
+                    </h1>
+                    <p>
+                      Explore your news. Connect the dots. Make it your own.
+                    </p>
+                    <div className="suggestions">
+                      {[
+                        "What’s happening in AI today?",
+                        "Explain a story from my sources",
+                        "Turn an idea into a post",
+                      ].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setDrafts((d) => ({ ...d, new: t }))}
+                        >
+                          {t}
+                          <span>↗</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="transcript">
+                    {detail?.has_more && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const older = await call("chat.detail", {
+                              conversation_id: selected,
+                              before_message_id: detail.next_before_message_id,
+                            });
+                            setDetail({
+                              ...older,
+                              messages: [...older.messages, ...detail.messages],
+                            });
+                          } catch (e) {
+                            setError(String(e));
+                          }
+                        }}
+                      >
+                        Load earlier messages
+                      </button>
+                    )}
+                    {detail?.messages?.map((m: RecordData) => (
+                      <article key={m.id} className={"message " + m.role}>
+                        {m.activity && <Trace data={m.activity} />}
+                        <Markdown text={m.content} />
+                        {m.citations?.length > 0 && (
+                          <details className="citations">
+                            <summary>Sources · {m.citations.length}</summary>
+                            {m.citations.map((c: RecordData) => (
+                              <p key={c.id || c.url}>
+                                {c.title}
+                                <small>{c.url}</small>
+                              </p>
+                            ))}
+                          </details>
+                        )}
+                        {m.outputs?.map((o: RecordData, i: number) => (
+                          <div className="draft-artifact" key={i}>
+                            <span>{o.format?.replaceAll("_", " ")}</span>
+                            <Markdown text={o.text || ""} />
+                            <button
+                              onClick={() =>
+                                navigator.clipboard.writeText(o.text || "")
+                              }
+                            >
+                              Copy draft
+                            </button>
+                          </div>
+                        ))}
+                      </article>
+                    ))}
+                    {running && (
+                      <article className="message assistant">
+                        <Trace data={progress[selected] || {}} running />
+                        <Markdown text={progress[selected]?.message || ""} />
+                      </article>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="composer-wrap">
+                <div className="composer">
+                  <textarea
+                    aria-label="Message"
+                    rows={2}
+                    placeholder="Ask a question, explore an idea…"
+                    value={message}
+                    dir="auto"
+                    onChange={(e) =>
+                      setDrafts((d) => ({
+                        ...d,
+                        [selected || "new"]: e.target.value,
+                      }))
+                    }
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        !e.shiftKey &&
+                        !e.nativeEvent.isComposing
+                      ) {
+                        e.preventDefault();
+                        void send();
+                      }
+                    }}
+                  />
+                  {message.startsWith("/") && (
+                    <div className="slash-menu">
+                      {[
+                        "research",
+                        "summarize",
+                        "x",
+                        "linkedin",
+                        "youtube",
+                        "rewrite",
+                        "plan",
+                      ]
+                        .filter((x) => x.startsWith(message.slice(1)))
+                        .map((x) => (
+                          <button
+                            key={x}
+                            onClick={() =>
+                              setDrafts((d) => ({
+                                ...d,
+                                [selected || "new"]: "/" + x + " ",
+                              }))
+                            }
+                          >
+                            /{x}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                  <div className="composer-tools">
+                    <select
+                      aria-label="Model connection"
+                      value={profile}
+                      onChange={(e) => {
+                        setProfile(e.target.value);
+                        setModel(
+                          profiles.find(
+                            (p: RecordData) => p.id === e.target.value,
+                          )?.model_id || "",
+                        );
+                      }}
+                    >
+                      <option value="">Select a model</option>
+                      {profiles.map((p: RecordData) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label || p.model_id || p.provider_key}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mode-label">Auto</span>
+                    <button
+                      className="send"
+                      title={running ? "Stop response" : "Send message"}
+                      disabled={
+                        !running && (!message.trim() || sending || !ready)
+                      }
+                      onClick={() => {
+                        if (running)
+                          void call("jobs.cancel", { job_id: running })
+                            .then(refresh)
+                            .catch((e) => setError(String(e)));
+                        else void send();
+                      }}
+                    >
+                      {running ? <Square size={16} /> : <ArrowUp size={18} />}
+                    </button>
+                  </div>
+                </div>
+                <div className="composer-hint">
+                  {!consent ? (
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={consent}
+                        onChange={(e) => {
+                          setConsent(e.target.checked);
+                          localStorage.setItem(
+                            "model-consent",
+                            String(e.target.checked),
+                          );
+                        }}
+                      />
+                      Allow sending messages and context to my selected model.
+                    </label>
+                  ) : running ? (
+                    "You can switch conversations. Your response will keep running."
+                  ) : (
+                    "Your ideas stay here. Review sources before publishing."
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : page === "articles" ? (
+            <Articles onError={setError} />
+          ) : page === "sources" ? (
+            <Sources snapshot={snapshot} refresh={refresh} onError={setError} />
+          ) : page === "drafts" ? (
+            <Drafts snapshot={snapshot} onError={setError} />
+          ) : page === "settings" ? (
+            <Settings
+              snapshot={snapshot}
+              refresh={refresh}
+              theme={theme}
+              setTheme={setTheme}
+              onError={setError}
+            />
+          ) : (
+            <div className="page">
+              <p className="eyebrow">HAPPENING IN YOUR WORKSPACE</p>
+              <h1>Background activity</h1>
+              <p className="muted">
+                Work continues as you move between conversations and articles.
+              </p>
+              <div className="activity-list">
+                {(snapshot.jobs || []).length === 0 ? (
+                  <div className="empty">
+                    <Check />
+                    <h3>All quiet for now</h3>
+                    <p>Searches, reading and responses will appear here.</p>
+                  </div>
+                ) : (
+                  (snapshot.jobs || []).map((j: RecordData) => (
+                    <div key={j.id}>
+                      <Activity size={17} />
+                      <span>
+                        {j.type}
+                        <small>{j.error_code || j.updated_at}</small>
+                      </span>
+                      <span className={"status " + j.state}>{j.state}</span>
+                      {active(j.state) && (
+                        <button
+                          onClick={() =>
+                            void call("jobs.cancel", { job_id: j.id }).then(
+                              refresh,
+                            )
+                          }
+                        >
+                          Stop
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </Suspense>
+      </main>
+    </div>
+  );
 }
-createRoot(document.getElementById('root')!).render(<App/>);
+createRoot(document.getElementById("root")!).render(<App />);
