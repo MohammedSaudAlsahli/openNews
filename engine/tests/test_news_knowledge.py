@@ -83,3 +83,38 @@ def test_download_failure_keeps_keyword_search(knowledge):
         assert k.status()['phase']=='unavailable'
         assert (await k.search('Claude'))[0]['id']=='ai'
     asyncio.run(run())
+
+
+def test_related_uses_saved_vectors_without_inference_and_excludes_self(knowledge):
+    async def run():
+        k = knowledge
+        with k.db:
+            k.db.execute("UPDATE news_articles SET title='Claude comparison',text='Claude comparison evidence' WHERE id='sport'")
+        while k.index_next(): pass
+        assert k.related('ai')['state'] == 'pending'
+        k.configure({'enabled':True})
+        while await k.embed_next(): pass
+        calls = k.embedder.calls
+        result = k.related('ai')
+        assert result['state'] == 'ready'
+        assert result['coverage'] == 'full'
+        assert [a['id'] for a in result['articles']] == ['sport']
+        assert k.embedder.calls == calls
+        assert result['segments'] == result['embedded']
+        with k.db: k.db.execute("UPDATE news_articles SET text='changed evidence' WHERE id='ai'")
+        assert k.related('ai')['state'] == 'pending'
+        assert k.related('ai')['articles'] == []
+    asyncio.run(run())
+
+
+def test_related_does_not_pad_with_unrelated_articles(knowledge):
+    async def run():
+        k=knowledge
+        while k.index_next(): pass
+        k.configure({'enabled':True})
+        while await k.embed_next(): pass
+        assert k.related('ai')['articles'] == []
+        rows = k.inspect_articles()['articles']
+        assert len(rows) == 2
+        assert all(r['segments'] == r['embedded'] for r in rows)
+    asyncio.run(run())

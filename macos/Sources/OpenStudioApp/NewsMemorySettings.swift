@@ -6,6 +6,7 @@ struct NewsMemorySettings: View {
     @State private var failure: String?
     @State private var saving = false
     @State private var choosingEmbedding = false
+    @State private var inspecting = false
 
     var body: some View {
         Section(L("البحث الذكي في الأخبار")) {
@@ -27,6 +28,14 @@ struct NewsMemorySettings: View {
             if let status = model.searchStatus {
                 Text(status.model).font(.caption).foregroundStyle(.secondary)
                 LabeledContent(L("أخبار مفهرسة بالمعنى"), value: DisplayFormat.integer(status.semantic))
+                ProgressView(value: Double(status.semantic), total: Double(max(1, status.semantic + status.pending)))
+                LabeledContent(L("بانتظار الفهرسة"), value: DisplayFormat.integer(status.pending))
+                Text(L("يُفهرس العنوان والنص المتاح، أو المقتطف عند غياب النص الكامل. لا تحتاج الفهرسة إلى انتظار التلخيص."))
+                    .font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup(L("تفاصيل الفهرسة"), isExpanded: $inspecting) {
+                    if inspecting { SearchIndexDetails() }
+                }
+
                 if status.enabled {
                     Label(phase(status.phase), systemImage: status.phase == "unavailable" ? "exclamationmark.circle" : "internaldrive")
                         .font(.caption).foregroundStyle(.secondary)

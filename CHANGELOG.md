@@ -1,3 +1,7 @@
+# 0.2.3 — 2026-10-18
+
+Automatic article recovery, editable instructions, writing skills and indexing visibility. See [release notes](docs/releases/v0.2.3.md).
+
 # 0.2.2 — 2026-10-18
 
 Improved article covers, image caching, source management and public blog-page subscriptions. See [release notes](docs/releases/v0.2.2.md).

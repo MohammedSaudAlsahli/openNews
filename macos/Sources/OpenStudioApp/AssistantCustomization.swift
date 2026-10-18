@@ -18,7 +18,11 @@ struct AssistantCustomizationButton: View {
         let _ = language
         Button { presented = true } label: { Label(L("تخصيص المساعد"), systemImage: "slider.horizontal.3") }
             .sheet(isPresented: $presented) {
-                AssistantCustomizationEditor(scope: scope, targetID: targetID).editorialPresentation()
+                if scope == "agent" && targetID == "news" {
+                    TaskInstructionsEditor(initialID: "article-summary").editorialPresentation()
+                } else {
+                    AssistantCustomizationEditor(scope: scope, targetID: targetID).editorialPresentation()
+                }
             }
     }
 }
@@ -33,6 +37,8 @@ struct AssistantCustomizationEditor: View {
     @State private var baseline: [String: String] = [:]
     @State private var inherited: [AssistantPreferenceLayer] = []
     @State private var selection = "role"
+    @StateObject private var markdownEditor = MarkdownEditorController()
+    @State private var preview = true
     @State private var loading = true
     @State private var saving = false
     @State private var loaded = false
@@ -82,12 +88,28 @@ struct AssistantCustomizationEditor: View {
                 Divider()
                 VStack(alignment: .leading, spacing: 14) {
                     Text(selected.title).font(.headline)
-                    Text(selected.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    TextEditor(text: Binding(get: { values[selection] ?? "" }, set: { values[selection] = $0 }))
-                        .font(.system(size: 15)).padding(8).scrollContentBackground(.hidden)
+                    Text(scope == "general" ? L("التعليمات الحالية المستخدمة للمحادثات. تعديلها يغيّر الردود الجديدة.") : selected.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    MarkdownFormattingToolbar(controller: markdownEditor, preview: $preview,
+                        enabled: !loading && !saving, viewLabel: selected.title)
+                    ZStack(alignment: .topLeading) {
+                        MarkdownEditor(text: Binding(get: { values[selection] ?? "" }, set: { values[selection] = $0 }),
+                            controller: markdownEditor, documentID: scope + targetID + selection,
+                            interfaceLanguage: language, editable: !preview && !loading && !saving,
+                            fontSize: 16, lineSpacing: 7)
+                            .opacity(preview ? 0 : 1).allowsHitTesting(!preview).accessibilityHidden(preview)
+                        if preview {
+                            ScrollView {
+                                if (values[selection] ?? "").isEmpty {
+                                    Text(L("لا توجد تعليمات في هذا القسم. يمكنك إضافة تعليمات من وضع التحرير."))
+                                        .foregroundStyle(.secondary).padding(16)
+                                } else {
+                                    RichTextView(text: values[selection] ?? "", fontSize: 16, lineSpacing: 7)
+                                        .textSelection(.enabled).padding(16)
+                                }
+                            }
+                        }
+                    }.frame(maxHeight: .infinity)
                         .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(nsColor: .separatorColor)))
-                        .accessibilityLabel(selected.title)
                     if selection.hasSuffix("_prompt") {
                         Text(L("يكيّف التطبيق هذه التعليمات مع قناة التعليمات التي يدعمها المزوّد؛ ليست كل النماذج تدعم System وDeveloper كدورين منفصلين."))
                             .font(.caption).foregroundStyle(.secondary)
@@ -102,7 +124,7 @@ struct AssistantCustomizationEditor: View {
                                 ForEach(entries, id: \.key) { field in
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(field.title).font(.caption.bold())
-                                        ProseText(text: inherited.first?.settings[field.key] ?? "", fontSize: 13, lineSpacing: 3)
+                                        RichTextView(text: inherited.first?.settings[field.key] ?? "", fontSize: 13, lineSpacing: 3)
                                     }
                                 }
                             }.frame(maxHeight: 110)
@@ -116,7 +138,7 @@ struct AssistantCustomizationEditor: View {
             if !fieldsValid { Text(L("تجاوز هذا القسم الحد المسموح. اختصر النص للمتابعة.")).font(.caption).foregroundStyle(.red) }
             if let failure { Text(failure).foregroundStyle(.red).font(.callout).padding(.horizontal, 22) }
             HStack {
-                Button(L("مسح التخصيص")) { reset = true }.disabled(loading || saving)
+                Button(scope == "general" ? L("استعادة الافتراضي") : L("مسح التخصيص")) { reset = true }.disabled(loading || saving)
                 Text(L("{0} / 16000 حرف", count)).font(.caption).foregroundStyle(count > 16000 ? .red : .secondary)
                 Spacer()
                 if loading || saving { ProgressView().controlSize(.small) }
@@ -132,9 +154,16 @@ struct AssistantCustomizationEditor: View {
                 Button(L("إلغاء"), role: .cancel) {}
             }
             .alert(L("مسح التخصيص؟"), isPresented: $reset) {
-                Button(L("مسح"), role: .destructive) { values = baseline.mapValues { _ in "" } }
+                Button(L("استعادة الافتراضي"), role: .destructive) {
+                    Task {
+                        do {
+                            let result = try await model.decoded("assistant.reset", target, as: AssistantPreferences.self)
+                            values = result.settings; baseline = values
+                        } catch { failure = error.localizedDescription }
+                    }
+                }
                 Button(L("إلغاء"), role: .cancel) {}
-            } message: { Text(L("سيُمسح تخصيص هذا المستوى عند الحفظ. تبقى مستويات التخصيص الأخرى والمصادر محفوظة.")) }
+            } message: { Text(L("سيُستعاد الافتراضي لهذا المستوى. تبقى مستويات التخصيص الأخرى والمصادر محفوظة.")) }
     }
     private func fieldButton(_ key: String, _ title: String) -> some View {
         Button { selection = key } label: {

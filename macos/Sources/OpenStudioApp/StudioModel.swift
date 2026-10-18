@@ -18,6 +18,8 @@ import AppKit
     private var socketDirectory: URL?
     private var socketPath = ""
     private var polling: Task<Void, Never>?
+    private let backgroundReader = PublicPageCapture()
+    private var capturingArticle = false
     let workspace: URL
     private let permissionDefaults: UserDefaults
     private let requestOverride: ((String, [String: Any]) async throws -> Data)?
@@ -85,6 +87,7 @@ import AppKit
                     }
                     ticks += 1
                     if ticks % 60 == 0 { await DailyReportNotifications.check(self) }
+                    if ticks % 30 == 0 { await capturePendingArticle() }
                     if ticks % 5 == 0 {
                         let thermal: String
                         switch ProcessInfo.processInfo.thermalState {
@@ -112,8 +115,32 @@ import AppKit
         } catch { self.error = error.localizedDescription }
     }
 
+    private func capturePendingArticle() async {
+        guard !capturingArticle, !ProcessInfo.processInfo.isLowPowerModeEnabled,
+              ProcessInfo.processInfo.thermalState == .nominal else { return }
+        capturingArticle = true
+        struct Pending: Decodable {
+            struct Article: Decodable { let id: String; let url: String }
+            let article: Article?
+        }
+        guard let pending = try? await decoded("news.reader.pending", as: Pending.self),
+              let article = pending.article, let url = URL(string: article.url), RichTextLinks.allowed(url),
+              !Task.isCancelled else { capturingArticle = false; return }
+        backgroundReader.load(url, articleOnly: true) { [weak self] html in
+            guard let self else { return }
+            Task {
+                defer { self.capturingArticle = false }
+                guard !html.isEmpty, self.health != nil else { return }
+                if (try? await self.call("news.reader.capture", ["article_id": article.id, "html": html])) != nil {
+                    NotificationCenter.default.post(name: .editorialArticleContentChanged, object: article.id)
+                }
+            }
+        }
+    }
+
     func stop() {
         polling?.cancel(); polling = nil
+        backgroundReader.cancel(); capturingArticle = false
         if let process, process.isRunning { process.terminate() }
         process = nil
         health = nil

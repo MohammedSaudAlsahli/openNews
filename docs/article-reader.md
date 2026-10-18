@@ -46,3 +46,11 @@ OpenStudio has a dedicated Articles destination in the main window. The conversa
 - The menu-bar options control suppresses the automatic menu indicator and reserves a 32×28 pt target, preventing the chevron/ellipsis overlap.
 - 292 Python and 37 Swift tests passed (329 total). Direct packaged-app checks covered English/dark and Arabic/light card bookmarks, missing-image cards, credential editors, local/cloud switching, and creating/deleting temporary local connections in each language. Temporary bookmarks and connections were removed, and the original English/dark preferences restored.
 - Native NSHostingView rendering checked the complete 470×700 compact reader in Arabic and English with both layout directions. Rendered footer icons have no extra chevron or overlap. This verifies the menu content layout; status-bar popover opening remains outside the automated interaction coverage.
+
+## Automatic full-text recovery
+
+The engine drains up to 20 incomplete articles per polling cycle, independently of the feed's refresh interval or HTTP 304 responses. It follows the saved publisher URL, retains full RSS content, and skips already complete articles and media-only descriptions. Direct fetch retries wait 5 minutes, 30 minutes, then 6 hours. Only active subscriptions participate. Per-article locks and conditional writes prevent a late failed fetch from overwriting successfully captured full text.
+
+While the macOS app is running, a cookie-free WebKit pass can try one failed article every 30 seconds, with a 12-second timeout and one persisted attempt per article per 24 hours. This fallback runs only at nominal thermal state and outside Low Power Mode. It accepts article/main content, does not log in or solve access challenges, and saves extracted text through the existing reader capture path. Success notifies the article list immediately. Closing the app cancels the render pass; pending work survives through article state and retry timestamps.
+
+These are recovery attempts, not a guarantee that every publisher permits extraction. Subscriber-only, removed, or blocked articles may remain incomplete. No model call is needed to fetch the article. The UI and model must not describe an excerpt as the full article.

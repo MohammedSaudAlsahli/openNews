@@ -3,6 +3,7 @@ import SwiftUI
 extension Notification.Name {
     static let openEditorialArticle = Self("eis.openArticle")
     static let editorialArticleRead = Self("eis.articleRead")
+    static let editorialArticleContentChanged = Self("eis.articleContentChanged")
     static let editorialBookmarksChanged = Self("eis.bookmarksChanged")
 }
 
@@ -27,7 +28,7 @@ struct ArticlesWorkspace: View {
     private var filters: String { "\(query)|\(sourceID)|\(scope)|\(days)|\(order)" }
     private var summaryRefreshKey: String {
         let digest = model.digestStatus
-        return [articles.map(\.id).joined(), String(digest?.prepared ?? 0), digest?.currentId ?? "", digest?.localModel ?? "", digest?.engine ?? "", digest?.language ?? ""].joined(separator: "|")
+        return [articles.map { $0.id + ":" + $0.bodyStatus }.joined(separator: "|"), String(digest?.prepared ?? 0), digest?.currentId ?? "", digest?.localModel ?? "", digest?.engine ?? "", digest?.language ?? ""].joined(separator: "|")
     }
     var body: some View {
         ZStack {
@@ -68,6 +69,18 @@ struct ArticlesWorkspace: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .editorialArticleRead)) { notification in
                 if let id = notification.object as? String, let index = articles.firstIndex(where: { $0.id == id }) { articles[index].isRead = true }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .editorialArticleContentChanged)) { notification in
+                guard let id = notification.object as? String else { return }
+                Task {
+                    if let updated = try? await model.decoded("news.preview", ["article_id": id], as: NewsArticle.self),
+                       let index = articles.firstIndex(where: { $0.id == id }) {
+                        articles[index] = updated
+                    }
+                    if let result = try? await model.decoded("news.summary.states", ["ids": [id]], as: ArticleSummaryStates.self) {
+                        summaryStates.merge(result.states) { _, new in new }
+                    }
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .editorialBookmarksChanged)) { notification in
                 guard let id = (notification.object as? String) ?? selected?.id else { return }

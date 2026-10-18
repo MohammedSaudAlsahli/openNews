@@ -9,6 +9,12 @@ from .storage import digest, encode, now, uid
 
 class ServiceCommandsMixin:
     async def dispatch(self, command, p):
+        if command in {'instructions.get', 'instructions.save', 'instructions.reset'}:
+            from .editorial_instructions import dispatch as instruction_dispatch
+            return instruction_dispatch(self.store, command, p)
+        if command == 'skills.catalog':
+            from .writing_skills import catalog as writing_catalog
+            return writing_catalog()
         if command == 'daily.get': return self.daily_reports.status()
         if command == 'daily.set':
             if p.get('enabled') and p.get('consent') is not True:
@@ -49,6 +55,10 @@ class ServiceCommandsMixin:
         if command == "news.summarize":
             from .article_summary import summarize
             return await summarize(self, p)
+        if command == "news.related":
+            return self.news.knowledge.related(p.get("article_id"))
+        if command == "news.search.inspect":
+            return self.news.knowledge.inspect_articles()
         if command == "news.search.status":
             return self.news.knowledge.status()
         if command == "news.search.set":
@@ -109,6 +119,8 @@ class ServiceCommandsMixin:
             return {"started":True}
         if command == "news.update":
             return self.news.update(p)
+        if command == "news.reader.pending":
+            return self.news.next_public_capture()
         if command == "news.reader":
             return await self.news.reader(p["article_id"], force=p.get("refresh") is True)
         if command == "news.image":
@@ -133,7 +145,7 @@ class ServiceCommandsMixin:
                 self.db.execute("INSERT INTO source_roles VALUES(?,?,?) ON CONFLICT(item_id) DO UPDATE SET purpose=excluded.purpose",(item["id"],self.ws,purpose))
             return {"updated":True}
         if command == "runtime.health":
-            return {"engine_version":"0.2.2","schema_version":1,"sqlite_version":sqlite3.sqlite_version,"sqlite_vec":self.store.vec_version,"workspace_id":self.ws,"transport":"unix_socket","release_status":"development"}
+            return {"engine_version":"0.2.3","schema_version":1,"sqlite_version":sqlite3.sqlite_version,"sqlite_vec":self.store.vec_version,"workspace_id":self.ws,"transport":"unix_socket","release_status":"development"}
         if command == "workspace.snapshot":
             return self.snapshot()
         if command == "sources.detail":

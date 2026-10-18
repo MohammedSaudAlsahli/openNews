@@ -27,18 +27,21 @@ class LocalNewsEmbeddings:
         # Short retention releases weights even when a request is cancelled or fails.
         class BoundedClient(Client):
             def embed(self, *args, **kwargs):
-                return super().embed(*args, **kwargs, keep_alive=0)
+                return super().embed(*args, **kwargs, keep_alive=self.batch_retention)
         with httpx.Client(trust_env=False, timeout=5) as check:
             response = check.get(HOST+'/api/tags'); response.raise_for_status()
             current = next((m for m in response.json()['models'] if m['name']==self.name), None)
             if not current or current.get('digest') != self.digest:
                 raise RuntimeError('Model changed; prepare it again before searching')
         client = BoundedClient(host=HOST, timeout=90, trust_env=False)
+        client.batch_retention = 0
         adapter = OllamaEmbedder(id=self.name, dimensions=self.dimensions, ollama_client=client,
                                 options={'num_thread':2})
         try:
             result = []
-            for text in texts:
+            for index, text in enumerate(texts):
+                # Retain only between adjacent chunks; final call releases weights.
+                client.batch_retention = 0 if index == len(texts)-1 else "5s"
                 if self.name.startswith('embeddinggemma') and query:
                     text = 'task: search result | query: '+text
                 elif self.name.startswith('nomic-embed-text'):

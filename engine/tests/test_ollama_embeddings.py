@@ -91,3 +91,16 @@ def test_installed_model_preflight_works_offline(service,monkeypatch):
     monkeypatch.setattr(local.runner,'metadata',metadata)
     result=asyncio.run(local.inspect('custom:small'))
     assert result['size']==300000000 and result['can_download']
+
+
+def test_multiple_chunks_share_one_short_model_residency(monkeypatch):
+    from ollama import Client
+    requests = []
+    def embed(self, **kwargs):
+        requests.append(kwargs)
+        return {'embeddings':[[3.,4.]]}
+    monkeypatch.setattr(Client,'embed',embed)
+    monkeypatch.setattr(httpx.Client,'get',lambda *a,**k:httpx.Response(200,json={'models':[{'name':'embeddinggemma-2:270m','digest':'abc'}]},request=httpx.Request('GET','http://local')))
+    encoder=LocalNewsEmbeddings(dimensions=2,digest='abc')
+    assert len(encoder.encode(['one','two','three','four'])) == 4
+    assert [r['keep_alive'] for r in requests] == ['5s','5s','5s',0]

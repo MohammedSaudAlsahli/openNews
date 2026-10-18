@@ -310,7 +310,7 @@ def test_news_research_is_model_driven_and_keeps_rss_context(service):
         class ToolModel(FakeChatModel):
             supports_tools = True
             async def run(self, profile, instructions, payload, schema, tools=None, on_turn=None):
-                assert {tool.__name__ for tool in tools} == {"search_saved_articles", "read_saved_article", "search_web", "read_web_page", "search_conversation_history"}
+                assert {tool.__name__ for tool in tools} == {"search_saved_articles", "read_saved_article", "search_web", "read_web_page", "search_conversation_history", "load_editorial_skill"}
                 assert "FIRST" in instructions and "explicitly asks" in instructions
                 assert payload["news"][0]["id"] == aid
                 saved = json.loads(await tools[0]("ChatGPT"))

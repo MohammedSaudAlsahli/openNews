@@ -329,3 +329,44 @@ def test_full_feed_content_is_saved_without_fetching_website(store):
     article=manager.article(manager.snapshot()['articles'][0]['id'],mark_read=False)
     assert article['body_status']=='full' and full.strip() in article['text']
     assert calls==['https://publisher.example/feed']
+
+
+def test_body_backlog_drains_without_another_feed_refresh(store):
+    async def fetch(url, conditional=None): return result(url, ARTICLE, headers={'content-type':'text/html'})
+    manager = news.NewsManager(store, fetch)
+    sub = asyncio.run(manager.add({'url':'https://publisher.example/feed'}, sync=False))
+    with store.db:
+        for i in range(25):
+            key = 'backlog-' + str(i)
+            store.db.execute("INSERT INTO news_articles(id,workspace_id,subscription_id,guid,title,url,discovered_at,summary) VALUES(?,?,?,?,?,?,?,?)",
+                (key,store.workspace,sub,key,'Story','https://publisher.example/'+key,news.now(),'Excerpt'))
+            manager.archive.register(key,sub,key,'https://publisher.example/'+key)
+    asyncio.run(manager._fetch_bodies(None))
+    assert store.one("SELECT count(*) AS n FROM news_articles WHERE body_status='full'")['n'] == 20
+    asyncio.run(manager._fetch_bodies(None))
+    assert store.one("SELECT count(*) AS n FROM news_articles WHERE body_status='full'")['n'] == 25
+
+
+def test_body_retry_backoff_and_render_lease_survive_new_manager(store):
+    calls = []
+    async def fetch(url, conditional=None):
+        calls.append(url)
+        if url.endswith('/feed'): return result(url)
+        raise news.NewsError('temporarily unavailable')
+    manager = news.NewsManager(store, fetch)
+    sub = asyncio.run(manager.add({'url':'https://publisher.example/feed'}))
+    row = store.one('SELECT * FROM news_articles')
+    assert row['body_attempts'] == 1
+    asyncio.run(manager._fetch_bodies(None))
+    assert len(calls) == 2
+    with store.db:
+        store.db.execute('UPDATE news_articles SET last_body_attempt=?', ((datetime.now(timezone.utc)-timedelta(minutes=6)).isoformat(),))
+    asyncio.run(manager._fetch_bodies(None))
+    assert store.one('SELECT body_attempts FROM news_articles')['body_attempts'] == 2
+    assert manager.next_public_capture()['article']['id'] == row['id']
+    assert news.NewsManager(store, fetch).next_public_capture()['article'] is None
+    with store.db: store.db.execute("UPDATE news_articles SET reader_json='{}'")
+    manager.update({'subscription_id':sub,'enabled':False})
+    assert manager.next_public_capture()['article'] is None
+    asyncio.run(manager._fetch_bodies(None))
+    assert len(calls) == 3

@@ -116,7 +116,7 @@ class NewsKnowledge:
         digest = getattr(self.news, 'digest', None)
         if digest and (digest.budget.phase() or digest.service.model_lock.locked()): return False
         rows = self.store.rows("""SELECT c.id,c.text,a.title FROM news_search_chunks c JOIN news_articles a ON a.id=c.article_id
-            WHERE a.workspace_id=? AND c.vector IS NULL ORDER BY a.discovered_at DESC,c.ordinal LIMIT 2""", (self.ws,))
+            WHERE a.workspace_id=? AND c.vector IS NULL ORDER BY a.discovered_at DESC,c.ordinal LIMIT 4""", (self.ws,))
         if not rows:
             self.phase = 'ready'
             return False
@@ -141,6 +141,50 @@ class NewsKnowledge:
                 if digest:
                     digest.service.model_lock.release()
                     digest.budget.finished(time.monotonic()-started)
+
+    def inspect_articles(self):
+        rows = self.store.rows("""SELECT a.id,a.title,a.body_status,
+            count(c.id) AS segments, count(c.vector) AS embedded
+            FROM news_articles a LEFT JOIN news_search_chunks c ON c.article_id=a.id
+            WHERE a.workspace_id=? GROUP BY a.id ORDER BY a.discovered_at DESC LIMIT 30""", (self.ws,))
+        return {"articles": rows}
+
+    def related(self, article_id):
+        # Reuse persisted vectors: opening a reader never starts model inference.
+        import math
+        row = self.store.one("SELECT id,body_status,text,summary FROM news_articles WHERE id=? AND workspace_id=?", (article_id,self.ws))
+        if not row: raise Failure('VALIDATION_ERROR', 'Article not found')
+        counts = self.store.one("SELECT count(*) AS segments,count(vector) AS embedded FROM news_search_chunks WHERE article_id=?", (article_id,))
+        coverage = 'full' if row['body_status']=='full' and row['text'] else ('excerpt' if row['text'] or row['summary'] else 'title')
+        result = {**counts, 'coverage':coverage, 'articles':[], 'state':'pending'}
+        if not counts['segments'] or counts['segments'] != counts['embedded']: return result
+        if not self.store.vec_version:
+            result['state']='unavailable'
+            return result
+        anchors = self.store.rows("SELECT vector FROM news_search_chunks WHERE article_id=? AND model=? ORDER BY ordinal LIMIT 4", (article_id,self.index_model))
+        if not anchors: return result
+        vectors = [struct.unpack(f"{len(r['vector'])//4}f", r['vector']) for r in anchors]
+        center = [sum(values)/len(vectors) for values in zip(*vectors)]
+        norm = math.sqrt(sum(v*v for v in center))
+        if not norm: return result
+        packed = struct.pack(f'{len(center)}f',*(v/norm for v in center))
+        candidates = self.store.rows("""SELECT a.id,min(vec_distance_cosine(c.vector,?)) AS distance
+            FROM news_search_chunks c JOIN news_articles a ON a.id=c.article_id
+            WHERE a.workspace_id=? AND a.id!=? AND c.model=? AND c.vector IS NOT NULL
+            AND a.id NOT IN (SELECT article_id FROM news_article_duplicates)
+            AND NOT EXISTS(SELECT 1 FROM news_search_chunks m WHERE m.article_id=a.id AND m.vector IS NULL)
+            GROUP BY a.id HAVING distance < 0.28 ORDER BY distance LIMIT 12""", (packed,self.ws,article_id,self.index_model))
+        urls = set()
+        source = self.news.article(article_id, mark_read=False)
+        urls.add(source['url'])
+        for candidate in candidates:
+            article = self.news.article(candidate['id'], mark_read=False)
+            if article['url'] in urls: continue
+            urls.add(article['url'])
+            result['articles'].append(article)
+            if len(result['articles']) == 5: break
+        result['state']='ready'
+        return result
 
     async def search(self, query='', from_date='', to_date='', limit=12):
         clauses, values = ['a.workspace_id=?', "s.kind!='manual'", 'a.id NOT IN (SELECT article_id FROM news_article_duplicates)'], [self.ws]
@@ -229,4 +273,4 @@ class NewsKnowledge:
                     progressed = await self.embed_next() or progressed
             except asyncio.CancelledError: raise
             except Exception: self.phase = 'unavailable'
-            await asyncio.sleep(1 if progressed else 10)
+            await asyncio.sleep(1 if progressed else 2)

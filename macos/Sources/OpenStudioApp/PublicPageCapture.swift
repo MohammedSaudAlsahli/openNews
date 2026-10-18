@@ -6,11 +6,13 @@ import WebKit
     private var webView: WKWebView?
     private var finish: ((String) -> Void)?
     private var started = false
+    private var articleOnly = false
     private var timeout: Task<Void, Never>?
 
-    func load(_ url: URL, completion: @escaping (String) -> Void) {
+    func load(_ url: URL, articleOnly: Bool = false, completion: @escaping (String) -> Void) {
         guard !started, RichTextLinks.allowed(url) else { return }
         started = true
+        self.articleOnly = articleOnly
         finish = completion
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
@@ -29,10 +31,9 @@ import WebKit
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 700_000_000)
             guard let self, self.webView === webView else { return }
-            let script = "document.querySelector('article')?.outerHTML || document.querySelector('main')?.outerHTML || document.body?.outerHTML || ''"
+            let script = "document.querySelector('article')?.outerHTML || document.querySelector('main')?.outerHTML || " + (self.articleOnly ? "''" : "document.body?.outerHTML || ''")
             let html = (try? await webView.evaluateJavaScript(script)) as? String ?? ""
-            if html.utf8.count <= 512 * 1024, html.count > 200 { self.finish?(html) }
-            self.stop()
+            self.stop(html: html.utf8.count <= 512 * 1024 && html.count > 200 ? html : "")
         }
     }
 
@@ -41,7 +42,10 @@ import WebKit
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         decisionHandler(action.request.url.map(RichTextLinks.allowed) == true ? .allow : .cancel)
     }
-    private func stop() {
+    func cancel() { finish = nil; stop() }
+
+    private func stop(html: String = "") {
+        let completion = finish
         timeout?.cancel()
         timeout = nil
         webView?.stopLoading()
@@ -49,5 +53,6 @@ import WebKit
         webView = nil
         finish = nil
         started = false
+        completion?(html)
     }
 }

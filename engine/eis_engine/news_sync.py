@@ -105,7 +105,7 @@ class NewsSyncMixin:
                                     and (existing['title'] != entry['title'] or existing['summary'] != entry['summary'])):
                                 changed_articles.add(article_id)
                             if previous_reader.get("origin") == "feed":
-                                fresh_reader = entry["reader"] | {k:previous_reader[k] for k in ("checked_at", "refresh_failed") if k in previous_reader}
+                                fresh_reader = entry["reader"] | {k:previous_reader[k] for k in ("checked_at", "refresh_failed", "render_retry_after") if k in previous_reader}
                                 self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=?", (json.dumps(fresh_reader), existing["id"]))
                         else:
                             self.db.execute("INSERT INTO news_articles(id,workspace_id,subscription_id,guid,title,url,published_at,discovered_at,summary) VALUES(?,?,?,?,?,?,?,?,?)", (article_id,self.ws,row["id"],entry["guid"],entry["title"],entry["url"],entry["published_at"],now(),entry["summary"]))
@@ -137,15 +137,23 @@ class NewsSyncMixin:
             return False
 
     async def _fetch_bodies(self, identifier, refresh_full=False):
-        retry_before = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
-        rows = self.store.rows("""SELECT * FROM news_articles
-            WHERE id IN (SELECT article_id FROM news_article_origins WHERE subscription_id=?) AND body_status!='media_summary'
-              AND body_status!='full' AND (body_attempts=0 OR last_body_attempt<?)
-            ORDER BY CASE WHEN body_attempts=0 THEN 0 ELSE 1 END,
-                     discovered_at DESC LIMIT 20""", (identifier, retry_before))
+        # Drain the backlog independently of whether the RSS feed changed.
+        # Retrying failures must not starve articles that have never been fetched.
+        rows = self.store.rows("""SELECT a.* FROM news_articles a
+            WHERE a.workspace_id=? AND a.body_status NOT IN ('full','media_summary')
+              AND EXISTS (SELECT 1 FROM news_article_origins o JOIN news_subscriptions s ON s.id=o.subscription_id
+                  WHERE o.article_id=a.id AND s.enabled=1 AND s.removed_at IS NULL
+                  AND (? IS NULL OR s.id=?))
+              AND (a.body_attempts=0 OR a.last_body_attempt IS NULL OR
+                  julianday(a.last_body_attempt) <= julianday('now') -
+                  (CASE WHEN a.body_attempts=1 THEN 5 WHEN a.body_attempts=2 THEN 30 ELSE 360 END)/1440.0)
+            ORDER BY a.body_attempts=0 DESC, a.last_body_attempt, a.discovered_at DESC LIMIT 20""",
+            (self.ws, identifier, identifier))
         semaphore = asyncio.Semaphore(3)
         async def fetch_article(row):
-            async with semaphore:
+            async with semaphore, self.reader_locks.setdefault(row["id"], asyncio.Lock()):
+                row = self.store.one("SELECT * FROM news_articles WHERE id=? AND workspace_id=?", (row["id"], self.ws))
+                if not row or row["body_status"] in {"full", "media_summary"}: return
                 status, text = ("full", row["text"]) if row["body_status"] == "full" else ("summary_only", row["summary"])
                 try:
                     response = await self.fetch(row["url"], None)
@@ -162,17 +170,20 @@ class NewsSyncMixin:
                             reader = await asyncio.to_thread(extract_reader, response["body"], response["url"])
                             reader["checked_at"] = now()
                             with self.db:
-                                self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=?", (json.dumps(reader), row["id"]))
+                                self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=? AND body_status!='full'", (json.dumps(reader), row["id"]))
                 except asyncio.CancelledError: raise
                 except Exception: pass
                 with self.db:
-                    self.db.execute("UPDATE news_articles SET text=?,body_status=?,body_attempts=body_attempts+1,last_body_attempt=? WHERE id=?", (text,status,now(),row["id"]))
+                    self.db.execute("UPDATE news_articles SET text=?,body_status=?,body_attempts=body_attempts+1,last_body_attempt=? WHERE id=? AND body_status!='full'", (text,status,now(),row["id"]))
                     self.archive.capture(row['id'])
         await asyncio.gather(*(fetch_article(row) for row in rows))
 
     async def poll(self):
         while True:
-            try: await self.sync()
+            try:
+                await self.sync()
+                async with self.lock:
+                    await self._fetch_bodies(None)
             except asyncio.CancelledError: raise
             except Exception: pass
             await asyncio.sleep(60)

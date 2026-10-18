@@ -173,6 +173,7 @@ struct MarkdownFormattingToolbar: View {
     @ObservedObject var controller: MarkdownEditorController
     @Binding var preview: Bool
     var enabled = true
+    var viewLabel = L("تحرير أو معاينة المسودة")
     @State private var linking = false
     @State private var linkLabel = ""
     @State private var linkURL = ""
@@ -224,7 +225,7 @@ struct MarkdownFormattingToolbar: View {
             Picker(L("عرض المسودة"), selection: $preview) {
                 Text(L("تحرير")).tag(false)
                 Text(L("معاينة")).tag(true)
-            }.pickerStyle(.segmented).frame(width: 140).labelsHidden().accessibilityLabel(L("تحرير أو معاينة المسودة"))
+            }.pickerStyle(.segmented).frame(width: 140).labelsHidden().accessibilityLabel(viewLabel)
         }.padding(.vertical, 5)
     }
     private func formatButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {

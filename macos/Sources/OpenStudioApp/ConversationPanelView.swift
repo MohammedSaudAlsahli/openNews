@@ -12,6 +12,10 @@ struct ConversationPanel: View {
     let openDraft: (String) -> Void
     let showNews: () -> Void
     @AppStorage(ModelPermission.key) private var modelPermission = false
+    @State private var writingSkills: [WritingSkill] = []
+    @State private var skillMenuOpen = false
+    @State private var commandIndex = 0
+    @State private var dismissedCommand: String?
     @State private var modelOptions = false
     @State private var contextOptions = false
     @State private var customization = false
@@ -49,7 +53,11 @@ struct ConversationPanel: View {
 
     private var configuredConversation: some View {
         conversationLayout
-            .task(id: model.snapshot?.workspaceId) { await session.start(model) }
+            .task(id: model.snapshot?.workspaceId) {
+                await session.start(model)
+                if let catalog = try? await model.decoded("skills.catalog", as: WritingSkillCatalog.self) { writingSkills = catalog.skills }
+            }
+            .onChange(of: session.composer) { _, _ in commandIndex = 0; dismissedCommand = nil }
             .onChange(of: session.conversationID) { _, _ in composerFocused = false }
             .task(id: session.jobID) { if let id = session.jobID { await session.monitor(model, job: id) } }
             .sheet(isPresented: $customization) {
@@ -266,13 +274,16 @@ struct ConversationPanel: View {
     private var outputPicker: some View {
         Menu {
             Picker(L("نوع نتيجة المحادثة"), selection: $session.format) {
+                Text(L("تلقائي حسب طلبك")).tag("auto")
                 Text(L("نقاش")).tag("discussion")
+                Text("LinkedIn").tag("linkedin")
+                Text("Shorts").tag("shorts")
                 Text(L("منشورات X")).tag("x_posts")
                 Text(L("YouTube طويل")).tag("youtube_long")
                 Text("TikTok").tag("tiktok")
             }
         } label: {
-            Text(session.format == "x_posts" ? L("منشورات X") : session.format == "youtube_long" ? L("YouTube طويل") : session.format == "tiktok" ? "TikTok" : L("نقاش"))
+            Text(session.format == "auto" ? L("تلقائي") : session.format == "linkedin" ? "LinkedIn" : session.format == "shorts" ? "Shorts" : session.format == "x_posts" ? L("منشورات X") : session.format == "youtube_long" ? L("YouTube طويل") : session.format == "tiktok" ? "TikTok" : L("نقاش"))
                 .font(.callout)
         }.menuStyle(.borderlessButton).fixedSize().foregroundStyle(.secondary)
             .accessibilityLabel(L("نوع نتيجة المحادثة"))
@@ -300,14 +311,38 @@ struct ConversationPanel: View {
                     }.padding(24).frame(width: 430).editorialPresentation()
                 }
     }
+    private var commandMatches: [WritingSkill] {
+        skillMenuOpen ? writingSkills : dismissedCommand == session.composer ? [] : WritingSkill.matches(session.composer, in: writingSkills)
+    }
+    private func chooseSkill(_ skill: WritingSkill) {
+        let arguments = session.composer.hasPrefix("/") ? session.composer.split(maxSplits: 1, whereSeparator: { $0.isWhitespace }).dropFirst().first.map(String.init) ?? "" : session.composer
+        skillMenuOpen = false
+        session.composer = "/" + skill.id + " " + arguments
+        composerFocused = true
+    }
+    private func commandKey(_ code: UInt16) -> Bool {
+        let matches = commandMatches
+        guard !matches.isEmpty else { return false }
+        switch code {
+        case 125: commandIndex = (commandIndex + 1) % matches.count
+        case 126: commandIndex = (commandIndex + matches.count - 1) % matches.count
+        case 36, 76, 48: chooseSkill(matches[min(commandIndex, matches.count - 1)])
+        case 53: skillMenuOpen = false; dismissedCommand = session.composer
+        default: return false
+        }
+        return true
+    }
     private var composer: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !commandMatches.isEmpty {
+                WritingSkillMenu(skills: commandMatches, language: interfaceLanguage, selected: commandIndex, choose: chooseSkill)
+            }
             VStack(alignment: .leading, spacing: 10) {
                 ZStack(alignment: .topLeading) {
                     if session.composer.isEmpty {
                         Text(L(session.sending ? "اكتب رسالتك التالية…" : "اكتب طلبك أو ناقش فكرة…")).font(.system(size: 15)).foregroundStyle(.secondary).padding(.horizontal, 5).padding(.top, 7).allowsHitTesting(false)
                     }
-                    ChatComposer(text: $session.composer, height: $composerHeight, focused: $composerFocused, canSend: canSend) {
+                    ChatComposer(text: $session.composer, height: $composerHeight, focused: $composerFocused, canSend: canSend, commandKey: commandKey) {
                         Task { await session.send(model, articleIDs: selectedArticleIDs, draftText: draftText, draftTitle: draftTitle) }
                     }
                         .accessibilityLabel(L("رسالة المحادثة"))
@@ -318,6 +353,8 @@ struct ConversationPanel: View {
                         .buttonStyle(.borderless).foregroundStyle(.secondary).frame(width: 28, height: 28).help(L("المراجع وخيارات الكتابة"))
                         .accessibilityLabel(L("المراجع وخيارات الكتابة"))
                         .popover(isPresented: $contextOptions) { contextControls.editorialPresentation() }
+                    Button { skillMenuOpen.toggle(); commandIndex = 0; composerFocused = true } label: { Text("/").font(.callout.monospaced()) }
+                        .buttonStyle(.borderless).help(L("مهارات الكتابة")).accessibilityLabel(L("مهارات الكتابة"))
                     outputPicker
                     modelPickerButton
                     Spacer(minLength: 0)

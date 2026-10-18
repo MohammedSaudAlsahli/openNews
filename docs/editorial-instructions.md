@@ -1,8 +1,8 @@
 # Article explanations and daily news reports
 
-Open Settings → Daily report → Open instructions folder. The editable files are in:
+Open Settings → News summaries → Summary instructions, or Daily report → View and edit instructions. The in-app editor shows the actual current text, supports saving and restoring defaults, and includes writing skills in its task selector. Unsaved edits must be saved or discarded before switching tasks. No external editor is required.
 
-`~/Library/Application Support/com.editorialintelligence.studio/default/instructions/`
+Storage remains local under `~/Library/Application Support/com.editorialintelligence.studio/default/instructions/`; existing edits are preserved. The allowlisted `instructions.get/save/reset` IPC endpoints read and atomically write the same documents used by generation.
 
 - `article-summary.md`: shared by explicit article explanations and automatic background summaries. Defaults explain the main idea, context, evidence, significance and limitations in 250–450 words when justified by the article. Short articles need less; missing facts are never invented.
 - `daily-report.md`: controls synthesis, source attribution and organization of daily reports.
@@ -22,3 +22,7 @@ Reports use already-fetched articles from enabled subscriptions, filtered by pub
 ## CI DMG verification
 
 `scripts/dmg_verify.py` retries only the exact `Resource temporarily unavailable` failure up to three times, with 2/4-second pauses. Invalid checksums and other errors still fail immediately; persistent transient failures still fail CI. The release process never bypasses DMG verification.
+
+## Conversation instructions
+
+Settings → Customize assistant displays the actual baseline sections from `assistant_defaults.py`, with Markdown editing and the same preview renderer as articles. The general settings are frozen into each conversation job; editing a section replaces that section for new jobs. Old optional preferences are preserved and empty legacy fields inherit defaults. New explicit empty sections stay empty. Reset restores the canonical baseline. Empty Examples means no example was configured, not hidden examples. Agent and conversation preferences remain additional scoped overrides, with inherited general instructions shown separately. `{summary_language}` is resolved from the current message at execution. Article/report instructions remain separate. Output schema validation, available tools, consent, and provider-side policies are runtime constraints rather than editable style instructions.

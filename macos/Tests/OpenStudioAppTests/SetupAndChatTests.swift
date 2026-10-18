@@ -27,7 +27,7 @@ import Testing
     #expect(chat.conversationID.isEmpty)
     #expect(chat.composer.isEmpty)
     #expect(!chat.includeDraft)
-    #expect(chat.format == "discussion")
+    #expect(chat.format == "auto")
     #expect(chat.seconds == 60)
     #expect(chat.error == nil)
     #expect(chat.composerRevision != revision)

@@ -18,10 +18,22 @@
         "format": {
           "enum": [
             "x_post",
+            "linkedin",
             "youtube_long",
+            "shorts",
+            "reels",
             "tiktok"
           ],
           "title": "Format",
+          "type": "string"
+        },
+        "evidence_basis": {
+          "default": "news",
+          "enum": [
+            "news",
+            "original"
+          ],
+          "title": "Evidence Basis",
           "type": "string"
         },
         "article_ids": {

@@ -30,3 +30,34 @@ def directory(store):
 
 def load(store, name):
     return (directory(store) / (name + '.md')).read_text(encoding='utf-8')[:16000]
+
+
+def dispatch(store, command, payload):
+    """Edit only the instruction documents consumed by generation."""
+    import os
+    import tempfile
+    from .contracts import Failure
+    from .writing_skills import GUIDES
+    name = payload.get('id')
+    defaults = {**DEFAULTS, **{'skill:' + key: value for key, value in GUIDES.items()}}
+    if not isinstance(name, str) or name not in defaults:
+        raise Failure('VALIDATION_ERROR', 'Unknown instruction document')
+    root = directory(store)
+    path = root / 'skills' / (name[6:] + '.md') if name.startswith('skill:') else root / (name + '.md')
+    limit = 12000 if name.startswith('skill:') else 16000
+    if command in {'instructions.save', 'instructions.reset'}:
+        content = defaults[name] if command == 'instructions.reset' else payload.get('content')
+        if not isinstance(content, str) or not content.strip() or len(content) > limit:
+            raise Failure('VALIDATION_ERROR', 'Instructions must contain text within the character limit')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(dir=path.parent, prefix='.instructions-')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                stream.write(content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary): os.unlink(temporary)
+    content = path.read_text(encoding='utf-8') if path.exists() else defaults[name]
+    return {'id': name, 'content': content, 'default_content': defaults[name], 'limit': limit}

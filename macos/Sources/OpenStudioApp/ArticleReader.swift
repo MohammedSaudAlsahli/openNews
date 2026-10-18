@@ -30,7 +30,7 @@ struct ArticleReader: View {
     private var text: String { detail?.text.isEmpty == false ? detail!.text : article.summary }
     private var content: [ArticleReadingBlock] { detail?.reader?.blocks ?? [] }
     private var cover: ArticleReadingBlock? { content.first { $0.type == "image" } }
-    private var status: String { detail?.reader?.origin == "article" ? "full" : detail?.bodyStatus ?? article.bodyStatus }
+    private var status: String { detail?.bodyStatus ?? article.bodyStatus }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -112,7 +112,7 @@ struct ArticleReader: View {
                     }
                 }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                     .background(theme.surface, in: RoundedRectangle(cornerRadius: 12))
-                if status != "full" {
+                if status != "full" && !loading && !enriching {
                     Label(L(status == "media_summary" ? "وصف الحلقة فقط؛ لم يُفرّغ الصوت أو الفيديو." : "ملخص الخلاصة فقط؛ النص الكامل غير متاح."), systemImage: "doc.text").font(.caption).foregroundStyle(.secondary)
                 }
                 if let failure {
@@ -133,6 +133,7 @@ struct ArticleReader: View {
                         }
                     }
                 }
+                RelatedNews(articleID: article.id)
             }.frame(maxWidth: compact ? 450 : 700, alignment: .leading)
                 .padding(.horizontal, compact ? 22 : 48).padding(.vertical, compact ? 24 : 40)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -176,12 +177,14 @@ struct ArticleReader: View {
                 let next = try await model.decoded("news.reader", ["article_id":article.id,"refresh":force], as: NewsArticleDetail.self)
                 guard !Task.isCancelled else { return }
                 detail = next
+                NotificationCenter.default.post(name: .editorialArticleContentChanged, object: article.id)
                 failure = next.reader?.refreshFailed == true ? "تعذّر تحديث المقال؛ نعرض النسخة المحفوظة." : nil
                 if next.bodyStatus != "full", next.bodyStatus != "media_summary", let url = URL(string: article.url) {
                     publicCapture.load(url) { html in
                         Task {
                             if let rendered = try? await model.decoded("news.reader.capture", ["article_id": article.id, "html": html], as: NewsArticleDetail.self) {
                                 detail = rendered
+                                NotificationCenter.default.post(name: .editorialArticleContentChanged, object: article.id)
                                 failure = nil
                             }
                         }

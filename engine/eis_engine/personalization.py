@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 from .contracts import StrictModel, Failure
 from .storage import encode, now
+from .assistant_defaults import DEFAULTS
 
 SCHEMA = """
 CREATE TABLE assistant_preferences(workspace_id TEXT NOT NULL REFERENCES workspaces(id),
@@ -50,7 +51,13 @@ class Personalization:
     def read(self, scope, identifier=""):
         row = self.service.store.one("SELECT settings_json FROM assistant_preferences WHERE workspace_id=? AND scope=? AND target_id=?",
             (self.service.ws, scope, identifier))
-        return Preferences.model_validate_json(row["settings_json"]) if row else Preferences()
+        values = json.loads(row["settings_json"]) if row else {}
+        version = values.pop("_defaults_version", 0)
+        if scope == "general":
+            # Older empty fields were additional preferences, not deliberate removals.
+            overrides = values if version else {key:value for key,value in values.items() if value}
+            values = {**DEFAULTS, **overrides}
+        return Preferences.model_validate(values)
 
     def dispatch(self, command, payload):
         target = Save.model_validate(payload) if command == "assistant.save" else Target.model_validate(payload)
@@ -59,21 +66,29 @@ class Personalization:
         if command == "assistant.save":
             with s.db:
                 s.db.execute("INSERT INTO assistant_preferences VALUES(?,?,?,?,?) ON CONFLICT(workspace_id,scope,target_id) DO UPDATE SET settings_json=excluded.settings_json,updated_at=excluded.updated_at",
-                    (s.ws, target.scope, target.target_id, encode(target.settings.model_dump()), now()))
+                    (s.ws, target.scope, target.target_id, encode({**target.settings.model_dump(exclude_unset=True), "_defaults_version": 1}), now()))
         elif command == "assistant.reset":
             with s.db:
                 s.db.execute("DELETE FROM assistant_preferences WHERE workspace_id=? AND scope=? AND target_id=?", (s.ws,target.scope,target.target_id))
         inherited = []
         if target.scope != "general":
-            inherited = self.layers()
+            inherited = [{"scope":"general", "target_id":"", "settings":self.read("general").model_dump()}]
         return {"settings": self.read(target.scope,target.target_id).model_dump(), "inherited": inherited}
 
     def layers(self, agent=None, conversation=None):
         targets = [("general", "")]
         if agent: targets.append(("agent", agent))
         if conversation: targets.append(("conversation", conversation))
-        return [{"scope": scope, "target_id": identifier, "settings": self.read(scope,identifier).model_dump()}
-                for scope, identifier in targets]
+        layers = []
+        for scope, identifier in targets:
+            settings = self.read(scope, identifier).model_dump()
+            if scope == "general" and not conversation:
+                # Structured analysis/draft jobs have their own schema contracts.
+                # Share user changes, not the conversation-specific baseline.
+                settings = {key: ("" if value == DEFAULTS.get(key) else value)
+                            for key, value in settings.items()}
+            layers.append({"scope": scope, "target_id": identifier, "settings": settings})
+        return layers
 
     @staticmethod
     def render(layers):

@@ -160,3 +160,20 @@ def test_responsive_image_urls_keep_cdn_transformation_commas():
 def test_decorative_wordpress_icons_are_not_article_photos():
     reader = extract_reader('<p>Text</p><img src="https://s.w.org/images/core/emoji/17.0.2/72x72/25b6.png"><img class="avatar" src="/author.jpg"><img src="/photo.jpg">', BASE, fragment=True)
     assert [b['url'] for b in reader['blocks'] if b['type']=='image'] == ['https://publisher.example/photo.jpg']
+
+
+def test_empty_extraction_keeps_saved_text_and_allows_explicit_retry(saved):
+    manager, store, calls = saved
+    async def empty(url, conditional=None):
+        return result(url, b'<html><body></body></html>')
+    manager.fetch = empty
+    failed = asyncio.run(manager.reader('article', force=True))
+    assert failed['text'] == 'Original evidence'
+    assert failed['reader']['refresh_failed'] is True
+    async def recovered(url, conditional=None):
+        return result(url, HTML)
+    manager.fetch = recovered
+    recovered = asyncio.run(manager.reader('article', force=True))
+    assert recovered['body_status'] == 'full'
+    assert 'Article evidence' in recovered['text']
+    assert not recovered['reader'].get('refresh_failed')

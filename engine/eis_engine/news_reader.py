@@ -83,7 +83,7 @@ class NewsReaderMixin:
                 if len(full_text.strip()) >= 80:
                     reader = candidate
                 else:
-                    full_text = ""
+                    raise NewsError("لم يتوفر نص كافٍ في صفحة المقال.")
                 reader.pop("refresh_failed", None)
             except asyncio.CancelledError: raise
             except Exception:
@@ -113,6 +113,23 @@ class NewsReaderMixin:
                             (full_text,json.dumps(reader),identifier,self.ws))
         with self.db: self.archive.capture(identifier)
         return self.article(identifier, mark_read=False)
+
+    def next_public_capture(self):
+        """Lease one failed public article for a bounded, cookie-free render pass."""
+        row = self.store.one("""SELECT a.* FROM news_articles a
+            WHERE a.workspace_id=? AND a.body_status NOT IN ('full','media_summary')
+              AND a.body_attempts>0
+              AND EXISTS (SELECT 1 FROM news_article_origins o JOIN news_subscriptions s ON s.id=o.subscription_id
+                  WHERE o.article_id=a.id AND s.enabled=1 AND s.removed_at IS NULL)
+              AND coalesce(json_extract(a.reader_json,'$.render_retry_after'),0) <= ?
+            ORDER BY a.discovered_at DESC LIMIT 1""", (self.ws,time.time()))
+        if not row: return {"article":None}
+        reader = json.loads(row['reader_json'] or '{}')
+        reader['render_retry_after'] = time.time() + 24 * 60 * 60
+        with self.db:
+            self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=? AND workspace_id=?",
+                            (json.dumps(reader),row['id'],self.ws))
+        return {"article":{"id":row['id'],"url":row['url']}}
 
     async def image(self, identifier, image_id):
         row = self.article(identifier, mark_read=False)

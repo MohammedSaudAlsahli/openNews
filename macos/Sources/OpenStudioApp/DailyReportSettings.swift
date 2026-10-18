@@ -50,11 +50,7 @@ struct DailyReportSettings: View {
                     if let failure { Text(failure).foregroundStyle(.red).font(.callout) }
                 }
                 Section(L("تعليمات النموذج")) {
-                    Text(L("ملف مستقل لشرح المقالات وآخر للتقرير اليومي. تعديلهما يطبّق على النتائج الجديدة، ولا يضيع مع تحديث التطبيق."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Button(L("فتح مجلد التعليمات")) {
-                        if let path = status?.instructionsPath { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
-                    }
+                    TaskInstructionsButton(documentID: "daily-report")
                 }
                 Section(L("التقارير المحفوظة")) {
                     if status?.reports.isEmpty != false { Text(L("سيظهر تقريرك هنا بعد الموعد المحدد.")).foregroundStyle(.secondary) }

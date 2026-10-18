@@ -11,7 +11,7 @@ import SwiftUI
     @Published var agentID = ""
     @Published var composerRevision = UUID()
     private var unsentMessages: [String: String] = [:]
-    @Published var format = "discussion"
+    @Published var format = "auto"
     @Published var seconds = 60
     @Published var useNews = true
     @Published var researchWeb = true
@@ -83,7 +83,7 @@ import SwiftUI
         unsentMessages[conversationID] = composer
         progress = nil
         conversationID = ""; detail = nil; error = nil; agentID = ""; jobID = nil; sending = false
-        composer = ""; format = "discussion"; includeDraft = false; seconds = 60
+        composer = ""; format = "auto"; includeDraft = false; seconds = 60
         composerRevision = UUID()
         if let assignment = model.snapshot?.assignments?.first(where: { $0.role == "writer" }) {
             profileID = assignment.profileId; modelID = assignment.modelId
@@ -105,7 +105,7 @@ import SwiftUI
             if includeDraft && !draftText.isEmpty { payload["draft_text"] = draftText; payload["draft_title"] = draftTitle }
             if ["youtube_long", "tiktok"].contains(format) { payload["target_seconds"] = seconds }
             let submitted = try await model.decoded("chat.send", payload, as: SubmittedJob.self)
-            jobID = submitted.jobId; composer = ""; unsentMessages[conversationID] = nil
+            jobID = submitted.jobId; format = "auto"; composer = ""; unsentMessages[conversationID] = nil
             try await model.refresh()
             detail = try await model.decoded("chat.detail", ["conversation_id": conversationID], as: ConversationDetail.self)
             await refreshList(model)

@@ -159,3 +159,35 @@ def test_stream_errors_keep_connection_classification(monkeypatch,status,expecte
         assert error.value.code==expected
         assert "private provider details" not in str(error.value)
     asyncio.run(scenario())
+
+
+def test_visible_defaults_are_the_actual_replaceable_prompt(service):
+    async def scenario():
+        from eis_engine.assistant_defaults import DEFAULTS
+        response = await service.dispatch('assistant.get', {'scope':'general'})
+        assert all(response['settings'][key] == value for key,value in DEFAULTS.items())
+        changed = dict(response['settings'], role='A uniquely configured editor: visible-rule-482')
+        await service.dispatch('assistant.save', {'scope':'general','settings':changed})
+        payload = await setup(service)
+        job = await service.dispatch('chat.send', payload)
+        await service.tasks[job['job_id']]
+        prompt = service.factory.calls[-1][1]
+        assert changed['role'] in prompt
+        assert DEFAULTS['role'] not in prompt
+        assert '{summary_language}' not in prompt
+        restored = await service.dispatch('assistant.reset', {'scope':'general'})
+        assert restored['settings']['role'] == DEFAULTS['role']
+    asyncio.run(scenario())
+
+
+def test_conversation_defaults_do_not_replace_structured_job_contracts(service):
+    from eis_engine.assistant_defaults import DEFAULTS
+    assert not service.personalization.layers('analyst')[0]['settings']['output']
+    assert service.personalization.layers('writer', 'conversation')[0]['settings']['output'] == DEFAULTS['output']
+
+
+def test_new_empty_section_is_not_reintroduced(service):
+    async def scenario():
+        await service.dispatch('assistant.save', {'scope':'general','settings':{'role':''}})
+        assert (await service.dispatch('assistant.get', {'scope':'general'}))['settings']['role'] == ''
+    asyncio.run(scenario())

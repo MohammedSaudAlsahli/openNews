@@ -1,0 +1,11 @@
+# Local news indexing and related stories
+
+Settings → News search shows completed articles, remaining articles, a progress bar, current pause reason, and the latest 30 articles with embedded/total segment counts. The reader's Related news section explains coverage for its own article: full available text, excerpt, or title only.
+
+Indexing does not depend on AI summaries. SQLite triggers queue incoming/changed article content, and the worker checks every two seconds when idle. Newest discovered articles are processed first. Text is split into 1,400-character overlapping segments (180-character overlap), with the title attached to each segment. Updates invalidate old vectors immediately; changing the embedding model also invalidates incompatible vectors. State survives restarts.
+
+Semantic work remains opt-in, four segments per batch. Agno's Ollama adapter retains the model for at most five seconds between segments and unloads on the last successful request; failures expire the short retention. This avoids repeatedly loading weights for adjacent segments. Chat priority, device temperature, power-saving checks and the existing background duty-cycle rest remain intact. Arrival does not guarantee immediate completion while paused or busy.
+
+Related news reuses the first four stored source vectors to construct a normalized centroid, compares it against stored candidate vectors, and returns up to five distinct article URLs with cosine distance below 0.28. Only fully indexed articles in the current workspace/model space qualify; the current article and known duplicate records are excluded. These are semantic neighbors, not claims of the same event or factual corroboration. It does not call a model or mark recommended articles read. Pending source indexing is rechecked while the reader is open. Empty results are explicit and never filled with arbitrary latest news.
+
+Validation includes saved-vector retrieval without inference, unrelated-result exclusion, invalidation on edits, persisted chunk coverage, and short bounded model retention between chunks. A read-only cosine-query smoke measurement on the development archive (910 vectors) took about 38 ms; this is not an end-to-end app or large-archive benchmark.

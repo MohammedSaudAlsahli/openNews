@@ -1,6 +1,6 @@
 [project]
 name = "openstudio-engine"
-version = "0.2.2"
+version = "0.2.3"
 description = "Local editorial repositories and Agno orchestration"
 requires-python = ">=3.12,<3.13"
 dependencies = [

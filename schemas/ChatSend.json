@@ -66,11 +66,14 @@
       "type": "boolean"
     },
     "format": {
-      "default": "discussion",
+      "default": "auto",
       "enum": [
+        "auto",
         "discussion",
         "x_posts",
+        "linkedin",
         "youtube_long",
+        "shorts",
         "tiktok"
       ],
       "title": "Format",

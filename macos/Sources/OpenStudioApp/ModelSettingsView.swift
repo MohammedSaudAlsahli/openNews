@@ -79,7 +79,7 @@ struct ModelSettingsView: View {
                 if section == .assistant || visited.contains(.assistant) {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(L("تخصيص المساعد")).font(.title2.weight(.semibold))
-                    Text(L("تعليماتك العامة تُطبّق على كل الوكلاء والمحادثات. اكتب هنا أسلوبك المفضل وما تريد مراعاته دائمًا."))
+                    Text(L("تعليمات المحادثات الحالية وأسلوب الرد. تعليمات تلخيص المقالات والتقرير اليومي مستقلة في صفحتيهما."))
                         .foregroundStyle(.secondary)
                     AssistantCustomizationButton(scope: "general").buttonStyle(.borderedProminent)
                     Divider()

@@ -181,3 +181,12 @@ def test_wrong_language_is_not_a_ready_summary(service):
     assert not matches_language('هذا ملخص عربي كامل عن الخبر الجديد.', 'en')
     with pytest.raises(Failure, match='لغة'):
         service.news_digest.cache.save({'id':'story'}, 'ar', {'model_id':'fixture','profile_id':'fixture'}, 'English output despite Arabic instruction.')
+
+
+def test_full_text_state_recovers_after_reader_capture(service):
+    with service.db:
+        service.db.execute("UPDATE news_articles SET body_status='summary_only',text='Excerpt' WHERE id='story'")
+    assert service.news_digest.article_states(['story'])['states']['story'] == 'incomplete'
+    html = '<article><p>' + ('Public article with detailed evidence and context. ' * 20) + '</p></article>'
+    service.news.capture_public_reader('story', html)
+    assert service.news_digest.article_states(['story'])['states']['story'] == 'pending'

@@ -103,6 +103,7 @@ struct ConversationActivity: View {
     private func label(_ kind: String) -> String {
         switch kind {
         case "context": return L("تجهيز سياق المحادثة")
+        case "skill": return L("استخدام مهارة كتابة")
         case "history": return L("البحث في الرسائل السابقة")
         case "library": return L("البحث في الأخبار المحفوظة")
         case "web": return L("البحث في الويب")
@@ -113,6 +114,7 @@ struct ConversationActivity: View {
     private func symbol(_ kind: String) -> String {
         switch kind {
         case "context": return "text.bubble"
+        case "skill": return "wand.and.stars"
         case "history": return "clock.arrow.circlepath"
         case "library": return "books.vertical"
         case "web": return "globe"

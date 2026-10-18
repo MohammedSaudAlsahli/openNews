@@ -120,7 +120,7 @@ class ChatSend(StrictModel):
     article_ids: list[UUID] = Field(default_factory=list, max_length=12)
     include_news: bool = True
     research_web: bool = True
-    format: Literal["discussion", "x_posts", "youtube_long", "tiktok"] = "discussion"
+    format: Literal["auto", "discussion", "x_posts", "linkedin", "youtube_long", "shorts", "tiktok"] = "auto"
     target_seconds: int | None = Field(default=None, ge=10, le=7200)
     days: int | None = Field(default=None, ge=1, le=36500)
     draft_title: str = Field(default="", max_length=300)
@@ -130,7 +130,8 @@ class ChatSend(StrictModel):
 class ChatDraft(StrictModel):
     title: str = Field(min_length=1, max_length=300)
     text: str = Field(min_length=1, max_length=60000)
-    format: Literal["x_post", "youtube_long", "tiktok"]
+    format: Literal["x_post", "linkedin", "youtube_long", "shorts", "reels", "tiktok"]
+    evidence_basis: Literal["news", "original"] = "news"
     article_ids: list[str] = Field(default_factory=list, max_length=12)
 
 

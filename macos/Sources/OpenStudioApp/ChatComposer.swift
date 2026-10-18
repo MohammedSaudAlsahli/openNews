@@ -6,6 +6,7 @@ struct ChatComposer: NSViewRepresentable {
     @Binding var height: CGFloat
     @Binding var focused: Bool
     var canSend: Bool
+    var commandKey: ((UInt16) -> Bool)? = nil
     let send: () -> Void
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
@@ -42,6 +43,8 @@ struct ChatComposer: NSViewRepresentable {
         guard let editor = scroll.documentView as? MessageTextView else { return }
         if editor.string != text { editor.string = text; editor.refreshParagraphDirections() }
         editor.send = { if canSend { send() } }
+        editor.commandKey = commandKey
+        if focused && editor.window?.firstResponder !== editor { editor.window?.makeFirstResponder(editor) }
         editor.setAccessibilityLabel(L("رسالة المحادثة"))
         context.coordinator.measure()
     }
@@ -69,6 +72,7 @@ struct ChatComposer: NSViewRepresentable {
 }
 
 final class MessageTextView: NSTextView {
+    var commandKey: ((UInt16) -> Bool)?
     var send: (() -> Void)?
     var layoutChanged: (() -> Void)?
     var focusChanged: ((Bool) -> Void)?
@@ -108,6 +112,7 @@ final class MessageTextView: NSTextView {
         [36, 76].contains(keyCode) && !modifiers.contains(.shift) && !modifiers.contains(.option) && !composing
     }
     override func keyDown(with event: NSEvent) {
+        if !hasMarkedText(), event.modifierFlags.intersection([.shift, .option, .command, .control]).isEmpty, commandKey?(event.keyCode) == true { return }
         if Self.submits(keyCode: event.keyCode, modifiers: event.modifierFlags, composing: hasMarkedText()) { send?() }
         else { super.keyDown(with: event) }
     }
