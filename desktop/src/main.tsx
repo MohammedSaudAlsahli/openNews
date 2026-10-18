@@ -1,3 +1,4 @@
+import { BrandMark } from "./brand";
 import { Onboarding } from "./onboarding";
 import { ConversationOptions } from "./conversation-options";
 import { t, useLocale } from "./locale";
@@ -299,7 +300,7 @@ function App() {
     <div className={`app ${sidebar ? "" : "collapsed"}`}>
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">◒</span>
+          <BrandMark className="brand-mark" />
           <strong>{t("OpenStudio")}</strong>
           <button title={t("Hide sidebar")} onClick={() => setSidebar(false)}>
             <PanelLeftClose size={17} />
@@ -455,7 +456,7 @@ function App() {
               >
                 {!selected ? (
                   <div className="welcome">
-                    <div className="welcome-symbol">◒</div>
+                    <BrandMark className="welcome-symbol" />
                     <p className="eyebrow">
                       {t("YOUR SPACE TO THINK & CREATE")}
                     </p>

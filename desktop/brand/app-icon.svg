@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>OpenStudio</title>
+  <rect x="96" y="96" width="832" height="832" rx="190" fill="#F4F1EB"/>
+  <g transform="translate(112 112) scale(8)">
+    <path d="M59 23H42C31.5 23 23 31.5 23 42V58C23 68.5 31.5 77 42 77H58C68.5 77 77 68.5 77 58V41" stroke="#202321" stroke-width="12" stroke-linecap="round"/>
+  </g>
+</svg>

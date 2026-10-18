@@ -134,6 +134,9 @@ svg {
   letter-spacing: -0.5px;
 }
 .brand-mark {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
   font-size: 29px;
   line-height: 1;
   color: var(--accent);
@@ -292,6 +295,8 @@ main {
   margin: auto;
 }
 .welcome-symbol {
+  width: 58px;
+  height: 58px;
   font-size: 45px;
   color: var(--accent);
   margin-bottom: 28px;

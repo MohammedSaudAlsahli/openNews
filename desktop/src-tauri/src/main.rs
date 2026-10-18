@@ -554,7 +554,9 @@ fn main() {
                     )?,
                 ],
             )?;
-            let mut tray = tauri::tray::TrayIconBuilder::new()
+            let tray = tauri::tray::TrayIconBuilder::new()
+                .icon(tauri::include_image!("icons/tray.png"))
+                .icon_as_template(true)
                 .tooltip("OpenStudio")
                 .menu(&menu)
                 .on_menu_event(|app, event| {
@@ -588,9 +590,6 @@ fn main() {
                     }
                     let _ = app.emit("navigate", event.id.as_ref());
                 });
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
-            }
             tray.build(app)?;
             let handle = app.handle().clone();
             let bundled = app.path().resource_dir()?.join("runtime");
