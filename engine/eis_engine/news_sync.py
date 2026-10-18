@@ -13,7 +13,7 @@ class NewsSyncMixin:
     async def add(self, payload, sync=True):
         try:
             url, feed, kind = normalize_subscription(payload.get("url", ""), payload.get("kind", "auto"))
-            interval = self._interval(payload.get("interval_minutes", 60))
+            interval = self._interval(payload.get("interval_minutes", 360 if kind == "webpage" else 60))
         except NewsError as error: raise Failure("VALIDATION_ERROR", str(error)) from None
         existing = self.store.one("SELECT id FROM news_subscriptions WHERE workspace_id=? AND url=?", (self.ws,url))
         if existing:
@@ -70,17 +70,26 @@ class NewsSyncMixin:
         try:
             changed_articles = set()
             conditional = {"If-None-Match":row["etag"],"If-Modified-Since":row["last_modified"]}
-            response = await self.fetch(row["feed_url"], conditional)
+            response = await self.fetch(row["feed_url"], None if refresh_full else conditional)
             if response["status"] != 304:
                 body = response["body"]
+                page_mode = False
                 if re.search(br"<\s*(?:!doctype\s+html|html)\b", body[:4000], re.I):
                     page = HTMLInfo(); page.feed(body.decode("utf-8", "replace"))
-                    if not page.feeds: raise NewsError("لم يُعلن الموقع خلاصة RSS أو Atom. أضف رابط الخلاصة المباشر.")
-                    feed_url = canonical_url(urljoin(response["url"], page.feeds[0]))
-                    response = await self.fetch(feed_url, None)
-                    body = response["body"]
-                title, entries = parse_feed(body,response["url"],row["kind"])
+                    if page.feeds:
+                        feed_url = canonical_url(urljoin(response["url"], page.feeds[0]))
+                        response = await self.fetch(feed_url, None)
+                        body = response["body"]
+                        title, entries = parse_feed(body, response["url"], row["kind"])
+                    else:
+                        from .page_feed import parse_page
+                        title, entries = parse_page(body, response["url"])
+                        page_mode = True
+                else:
+                    title, entries = parse_feed(body,response["url"],row["kind"])
                 with self.db:
+                    if page_mode:
+                        self.db.execute("UPDATE news_subscriptions SET kind='webpage',interval_minutes=max(interval_minutes,360) WHERE id=?", (row['id'],))
                     for entry in entries:
                         article_id = self.archive.find(row['id'],entry['guid'],entry['url'])
                         existing = self.store.one("SELECT * FROM news_articles WHERE id=?", (article_id,)) if article_id else None

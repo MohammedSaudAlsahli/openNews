@@ -102,3 +102,61 @@ def test_preserved_code_retains_language_and_literal_source():
     tree = html.fromstring('<article><pre><code class="language-python"># عربي\nprint("hello")</code></pre></article>')
     blocks = preserve_special_blocks(tree, 'https://example.com')
     assert list(blocks.values()) == ['```python\n# عربي\nprint("hello")\n```']
+
+
+def test_linked_figures_do_not_leave_markdown_wrappers():
+    body = '<article><p>'+PARA+'</p><a href="https://cdn.example/full.jpg"><picture><img src="https://cdn.example/photo.jpg"></picture></a><p>'+PARA+'</p></article>'
+    for fragment in (True, False):
+        reader = extract_reader(body, BASE, fragment=fragment)
+        text = '\n'.join(b['text'] for b in reader['blocks'] if b['type'] == 'text')
+        assert 'full.jpg' not in text
+        assert '](' not in text
+        assert any(b.get('url') == 'https://cdn.example/photo.jpg' for b in reader['blocks'])
+
+
+def test_feed_cover_precedes_newsletter_branding_and_preserves_body_images():
+    feed = b'''<rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><item>
+    <title>Story</title><link>https://publisher.example/story</link>
+    <description>Summary</description><enclosure type="image/jpeg" url="https://cdn.example/editorial.jpg"/>
+    <content:encoded><![CDATA[<img src="https://cdn.example/logo.jpg"><p>Article</p><img src="https://cdn.example/body.jpg">]]></content:encoded>
+    </item></channel></rss>'''
+    blocks = news.parse_feed(feed, BASE)[1][0]['reader']['blocks']
+    assert blocks[0]['url'] == 'https://cdn.example/editorial.jpg'
+    assert [b['url'] for b in blocks if b['type'] == 'image'] == [
+        'https://cdn.example/editorial.jpg', 'https://cdn.example/logo.jpg', 'https://cdn.example/body.jpg']
+
+
+def test_metadata_cover_wins_over_inline_logo_and_no_image_is_valid():
+    for meta in ('property="og:image"', 'name="twitter:image"'):
+        reader = extract_reader('<html><head><meta '+meta+' content="/editorial.jpg"></head><body><article><img src="/logo.png"><p>'+PARA+'</p></article></body></html>', BASE)
+        assert reader['blocks'][0]['url'] == 'https://publisher.example/editorial.jpg'
+    reader = extract_reader('<p>'+PARA+'</p>', BASE, fragment=True)
+    assert all(b['type'] == 'text' for b in reader['blocks'])
+
+
+def test_concurrent_image_requests_download_once_and_disk_survives_restart(saved):
+    manager, store, calls = saved
+    async def run():
+        await manager.reader('article')
+        paths = await asyncio.gather(*(manager.image('article','0') for _ in range(8)))
+        assert len({p['path'] for p in paths}) == 1
+        assert calls.count('https://publisher.example/photo.jpg') == 1
+        async def offline(*args): raise AssertionError('Disk cache must not fetch')
+        reopened = news.NewsManager(store, offline)
+        assert await reopened.image('article','0') == paths[0]
+        # Even when every network image slot is occupied, cached reads complete.
+        await reopened.image_slots.acquire()
+        try:
+            assert await asyncio.wait_for(reopened.image('article','0'), .1) == paths[0]
+        finally: reopened.image_slots.release()
+    asyncio.run(run())
+
+
+def test_responsive_image_urls_keep_cdn_transformation_commas():
+    reader = extract_reader('<picture><source srcset="https://cdn.example/image/fetch/w_400,q_auto/photo.jpg 400w, https://cdn.example/image/fetch/w_900,q_auto/photo.jpg 900w"><img></picture>', BASE, fragment=True)
+    assert reader['blocks'][0]['url'] == 'https://cdn.example/image/fetch/w_900,q_auto/photo.jpg'
+
+
+def test_decorative_wordpress_icons_are_not_article_photos():
+    reader = extract_reader('<p>Text</p><img src="https://s.w.org/images/core/emoji/17.0.2/72x72/25b6.png"><img class="avatar" src="/author.jpg"><img src="/photo.jpg">', BASE, fragment=True)
+    assert [b['url'] for b in reader['blocks'] if b['type']=='image'] == ['https://publisher.example/photo.jpg']

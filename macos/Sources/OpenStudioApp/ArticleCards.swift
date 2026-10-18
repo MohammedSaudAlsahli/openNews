@@ -38,7 +38,7 @@ struct SiteIcon: View {
             .task(id: host) {
                 if let cached = SiteIconCache.images.object(forKey: host as NSString) { icon = cached; return }
                 guard let file = try? await model.decoded("news.icon", ["url": address], as: ArticleImageFile.self), !file.path.isEmpty else { return }
-                icon = await Task.detached(priority: .utility) { ReaderImageDecoder.image(at: file.path) }.value
+                icon = await Task.detached(priority: .utility) { ReaderImageDecoder.image(at: file.path, maxPixelSize: 64) }.value
                 if let icon { SiteIconCache.images.setObject(icon, forKey: host as NSString) }
             }
     }
@@ -149,7 +149,7 @@ private struct ArticleThumbnail: View {
                 loading = true
                 defer { loading = false }
                 guard let file = try? await model.decoded("news.image", ["article_id": articleID, "image_id": imageID], as: ArticleImageFile.self) else { return }
-                image = await Task.detached(priority: .utility) { ReaderImageDecoder.image(at: file.path) }.value
+                image = await Task.detached(priority: .utility) { ReaderImageDecoder.image(at: file.path, maxPixelSize: 800) }.value
             }
     }
 }

@@ -188,16 +188,19 @@ def parse_feed(body, base, kind="rss"):
         try: reader = extract_reader((full_markup or summary) if description else '<p></p>', link, fragment=True)
         except Exception: reader = {}
         # RSS media/enclosure thumbnails may exist outside the HTML description.
-        if not any(b.get('type') == 'image' for b in reader.get('blocks', [])):
-            for media in entry.iter():
-                if local_name(media.tag) in {'thumbnail', 'content', 'enclosure', 'image'}:
-                    media_type = media.get('type', '')
-                    if local_name(media.tag) in {'content', 'enclosure'} and not (media_type.startswith('image/') or media.get('medium') == 'image'): continue
-                    from .article_reader import image_url
-                    cover = image_url(media.get('url') or media.get('href'), link)
-                    if cover:
-                        reader.setdefault('blocks', []).insert(0, {'type':'image','id':'feed-cover','url':cover,'alt':'','caption':''})
-                        break
+        # An explicit feed thumbnail is the publisher's cover, even when the
+        # article body begins with a newsletter logo or banner.
+        for media in entry.iter():
+            if local_name(media.tag) in {'thumbnail', 'content', 'enclosure', 'image'}:
+                media_type = media.get('type', '')
+                if local_name(media.tag) in {'content', 'enclosure'} and not (media_type.startswith('image/') or media.get('medium') == 'image'): continue
+                from .article_reader import image_url
+                cover = image_url(media.get('url') or media.get('href'), link)
+                if cover:
+                    blocks = reader.setdefault('blocks', [])
+                    blocks[:] = [b for b in blocks if b.get('url') != cover]
+                    blocks.insert(0, {'type':'image','id':'feed-cover','url':cover,'alt':'','caption':''})
+                    break
         full_text = summary_markdown(full_markup, link) if full_markup and not media_only else ""
         result.append({"full_text":full_text if len(plain(full_markup)) >= 120 else "", "reader":reader,"guid":guid,"title":plain(node_text(entry,{"title"}))[:500] or "خبر بلا عنوان", "url":link,
                        "published_at":date_value(node_text(entry,{"pubdate","published","date"})), "summary":("وصف الحلقة من الخلاصة، وليس تفريغًا للصوت أو الفيديو.\n\n" if media_only else "") + description, "media_only":media_only})
@@ -223,5 +226,5 @@ def normalize_subscription(url, kind="auto"):
         if not is_reddit or not match: raise NewsError("أدخل رابط مجتمع Reddit مثل https://www.reddit.com/r/science/.")
         name = match.group(1)
         return f"https://www.reddit.com/r/{name.lower()}/", f"https://www.reddit.com/r/{name}/new/.rss", "reddit"
-    if kind not in {"auto", "rss"}: raise NewsError("نوع مصدر الأخبار غير مدعوم.")
-    return canonical, canonical, "rss"
+    if kind not in {"auto", "rss", "webpage"}: raise NewsError("نوع مصدر الأخبار غير مدعوم.")
+    return canonical, canonical, "webpage" if kind == "webpage" else "rss"

@@ -122,7 +122,7 @@ class ServiceCommandsMixin:
                 self.db.execute("INSERT INTO source_roles VALUES(?,?,?) ON CONFLICT(item_id) DO UPDATE SET purpose=excluded.purpose",(item["id"],self.ws,purpose))
             return {"updated":True}
         if command == "runtime.health":
-            return {"engine_version":"0.2.1","schema_version":1,"sqlite_version":sqlite3.sqlite_version,"sqlite_vec":self.store.vec_version,"workspace_id":self.ws,"transport":"unix_socket","release_status":"development"}
+            return {"engine_version":"0.2.2","schema_version":1,"sqlite_version":sqlite3.sqlite_version,"sqlite_vec":self.store.vec_version,"workspace_id":self.ws,"transport":"unix_socket","release_status":"development"}
         if command == "workspace.snapshot":
             return self.snapshot()
         if command == "sources.detail":

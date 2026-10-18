@@ -75,7 +75,7 @@ struct NewsPanel: View {
                                 catch { self.error = error.localizedDescription }
                             }
                         }
-                        Text(feed.kind == "x_rss" ? "X · RSS" : feed.kind.hasPrefix("reddit") ? "Reddit" : "RSS").font(.caption).foregroundStyle(.secondary)
+                        Text(feed.kind == "webpage" ? L("صفحة مقالات") : feed.kind == "x_rss" ? "X · RSS" : feed.kind.hasPrefix("reddit") ? "Reddit" : "RSS").font(.caption).foregroundStyle(.secondary)
                         if let url = URL(string: feed.url), ["https", "http"].contains(url.scheme?.lowercased() ?? "") { Link(L("فتح المصدر"), destination: url).font(.caption) }
                         if let date = feed.lastSuccess { Text(L("آخر جلب ناجح: {0}", DisplayFormat.date(date))).font(.caption2).foregroundStyle(.secondary) }
                         if let failure = feed.error, !failure.isEmpty { Text(L(failure)).font(.caption).foregroundStyle(.red) }
@@ -183,12 +183,17 @@ struct AddNewsSubscriptionSheet: View {
                     NativeChoicePicker(title: L("نوع المصدر"), selection: $kind, choices: [
                         .init(value: "auto", label: L("تحديد تلقائي")),
                         .init(value: "rss", label: "RSS / Atom"),
+                        .init(value: "webpage", label: L("صفحة مدونة أو أخبار")),
                         .init(value: "reddit", label: L("مجتمع Reddit مباشر")),
                         .init(value: "reddit_rss", label: "Reddit · RSS"),
                         .init(value: "x_rss", label: "X · RSS")
                     ])
                 }
             }.formStyle(.grouped).frame(height: 190)
+            if kind == "auto" || kind == "webpage" {
+                Text(L("نبحث عن RSS أولًا، وإلا نتابع روابط المقالات الظاهرة في الصفحة كل 6 ساعات أثناء تشغيل التطبيق. صفحات تسجيل الدخول أو JavaScript قد لا تعمل."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             if kind == "reddit" {
                 Text(L("أدخل r/LocalLLaMA أو رابط المجتمع. أعلنت Reddit إيقاف RSS في 13 نوفمبر 2026؛ هذا المسار مؤقت وقد يُحجب."))
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

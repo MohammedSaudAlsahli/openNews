@@ -66,14 +66,14 @@ struct ArticleFigure: View {
 }
 
 enum ReaderImageDecoder {
-    static func image(at path: String) -> NSImage? {
+    static func image(at path: String, maxPixelSize: Int = 2048) -> NSImage? {
         guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, [kCGImageSourceShouldCache:false] as CFDictionary),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString:Any],
               let width = properties[kCGImagePropertyPixelWidth] as? Int,
               let height = properties[kCGImagePropertyPixelHeight] as? Int,
               width > 0, height > 0, width <= 20000, height <= 20000, width * height <= 50_000_000,
               let decoded = CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceCreateThumbnailFromImageAlways:true,
-                  kCGImageSourceThumbnailMaxPixelSize:2048, kCGImageSourceCreateThumbnailWithTransform:true] as CFDictionary) else { return nil }
+                  kCGImageSourceThumbnailMaxPixelSize:maxPixelSize, kCGImageSourceCreateThumbnailWithTransform:true] as CFDictionary) else { return nil }
         return NSImage(cgImage: decoded, size: NSSize(width: decoded.width, height: decoded.height))
     }
 }

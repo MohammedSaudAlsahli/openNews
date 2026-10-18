@@ -58,10 +58,10 @@ class NewsReaderMixin:
         lock = self.reader_locks.setdefault(identifier, asyncio.Lock())
         async with lock:
             row = self.article(identifier, mark_read=False)
-            if not force and row["body_status"] == "full" and row["reader"].get("origin") == "feed" and row["reader"].get("version", 1) >= 2:
+            if not force and row["body_status"] == "full" and row["reader"].get("origin") == "feed" and row["reader"].get("version", 1) >= 3:
                 return row
             checked = row["reader"].get("checked_at")
-            if not force and checked and row["reader"].get("version", 1) >= 2:
+            if not force and checked and row["reader"].get("version", 1) >= 3:
                 if row["reader"].get("origin") == "article" or row["body_status"] == "full":
                     return row
                 try:
@@ -121,7 +121,13 @@ class NewsReaderMixin:
         cache = self.store.path.parent / "reader-images"
         cache.mkdir(mode=0o700, exist_ok=True)
         path = cache / (hashlib.sha256(block["url"].encode()).hexdigest() + ".image")
-        async with self.image_slots:
+        # A disk hit must never wait behind unrelated network downloads.
+        if path.exists() and path.stat().st_size > 0:
+            os.utime(path, None)
+            return {"path":str(path)}
+        # A fixed lock pool prevents an ever-growing per-image lock registry.
+        lock = self.reader_locks.setdefault("image-slot:" + str(int(path.stem[:8], 16) % 32), asyncio.Lock())
+        async with lock, self.image_slots:
             if not path.exists():
                 response = await self.fetch(block["url"], None)
                 body = response["body"]

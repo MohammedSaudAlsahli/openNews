@@ -107,6 +107,10 @@ def test_autodiscovery_full_article_dedup_and_read_state(store):
     asyncio.run(manager.sync(identifier))
     assert len(manager.snapshot()["articles"])==1
     assert manager.snapshot()["subscriptions"][0]["unread_count"]==0
+    # Explicit refresh reprocesses saved feed content after parser fixes.
+    assert [headers for url, headers in seen if url.endswith("/feed")][-1] is None
+    row = store.one("SELECT * FROM news_subscriptions WHERE id=?", (identifier,))
+    asyncio.run(manager._sync_one(row))
     assert [headers for url, headers in seen if url.endswith("/feed")][-1]["If-None-Match"]=='"v1"'
 
 

@@ -24,7 +24,7 @@ def image_source(node, base):
         if value:
             return value
     for key in ('data-srcset', 'srcset'):
-        candidates = node.get(key, '').split(',')
+        candidates = re.split(r',\s+(?=\S)', node.get(key, '').strip())
         for candidate in reversed(candidates):
             if candidate.strip():
                 value = image_url(candidate.strip().split()[0], base)
@@ -45,12 +45,18 @@ def prepare_tree(body, base):
         target = safe_content_link(node.get('href'), base)
         if target: node.set('href', target)
         else: node.attrib.pop('href', None)
+    # Image-only links are lightbox controls, not prose links. Unwrap them
+    # before splitting Markdown into text and image blocks.
+    for anchor in list(tree.xpath('//a[.//img]')):
+        if not anchor.text_content().strip():
+            anchor.drop_tag()
     images = []
     seen = set()
     for node in tree.xpath('//img'):
         url = image_source(node, base)
+        decorative = bool(re.search(r'(^|[ _-])(emoji|avatar|icon)([ _-]|$)', node.get('class', ''), re.I)) or '/images/core/emoji/' in (url or '')
         tiny = any(re.fullmatch(r'\d+', node.get(k, '')) and int(node.get(k)) <= 2 for k in ('width', 'height'))
-        if not url or tiny or url in seen or len(images) >= MAX_IMAGES:
+        if not url or tiny or decorative or url in seen or len(images) >= MAX_IMAGES:
             node.drop_tree(); continue
         seen.add(url)
         figure = next(iter(node.iterancestors('figure')), None)
@@ -135,11 +141,16 @@ def extract_reader(body, base, fragment=False):
     for token, value in special.items():
         markdown = markdown.replace(token, value)
     blocks = blocks_from_markdown(markdown[:MAX_TEXT], images)
-    # Some publishers put their lead photo outside the extracted article body.
-    if not any(b['type'] == 'image' for b in blocks):
-        meta = tree.xpath('//meta[@property="og:image"]/@content')
-        cover = image_url(meta[0], base) if meta else None
-        if cover: blocks.insert(0, {'type':'image','id':'cover','url':cover,'alt':'','caption':''})
+    # Prefer the publisher's explicit editorial cover over inline logos/banners.
+    meta = tree.xpath('//meta[@property="og:image"]/@content | //meta[@name="twitter:image"]/@content')
+    cover = next((url for value in meta if (url := image_url(value, base))), None)
+    if cover:
+        existing = next((b for b in blocks if b.get('url') == cover), None)
+        if existing:
+            blocks.remove(existing)
+            blocks.insert(0, existing)
+        else:
+            blocks.insert(0, {'type':'image','id':'cover','url':cover,'alt':'','caption':''})
     authors = tree.xpath('//meta[@name="author"]/@content')
-    return {'version':2, 'blocks':blocks, 'author':plain(authors[0])[:300] if authors else '',
+    return {'version':3, 'blocks':blocks, 'author':plain(authors[0])[:300] if authors else '',
             'origin':'feed' if fragment else 'article'}

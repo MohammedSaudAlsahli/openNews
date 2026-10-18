@@ -29,7 +29,10 @@ struct FeedLibraryView: View {
     @State private var loading = true
     @State private var adding = false
     @State private var followedOnly = false
-    @State private var addedTitle: String?
+    @State private var notice: String?
+    @State private var removing: NewsSubscription?
+    @State private var subscriptionFilter = "all"
+    private var subscriptions: [NewsSubscription] { model.snapshot?.subscriptions ?? [] }
     private var categories: [String] { ["all", "news", "technology", "ai", "science", "business", "sports", "podcasts", "gaming", "design", "food", "travel", "security", "movies", "apple", "programming", "music", "world-news", "crypto", "photography", "web-development", "android", "education", "environment", "space"] }
     private var filtered: [LibraryFeed] {
         let candidates: [LibraryFeed] = followedOnly ? (model.snapshot?.subscriptions ?? []).map {
@@ -38,7 +41,12 @@ struct FeedLibraryView: View {
                         publisherUrl: $0.url, verifiedAt: "")
         } : feeds
         let matches = candidates.filter { feed in
-            !followedOnly || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            if followedOnly, let existing = subscription(feed) {
+                if subscriptionFilter == "active" && !existing.enabled { return false }
+                if subscriptionFilter == "paused" && existing.enabled { return false }
+                if subscriptionFilter == "error" && existing.error == nil { return false }
+            }
+            return !followedOnly || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                 (feed.title + " " + feed.url + " " + feed.publisherUrl).localizedCaseInsensitiveContains(query.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return sortAlphabetically ? matches.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : matches
@@ -64,22 +72,38 @@ struct FeedLibraryView: View {
             }.padding(12).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 24).padding(.bottom, 12)
             HStack(spacing: 16) {
+                Picker(L("عرض المصادر"), selection: $followedOnly) {
+                    Text(L("اكتشاف")).tag(false)
+                    Text(L("مصادري ({0})", DisplayFormat.integer(subscriptions.count))).tag(true)
+                }.pickerStyle(.segmented).labelsHidden().frame(width: 250)
                 Menu {
-                    Toggle(L("مصادري فقط"), isOn: $followedOnly)
                     Toggle(L("ترتيب أبجدي"), isOn: $sortAlphabetically)
-                } label: { Label(L("تصفية النتائج"), systemImage: "line.3.horizontal.decrease") }
-                .fixedSize()
-                if followedOnly || sortAlphabetically {
-                    Button(L("مسح الفلاتر")) { followedOnly = false; sortAlphabetically = false }.buttonStyle(.borderless)
+                    if followedOnly {
+                        Picker(L("حالة المصدر"), selection: $subscriptionFilter) {
+                            Text(L("الكل")).tag("all")
+                            Text(L("نشطة")).tag("active")
+                            Text(L("متوقفة مؤقتًا")).tag("paused")
+                            Text(L("تحتاج انتباهًا")).tag("error")
+                        }
+                    }
+                } label: { Label(L("تصفية النتائج"), systemImage: "line.3.horizontal.decrease") }.fixedSize()
+                if sortAlphabetically || subscriptionFilter != "all" {
+                    Button(L("مسح الفلاتر")) { subscriptionFilter = "all"; sortAlphabetically = false }.buttonStyle(.borderless)
                 }
                 Spacer()
                 Text(L("{0} مصدر", DisplayFormat.integer(filtered.count))).foregroundStyle(.secondary)
-                Link("RSS.mobi", destination: URL(string: "https://rss.mobi/")!).font(.caption)
-                    .help(L("دليل مجتمعي؛ المتابعة تجلب الأخبار من الناشر مباشرة."))
+                if !followedOnly {
+                    Link("RSS.mobi", destination: URL(string: "https://rss.mobi/")!).font(.caption)
+                        .help(L("دليل مجتمعي؛ المتابعة تجلب الأخبار من الناشر مباشرة."))
+                }
             }.padding(.horizontal, 24).padding(.bottom, 16)
-            if let addedTitle {
-                Label(L("بدأت متابعة {0}. ستظهر أخباره في الأخبار.", addedTitle), systemImage: "checkmark.circle.fill")
-                    .font(.callout).foregroundStyle(.green).padding(.horizontal, 24).padding(.bottom, 12)
+            if let notice {
+                HStack {
+                    Label(notice, systemImage: "checkmark.circle").font(.callout)
+                    Spacer()
+                    Button { self.notice = nil } label: { Image(systemName: "xmark") }
+                        .buttonStyle(.plain).accessibilityLabel(L("إخفاء الرسالة"))
+                }.padding(.horizontal, 24).padding(.bottom, 12)
             }
             Text(L(followedOnly ? "كل اشتراكاتك، بما فيها الروابط التي أضفتها والمصادر المتوقفة مؤقتًا." : "مصادر RSS.mobi كاملة؛ البحث يشمل الدليل كله، والمتابعة اختيارية."))
                 .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 12)
@@ -94,7 +118,16 @@ struct FeedLibraryView: View {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if loading { ProgressView(L("جارٍ فتح المكتبة…")).padding(24) }
                         else if filtered.isEmpty {
-                            Text(L("لا توجد مصادر مطابقة. جرّب تصنيفًا آخر أو غيّر البحث.")).foregroundStyle(.secondary).padding(24)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(L(followedOnly && subscriptions.isEmpty ? "لم تتابع أي مصدر بعد" : "لا توجد مصادر مطابقة"))
+                                    .font(.headline)
+                                Text(L(followedOnly && subscriptions.isEmpty ? "اكتشف مصدرًا أو أضف رابطًا لتصلك أخباره هنا." : "غيّر البحث أو امسح الفلاتر لعرض المزيد."))
+                                    .foregroundStyle(.secondary)
+                                Button(L(followedOnly && subscriptions.isEmpty ? "اكتشاف المصادر" : "مسح الفلاتر")) {
+                                    query = ""; subscriptionFilter = "all"; category = "all"
+                                    if subscriptions.isEmpty { followedOnly = false }
+                                }
+                            }.padding(24)
                         }
                         ForEach(filtered) { feed in
                             feedRow(feed)
@@ -111,11 +144,20 @@ struct FeedLibraryView: View {
                 HStack {
                     Text(L(query.count > 100 ? "البحث بحد أقصى 100 حرف." : error ?? "تعذّر الاتصال. نعرض نتائج محفوظة؛ أعد المحاولة للتحديث.")).font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    if error != nil || stale { Button(L("إعادة المحاولة")) { Task { await load(refresh: true) } } }
+                    if !followedOnly && (error != nil || stale) { Button(L("إعادة المحاولة")) { Task { await load(refresh: true) } } }
+                    Button { error = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain).accessibilityLabel(L("إخفاء الرسالة"))
                 }.padding(16)
             }
         }.frame(width: 880, height: 700).editorialPresentation()
         .sheet(isPresented: $adding) { AddNewsSubscriptionSheet() }
+        .alert(L("إلغاء متابعة المصدر؟"), isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
+            Button(L("إلغاء المتابعة"), role: .destructive) {
+                if let existing = removing { Task { await manage(existing, action: "remove") } }
+            }
+            Button(L("رجوع"), role: .cancel) { removing = nil }
+        } message: {
+            Text(L("ستتوقف الأخبار الجديدة من {0}. تبقى المقالات السابقة والمحفوظة، ويمكنك متابعة المصدر مجددًا.", removing?.title ?? ""))
+        }
         .task(id: query + "|" + category + "|" + String(followedOnly)) {
             // Cancellation plus request identity prevents older responses replacing newer searches.
             requestID = UUID()
@@ -159,7 +201,7 @@ struct FeedLibraryView: View {
         }
     }
     private func subscription(_ feed: LibraryFeed) -> NewsSubscription? {
-        model.snapshot?.subscriptions?.first { $0.url == feed.url || $0.feedUrl == feed.url }
+        model.snapshot?.subscriptions?.first { $0.id == feed.id || $0.url == feed.url || $0.feedUrl == feed.url }
     }
     private func feedRow(_ feed: LibraryFeed) -> some View {
         HStack(alignment: .top, spacing: 16) {
@@ -169,22 +211,72 @@ struct FeedLibraryView: View {
                 if !feed.descriptionEn.isEmpty { Text(verbatim: language == "en" ? feed.descriptionEn : feed.descriptionAr).font(.callout).foregroundStyle(.secondary) }
                 HStack(spacing: 10) {
                     if feed.language != "und" { Text(feed.language == "ar" ? L("العربية") : feed.language == "en" ? L("الإنجليزية") : feed.language == "und" ? L("لغة غير محددة") : feed.language) }
-                    if let url = URL(string: feed.url) { Link("RSS", destination: url) }
-                    if !feed.publisherUrl.isEmpty, let url = URL(string: feed.publisherUrl) { Link(L("موقع الناشر"), destination: url) }
+                    if let url = URL(string: feed.url) { Link(subscription(feed)?.kind == "webpage" ? L("صفحة مقالات") : "RSS", destination: url) }
+                    if !feed.publisherUrl.isEmpty, feed.publisherUrl != feed.url, let url = URL(string: feed.publisherUrl) { Link(L("موقع الناشر"), destination: url) }
                 }.font(.caption)
                 if let existing = subscription(feed) {
-                    Label(L(!existing.enabled ? "المتابعة متوقفة مؤقتًا" : existing.error != nil ? "تعذّر آخر تحديث؛ أعد المحاولة من الأخبار" : ["queued", "syncing", "fetching", "running"].contains(existing.status) ? "جارٍ جلب الأخبار…" : "تتابع هذا المصدر"), systemImage: existing.error != nil ? "exclamationmark.circle" : "dot.radiowaves.left.and.right")
+                    if !followedOnly || !existing.enabled || existing.error != nil || ["queued", "syncing", "fetching", "running"].contains(existing.status) {
+                    Label(L(!existing.enabled ? "المتابعة متوقفة مؤقتًا" : existing.error != nil ? "تعذّر آخر تحديث" : ["queued", "syncing", "fetching", "running"].contains(existing.status) ? "جارٍ جلب الأخبار…" : "تتابع هذا المصدر"), systemImage: existing.error != nil ? "exclamationmark.circle" : "dot.radiowaves.left.and.right")
                         .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if followedOnly {
+                        HStack {
+                            Text(L("{0} غير مقروء", DisplayFormat.integer(existing.unreadCount)))
+                            if let date = existing.lastSuccess {
+                                Text(L("آخر جلب ناجح: {0}", DisplayFormat.date(date)))
+                            }
+                        }.font(.caption).foregroundStyle(.secondary)
+                        if let failure = existing.error, !failure.isEmpty {
+                            Text(L(failure)).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                        }
+                    }
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
-            if pending.contains(feed.id) { ProgressView().controlSize(.small).frame(width: 80) }
-            else if subscription(feed)?.enabled == true {
-                Label(L("تتابعه"), systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.secondary).frame(width: 80)
+            if pending.contains(subscription(feed)?.id ?? feed.id) {
+                ProgressView().controlSize(.small).frame(width: 110)
+            } else if let existing = subscription(feed) {
+                VStack(alignment: .trailing, spacing: 10) {
+                    Menu {
+                        Button(L(existing.enabled ? "إيقاف مؤقت" : "استئناف المتابعة")) {
+                            Task { await manage(existing, action: existing.enabled ? "pause" : "resume") }
+                        }
+                        Button(L("تحديث الآن")) { Task { await manage(existing, action: "sync") } }
+                            .disabled(!existing.enabled || ["queued", "syncing", "running"].contains(existing.status))
+                        Divider()
+                        Button(L("إلغاء المتابعة"), role: .destructive) { removing = existing }
+                    } label: {
+                        Label(L(existing.enabled ? "تتابعه" : "متوقفة مؤقتًا"), systemImage: existing.enabled ? "checkmark" : "pause")
+                    }.fixedSize().accessibilityLabel(L("إدارة {0}", feed.title))
+                    if followedOnly {
+                        Button(L("إلغاء المتابعة")) { removing = existing }
+                            .buttonStyle(.borderless).font(.caption)
+                    }
+                }
             } else {
-                Button(subscription(feed) == nil ? L("متابعة") : L("استئناف")) { Task { await add(feed) } }
+                Button(L("متابعة")) { Task { await add(feed) } }
                     .buttonStyle(.bordered).frame(minWidth: 80).disabled(model.health == nil)
             }
         }.padding(20)
+    }
+    private func manage(_ existing: NewsSubscription, action: String) async {
+        guard !pending.contains(existing.id) else { return }
+        pending.insert(existing.id); error = nil; notice = nil
+        defer { pending.remove(existing.id) }
+        do {
+            switch action {
+            case "remove":
+                _ = try await model.call("news.unsubscribe", ["subscription_id": existing.id])
+                notice = L("أُلغيت متابعة {0}. احتفظنا بمقالاته السابقة.", existing.title)
+            case "pause", "resume":
+                _ = try await model.call("news.update", ["subscription_id": existing.id, "enabled": action == "resume"])
+                notice = L(action == "resume" ? "استؤنفت متابعة {0}." : "أُوقفت متابعة {0} مؤقتًا.", existing.title)
+                if action == "resume" { _ = try await model.call("news.sync", ["subscription_id": existing.id]) }
+            default:
+                _ = try await model.call("news.sync", ["subscription_id": existing.id])
+                notice = L("بدأ تحديث {0} في الخلفية.", existing.title)
+            }
+            try await model.refresh()
+        } catch { self.error = error.localizedDescription }
     }
     private func load(append: Bool = false, refresh: Bool = false) async {
         let token = UUID(); requestID = token
@@ -213,7 +305,7 @@ struct FeedLibraryView: View {
                 _ = try await model.call("news.subscribe", ["url": feed.url, "title": feed.title, "kind": "rss"])
             }
             try await model.refresh()
-            addedTitle = feed.title
+            notice = L("بدأت متابعة {0}. ستظهر أخباره في الأخبار.", feed.title)
         } catch { self.error = error.localizedDescription }
     }
 }
