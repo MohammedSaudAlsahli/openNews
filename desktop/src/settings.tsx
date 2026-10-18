@@ -1,3 +1,4 @@
+import { settingsMessage } from "./settings-message";
 import { Updates } from "./updates";
 import { t, useLocale, setLocale } from "./locale";
 import { invoke } from "@tauri-apps/api/core";
@@ -35,8 +36,12 @@ export default function Settings({
   onError: (s: string) => void;
 }) {
   const locale = useLocale();
+  const [pageError, setPageError] = useState("");
+  useEffect(() => {
+    onError("");
+  }, []);
   const [tab, setTab] = useState(
-      sessionStorage.getItem("settings-tab") || "instructions",
+      sessionStorage.getItem("settings-tab") || "appearance",
     ),
     [data, setData] = useState<RecordData>({}),
     [section, setSection] = useState("role"),
@@ -96,7 +101,10 @@ export default function Settings({
         summaries: "news.digest.status",
       } as Record<string, string>
     )[tab];
-    if (!command) return;
+    if (!command) {
+      setBusy(false);
+      return;
+    }
     setBusy(true);
     call(
       command,
@@ -112,7 +120,7 @@ export default function Settings({
           setData(r);
         }
       })
-      .catch((e) => onError(String(e)))
+      .catch((e) => setPageError(String(e)))
       .finally(() => {
         if (live) setBusy(false);
       });
@@ -157,7 +165,7 @@ export default function Settings({
       setSaved(true);
       await refresh();
     } catch (e) {
-      onError(String(e));
+      setPageError(String(e));
     } finally {
       setBusy(false);
     }
@@ -169,38 +177,68 @@ export default function Settings({
   return (
     <div className="settings-layout">
       <aside className="settings-nav">
-        <p className="eyebrow">{t("MAKE IT YOURS")}</p>
         <h1>{t("Settings")}</h1>
         {[
-          [SlidersHorizontal, "instructions", "Assistant instructions"],
-          [Cpu, "connections", "Model connections"],
-          [SlidersHorizontal, "agents", "Assistants"],
-          [BookOpen, "writing", "Writing & references"],
-          [BookOpen, "skills", "Writing skills"],
-          [BookOpen, "summaries", "Article explanations"],
-          [Search, "search", "News memory"],
-          [Calendar, "daily", "Daily report"],
-          [Sun, "appearance", "Appearance"],
-          [Shield, "privacy", "Privacy & updates"],
-        ].map(([Icon, id, title]) => {
-          const I = Icon as typeof Sun;
-          return (
-            <button
-              key={id as string}
-              className={tab === id ? "selected" : ""}
-              onClick={() => setTab(id as string)}
-            >
-              <I size={16} />
-              {t(title as string)}
-            </button>
-          );
-        })}
+          {
+            title: "General",
+            items: [
+              [Sun, "appearance", "Appearance & language"],
+              [Cpu, "connections", "Accounts & models"],
+              [Shield, "privacy", "Privacy & updates"],
+            ],
+          },
+          {
+            title: "Assistant & writing",
+            items: [
+              [SlidersHorizontal, "instructions", "Assistant instructions"],
+              [SlidersHorizontal, "agents", "Assistants"],
+              [BookOpen, "writing", "Writing & references"],
+              [BookOpen, "skills", "Writing skills"],
+            ],
+          },
+          {
+            title: "News",
+            items: [
+              [BookOpen, "summaries", "Article explanations"],
+              [Search, "search", "Article search"],
+              [Calendar, "daily", "Daily report"],
+            ],
+          },
+        ].map((group) => (
+          <section className="settings-nav-group" key={group.title}>
+            <h2>{t(group.title)}</h2>
+            {group.items.map(([Icon, id, title]) => {
+              const I = Icon as typeof Sun;
+              return (
+                <button
+                  key={id as string}
+                  aria-current={tab === id ? "page" : undefined}
+                  className={tab === id ? "selected" : ""}
+                  onClick={() => {
+                    setTab(id as string);
+                    setPageError("");
+                    onError("");
+                  }}
+                >
+                  <I size={16} />
+                  {t(title as string)}
+                </button>
+              );
+            })}
+          </section>
+        ))}
       </aside>
       <div className="settings-content">
+        {pageError && (
+          <div className="settings-feedback" role="alert">
+            <span>{settingsMessage(pageError)}</span>
+            <button onClick={() => setPageError("")}>{t("Dismiss")}</button>
+          </div>
+        )}
         {busy && <LoaderCircle className="spin busy-indicator" size={17} />}{" "}
         {tab === "instructions" ? (
           <>
-            <h2>{t("Give your assistant a little direction.")}</h2>
+            <h2>{t("Assistant instructions")}</h2>
             <p className="muted">
               {t(
                 "These are the instructions it actually uses. Read them, make them yours, and save.",
@@ -315,22 +353,26 @@ export default function Settings({
               key={skill}
               id={"skill:" + skill}
               title={"Instructions for /" + skill}
-              onError={onError}
+              onError={setPageError}
             />
           </>
         ) : tab === "agents" ? (
-          <Agents snapshot={snapshot} refresh={refresh} onError={onError} />
+          <Agents
+            snapshot={snapshot}
+            refresh={refresh}
+            onError={setPageError}
+          />
         ) : tab === "writing" ? (
           <WritingLibrary
             snapshot={snapshot}
             refresh={refresh}
-            onError={onError}
+            onError={setPageError}
           />
         ) : tab === "connections" ? (
           <Connections
             snapshot={snapshot}
             refresh={refresh}
-            onError={onError}
+            onError={setPageError}
           />
         ) : tab === "daily" ? (
           <>
@@ -392,7 +434,7 @@ export default function Settings({
             <TaskInstructions
               id="daily-report"
               title={t("Daily report instructions")}
-              onError={onError}
+              onError={setPageError}
             />
             {(data.reports || []).map((r: RecordData) => (
               <details key={r.id || r.day}>
@@ -441,7 +483,7 @@ export default function Settings({
         ) : tab === "privacy" ? (
           <>
             <h2>{t("On your Mac. Under your control.")}</h2>
-            <Updates onError={onError} />
+            <Updates onError={setPageError} />
             <p className="muted">
               {t(
                 "This preview has its own workspace. Your current app and its data remain separate.",
@@ -463,7 +505,7 @@ export default function Settings({
                       await invoke("transfer_workspace", { restore: false });
                       window.location.reload();
                     } catch (e) {
-                      onError(String(e));
+                      setPageError(String(e));
                       setBusy(false);
                     }
                   }}
@@ -478,7 +520,7 @@ export default function Settings({
                       await invoke("transfer_workspace", { restore: true });
                       window.location.reload();
                     } catch (e) {
-                      onError(String(e));
+                      setPageError(String(e));
                       setBusy(false);
                     }
                   }}
@@ -541,7 +583,7 @@ export default function Settings({
                       ),
                     );
                   } catch (error) {
-                    onError(String(error));
+                    setPageError(String(error));
                   }
                 }}
               />
@@ -561,7 +603,7 @@ export default function Settings({
                           }),
                         );
                       } catch (error) {
-                        onError(String(error));
+                        setPageError(String(error));
                       }
                     }}
                   >
@@ -582,7 +624,7 @@ export default function Settings({
                           }),
                         );
                       } catch (error) {
-                        onError(String(error));
+                        setPageError(String(error));
                       }
                     }}
                   >
@@ -594,7 +636,13 @@ export default function Settings({
             )}
             <div className="settings-group">
               {Object.entries(data)
-                .filter(([k, v]) => k in statusLabels && v !== "" && v != null)
+                .filter(
+                  ([k, v]) =>
+                    k in statusLabels &&
+                    !["enabled", "language"].includes(k) &&
+                    v !== "" &&
+                    v != null,
+                )
                 .map(([k, v]) => (
                   <div className="setting-row" key={k}>
                     <span>{t(statusLabels[k])}</span>
@@ -614,18 +662,36 @@ export default function Settings({
                   </div>
                 ))}
             </div>
-            <ModelLibrary
-              key={tab}
-              embedding={tab === "search"}
-              onError={onError}
-            />
+            {(tab === "search" || data.engine === "local") && (
+              <details
+                className="settings-disclosure"
+                key={tab}
+                open={
+                  data.phase === "needs_model" ||
+                  data.phase === "needs_download"
+                }
+              >
+                <summary>
+                  {t(
+                    tab === "search"
+                      ? "Choose a search model"
+                      : "Choose an explanation model",
+                  )}
+                </summary>
+                <ModelLibrary
+                  key={tab}
+                  embedding={tab === "search"}
+                  onError={setPageError}
+                />
+              </details>
+            )}
             {tab === "search" && (
               <details
                 onToggle={(e) => {
                   if (e.currentTarget.open)
                     void call("news.search.inspect")
                       .then((r) => setIndexedArticles(r.articles))
-                      .catch((e) => onError(String(e)));
+                      .catch((e) => setPageError(String(e)));
                 }}
               >
                 <summary>{t("Index details")}</summary>
@@ -644,7 +710,7 @@ export default function Settings({
               <TaskInstructions
                 id="article-summary"
                 title={t("Article explanation instructions")}
-                onError={onError}
+                onError={setPageError}
               />
             )}
           </>

@@ -4,6 +4,36 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Another task is running. Wait for it to finish, then try again.":
+    "هناك مهمة قيد التشغيل. انتظر اكتمالها ثم أعد المحاولة.",
+  "This model is not available yet. Download it or choose an installed model below.":
+    "هذا النموذج غير متاح بعد. حمّله أو اختر نموذجًا مثبتًا أدناه.",
+  "Choose an explanation model": "اختيار نموذج الشرح",
+  "Choose a search model": "اختيار نموذج البحث",
+  "Server address": "عنوان الخادم",
+  "Defaults work for most accounts. Change these only for a custom server or model.":
+    "الإعدادات الافتراضية تناسب معظم الحسابات. غيّرها فقط عند استخدام خادم أو نموذج مخصص.",
+  "Advanced connection options": "خيارات الاتصال المتقدمة",
+  "Connection name (optional)": "اسم الحساب (اختياري)",
+  "Sign in to a provider, or connect Ollama on this Mac.":
+    "سجّل الدخول إلى حسابك، أو اربط Ollama على هذا الجهاز.",
+  Analysis: "التحليل",
+  Writing: "الكتابة",
+  "Apply the selected model to a task. Article explanations can also use a local model in News settings.":
+    "اختر مهمة لهذا النموذج. ويمكن استخدام نموذج محلي للشرح من إعدادات الأخبار.",
+  "Use this model for": "استخدام هذا النموذج في",
+  "Connection checked": "تم فحص الاتصال",
+  "Connection added": "تمت إضافة الحساب",
+  "Manage account": "إدارة الحساب",
+  "Add account": "إضافة حساب",
+  "Choose the account your assistant uses.":
+    "اختر الحساب الذي يستخدمه المساعد.",
+  "Accounts & models": "الحسابات والنماذج",
+  "Appearance & language": "المظهر واللغة",
+  "Article search": "البحث في المقالات",
+  News: "الأخبار",
+  "Assistant & writing": "المساعد والكتابة",
+  General: "عام",
   "Automatic explanations are paused. Saved explanations remain available.":
     "الشرح التلقائي متوقف مؤقتًا. الشروح المحفوظة لا تزال متاحة.",
   "Enable automatic explanations": "تفعيل الشرح التلقائي",

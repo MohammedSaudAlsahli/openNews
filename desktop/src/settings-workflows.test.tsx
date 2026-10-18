@@ -53,6 +53,42 @@ it("shows actual provider catalog failures instead of silently empty model choic
       onError={error}
     />,
   );
+  fireEvent.click(screen.getByText("Manage account"));
   fireEvent.click(screen.getByText("Refresh models"));
-  await waitFor(() => expect(error).toHaveBeenCalledWith("Connection expired"));
+  expect(await screen.findByRole("alert")).toHaveProperty(
+    "textContent",
+    "Connection expiredDismiss",
+  );
+  expect(error).not.toHaveBeenCalled();
+});
+
+it("keeps adding an account separate and advanced server settings collapsed", async () => {
+  vi.mocked(call).mockResolvedValue({
+    providers: [
+      {
+        id: "ollama",
+        name: "Ollama",
+        status: "ready",
+        credential: "local_server",
+        fields: ["host"],
+      },
+    ],
+  });
+  render(
+    <Connections
+      snapshot={{
+        profiles: [{ id: "p", label: "My account", model_id: "model" }],
+      }}
+      refresh={async () => {}}
+      onError={vi.fn()}
+    />,
+  );
+  expect(screen.queryByLabelText("Provider")).toBeNull();
+  fireEvent.click(screen.getByText("Add account"));
+  await screen.findByText("Ollama");
+  expect(
+    screen.getByText("Advanced connection options").closest("details")?.open,
+  ).toBe(false);
+  fireEvent.click(screen.getByText("Cancel"));
+  expect(screen.queryByLabelText("Provider")).toBeNull();
 });
