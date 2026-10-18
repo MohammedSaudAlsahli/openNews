@@ -460,6 +460,7 @@ export function Articles({
             <button
               key={s}
               className={s === scope ? "selected" : ""}
+              aria-pressed={s === scope}
               onClick={() => setScope(s)}
             >
               {s === "saved"
@@ -474,10 +475,11 @@ export function Articles({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("Search your articles")}
+            aria-label={t("Search your articles")}
           />
         </label>
       </div>
-      <div className="reader-actions">
+      <div className="article-filters">
         <label>
           {t("Source")}{" "}
           <select value={source} onChange={(e) => setSource(e.target.value)}>
