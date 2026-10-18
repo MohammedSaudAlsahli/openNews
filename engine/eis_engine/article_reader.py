@@ -55,6 +55,17 @@ def prepare_tree(body, base):
     for anchor in list(tree.xpath('//a[.//img]')):
         if not anchor.text_content().strip():
             anchor.drop_tag()
+    # Newsletter controls are not editorial content. Match publisher markup,
+    # never prose containing words such as "subscribe".
+    for node in list(tree.xpath('//*[contains(concat(" ", normalize-space(@class), " "), " subscription-widget ")]')):
+        if node.getparent() is not None: node.drop_tree()
+    # HTML newsletters wrap list text in paragraphs. A paragraph break after
+    # the Markdown marker otherwise becomes an empty bullet plus detached text.
+    for item in tree.xpath('//li'):
+        for index, paragraph in enumerate(list(item.xpath('./p'))):
+            if index:
+                paragraph.addprevious(html.Element('br'))
+            paragraph.drop_tag()
     images = []
     seen = set()
     for node in tree.xpath('//img'):
@@ -106,6 +117,7 @@ class ReaderSummary(MarkdownSummary):
         if tag == 'img' and not self.ignored:
             source = dict(attrs).get('src', '')
             if source.startswith(MARKER): self.parts.append('\n\n![image](' + source + ')\n\n')
+        elif tag == 'hr': self.parts.append('\n\n---\n\n')
         else: super().handle_starttag(tag, attrs)
 
 

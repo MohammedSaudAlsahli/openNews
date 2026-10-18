@@ -206,3 +206,12 @@ def test_site_banner_and_gravatar_are_not_article_images():
     reader = extract_reader(body, 'https://example.com/story', fragment=True)
     images = [b['url'] for b in reader['blocks'] if b['type'] == 'image']
     assert images == ['https://example.com/actual.jpg']
+
+
+def test_newsletter_list_paragraphs_stay_with_markers():
+    from eis_engine.article_reader import extract_reader
+    result = extract_reader('<article><ul><li><p><strong>أخبار</strong> اليوم</p></li><li><p>تحليلات السوق</p></li></ul><hr/><p>متن المقالة</p></article>', 'https://example.com/story', fragment=True)
+    text = '\n'.join(b.get('text', '') for b in result['blocks'])
+    assert '- **أخبار** اليوم' in text
+    assert '- تحليلات السوق' in text
+    assert '---' in text

@@ -1,3 +1,4 @@
+import { readerMarkdown } from "./reader-format";
 import { ArticleSite } from "./article-site";
 import { ArticleExplanation } from "./article-explanation";
 import { t, getLocale } from "./locale";
@@ -373,7 +374,7 @@ export function Articles({
               b.type === "image" ? (
                 <ArticleImage key={i} article={selected.id} id={b.id} />
               ) : (
-                <Markdown key={i} text={b.text || ""} />
+                <Markdown key={i} text={readerMarkdown(b.text || "")} />
               ),
             )
           ) : (

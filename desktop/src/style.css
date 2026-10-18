@@ -1293,3 +1293,30 @@ button:active:not(:disabled) { filter: brightness(.94); }
   .filters { gap: 12px; }
   .search { min-width: 160px; flex: 1; }
 }
+
+/* Reading typography: keep list markers attached to their content. */
+.reader-content { max-width: 800px; }
+.reader-content .prose { line-height: 1.75; text-align: start; }
+.reader-content .prose p { margin: 0 0 1.15em; }
+.reader-content .prose ul, .reader-content .prose ol {
+  padding-inline-start: 1.5em; padding-inline-end: 0; margin: 1em 0 1.5em;
+  list-style-position: outside;
+}
+.reader-content .prose li { padding-inline-start: .25em; margin: .35em 0; }
+.reader-content .prose li > p { margin: .35em 0; }
+.reader-content .prose li > p:first-child { display: inline; }
+.reader-content .prose h2, .reader-content .prose h3 {
+  line-height: 1.5; margin: 1.8em 0 .7em; font-weight: 650;
+}
+.reader-content .prose h2 { font-size: 1.45em; }
+.reader-content .prose h3 { font-size: 1.2em; }
+.reader-content .prose strong { font-weight: 700; }
+.reader-content .prose hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
+.reader-content .article-image { margin: 28px 0; }
+.reader-content .article-explanation {
+  padding: 14px 0; margin: 0 0 28px; border: 0;
+  border-bottom: 1px solid var(--line); border-radius: 0; background: transparent;
+  font-size: 13px; color: var(--muted);
+}
+.reader-content .article-explanation[open] { color: var(--text); }
+.reader-content h1[dir="auto"] { line-height: 1.4; }

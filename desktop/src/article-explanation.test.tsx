@@ -19,7 +19,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.resetAllMocks();
 });
-it("shows an existing explanation immediately in an open section", () => {
+it("shows an existing explanation in a collapsed section without interrupting reading", () => {
   const { container } = render(
     <ArticleExplanation
       article={{
@@ -29,7 +29,7 @@ it("shows an existing explanation immediately in an open section", () => {
     />,
   );
   expect(screen.getByText("A complete explanation")).toBeTruthy();
-  expect(container.querySelector("details")?.open).toBe(true);
+  expect(container.querySelector("details")?.open).toBe(false);
   expect(call).not.toHaveBeenCalled();
 });
 it("updates when background preparation finishes without marking the article read again", async () => {
@@ -52,6 +52,7 @@ it("keeps generation feedback local and renders the resulting explanation", asyn
   vi.mocked(call).mockResolvedValue({ summary: "Generated explanation" });
   render(<ArticleExplanation article={{ id: "a" }} />);
   await act(async () => {
+    fireEvent.click(screen.getByText("Article explanation"));
     fireEvent.click(screen.getByRole("button"));
   });
   expect(call).toHaveBeenCalledWith("news.summarize", {

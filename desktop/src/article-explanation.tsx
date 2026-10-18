@@ -52,7 +52,7 @@ export function ArticleExplanation({ article }: { article: RecordData }) {
     }
   }
   return (
-    <details className="article-explanation" open>
+    <details className="article-explanation">
       <summary>{t("Article explanation")}</summary>
       {summary ? (
         <Markdown text={summary} />
