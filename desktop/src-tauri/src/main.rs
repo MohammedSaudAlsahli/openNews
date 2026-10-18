@@ -503,6 +503,42 @@ fn open_external(address: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+// Remote sites have no capability grant and cannot invoke the local engine.
+#[tauri::command]
+async fn open_article_site(app: tauri::AppHandle, address: String) -> Result<(), String> {
+    let url = url::Url::parse(&address).map_err(|_| "Invalid article URL")?;
+    if !["https", "http"].contains(&url.scheme()) || url.host_str().is_none() || !url.username().is_empty() || url.password().is_some() {
+        return Err("Only web article URLs are supported".into());
+    }
+    if let Some(window) = app.get_webview_window("article-site") {
+        window.navigate(url).map_err(|e| e.to_string())?;
+        window.show().map_err(|e| e.to_string())?;
+        return window.set_focus().map_err(|e| e.to_string());
+    }
+    tauri::WebviewWindowBuilder::new(&app, "article-site", tauri::WebviewUrl::External(url))
+        .title("OpenStudio — Original article")
+        .inner_size(1100.0, 800.0)
+        .on_navigation(|url| ["http", "https"].contains(&url.scheme()))
+        .build().map_err(|e| e.to_string())?;
+    Ok(())
+}
+#[tauri::command]
+async fn recover_article(app: tauri::AppHandle, state: tauri::State<'_, Runtime>, article_id: String) -> Result<Value, String> {
+    let socket = state.engine.lock().map_err(|_| "Engine lock failed")?.as_ref().map(|e| e.socket.clone()).ok_or("Engine unavailable")?;
+    let helper = app.path().resource_dir().map_err(|e| e.to_string())?.join("runtime/public-reader");
+    tauri::async_runtime::spawn_blocking(move || {
+        let article = exchange(socket.clone(), "news.preview".into(), json!({"article_id":article_id}))?;
+        if article["body_status"] == "full" { return Ok(article); }
+        let address = article["url"].as_str().ok_or("Article URL unavailable")?;
+        let output = Command::new(helper).arg(address).output().map_err(|e| e.to_string())?;
+        if !output.status.success() || output.stdout.len() > 1024 * 1024 { return Ok(article); }
+        let rendered: Value = serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+        if rendered["html"].as_str().is_some_and(|s| !s.is_empty()) {
+            return exchange(socket, "news.reader.capture".into(), json!({"article_id":article_id,"html":rendered["html"]}));
+        }
+        Ok(article)
+    }).await.map_err(|e| e.to_string())?
+}
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
@@ -515,6 +551,8 @@ fn main() {
             engine_call,
             article_image,
             open_external,
+            open_article_site,
+            recover_article,
             save_credentials,
             device_state,
             transfer_workspace,

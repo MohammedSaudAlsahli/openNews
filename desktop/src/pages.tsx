@@ -224,7 +224,12 @@ export function Articles({
       const article = await call("news.article", { article_id: id });
       if (token !== selection.current) return;
       setSelected(article);
-      const r = await call("news.reader", { article_id: id, refresh });
+      let r = await call("news.reader", { article_id: id, refresh });
+      if (token !== selection.current) return;
+      if (r.body_status !== "full" && r.body_status !== "media_summary") {
+        try { r = await invoke<RecordData>("recover_article", { articleId: id }); }
+        catch { /* Keep the original available when the publisher blocks extraction. */ }
+      }
       if (token !== selection.current) return;
       setSelected({ ...article, ...r });
       const related = await call("news.related", { article_id: id });
@@ -276,7 +281,7 @@ export function Articles({
           <button
             title={t("Read original")}
             onClick={() =>
-              void invoke("open_external", { address: selected.url }).catch(
+              void invoke("open_article_site", { address: selected.url }).catch(
                 (e) => onError(String(e)),
               )
             }
@@ -346,7 +351,7 @@ export function Articles({
               </button>
               <button
                 onClick={() =>
-                  void invoke("open_external", { address: selected.url }).catch(
+                  void invoke("open_article_site", { address: selected.url }).catch(
                     (e) => onError(String(e)),
                   )
                 }
@@ -356,7 +361,7 @@ export function Articles({
               </button>
             </div>
           )}
-          <ArticleExplanation key={selected.id} article={selected} />
+          {(selected.body_status === "full" || selected.prepared_summary?.summary) && <ArticleExplanation key={selected.id} article={selected} />}
           {selected.body_status === "full" &&
           selected.reader?.blocks?.length ? (
             selected.reader.blocks.map((b: RecordData, i: number) =>
@@ -372,7 +377,7 @@ export function Articles({
                 selected.body_status === "full"
                   ? selected.text || ""
                   : articleExcerpt(selected.summary || "") ||
-                    "This feed contains a link, rather than article text."
+                    ""
               }
             />
           )}

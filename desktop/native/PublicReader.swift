@@ -27,7 +27,7 @@ import WebKit
     }
     func webView(_ view: WKWebView, didFinish navigation: WKNavigation!) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            view.evaluateJavaScript("document.querySelector('article')?.outerHTML || document.querySelector('main')?.outerHTML || ''") { result, _ in
+            view.evaluateJavaScript("(/performing security verification|verify you are human|checking your browser|just a moment/i.test(document.title + ' ' + document.body.innerText.slice(0, 1500)) || document.querySelector('[id^=challenge-], .cf-turnstile')) ? '' : document.querySelector('article, .post-body, .entry-content, [itemprop=articleBody], main')?.outerHTML || document.body?.outerHTML || ''") { result, _ in
                 let html = result as? String ?? ""
                 self.finish(html.utf8.count <= 512 * 1024 ? html : "")
             }
