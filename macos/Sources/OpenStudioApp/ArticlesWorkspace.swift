@@ -36,7 +36,18 @@ struct ArticlesWorkspace: View {
                                digest?.engine ?? "", digest?.language ?? ""]
         return parts.joined(separator: "|")
     }
+    private var libraryRefreshKey: String {
+        let subscriptions = model.snapshot?.subscriptions ?? []
+        let subscriptionKey = subscriptions.map { $0.id + ($0.lastSuccess ?? "") }.joined()
+        return filters + (model.health?.workspaceId ?? "") + subscriptionKey
+    }
     var body: some View {
+        observedContent
+            .task(id: summaryRefreshKey) { await refreshSummaryStates() }
+            .task(id: libraryRefreshKey) { await refreshLibrary() }
+            .sheet(isPresented: $discover) { FeedLibraryView() }
+    }
+    private var content: some View {
         ZStack {
             library.accessibilityElement(children: .contain).opacity(selected == nil ? 1 : 0).allowsHitTesting(selected == nil).disabled(selected != nil).accessibilityHidden(selected != nil)
             if let article = selected {
@@ -49,23 +60,9 @@ struct ArticlesWorkspace: View {
                 }).id(article.id)
             }
         }.background(theme.page)
-            .task(id: summaryRefreshKey) {
-                let ids = articles.map(\.id)
-                for start in stride(from: 0, to: ids.count, by: 100) {
-                    guard !Task.isCancelled else { return }
-                    if let result = try? await model.decoded("news.summary.states", ["ids": Array(ids[start..<min(start+100,ids.count)])], as: ArticleSummaryStates.self) {
-                        guard !Task.isCancelled else { return }
-                        summaryStates.merge(result.states) { _, new in new }
-                    }
-                }
-            }
-            .sheet(isPresented: $discover) { FeedLibraryView() }
-            .task(id: filters + (model.health?.workspaceId ?? "") + (model.snapshot?.subscriptions ?? []).map { $0.id + ($0.lastSuccess ?? "") }.joined()) {
-                request = UUID()
-                guard model.health != nil else { return }
-                do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
-                await load()
-            }
+    }
+    private var observedContent: some View {
+        content
             .onReceive(NotificationCenter.default.publisher(for: .openEditorialArticle)) { notification in
                 guard let id = notification.object as? String else { return }
                 Task {
@@ -90,6 +87,23 @@ struct ArticlesWorkspace: View {
                     }
                 }
             }
+    }
+    private func refreshSummaryStates() async {
+        let ids = articles.map(\.id)
+        for start in stride(from: 0, to: ids.count, by: 100) {
+            guard !Task.isCancelled else { return }
+            let batch = Array(ids[start..<min(start + 100, ids.count)])
+            if let result = try? await model.decoded("news.summary.states", ["ids": batch], as: ArticleSummaryStates.self) {
+                guard !Task.isCancelled else { return }
+                summaryStates.merge(result.states) { _, new in new }
+            }
+        }
+    }
+    private func refreshLibrary() async {
+        request = UUID()
+        guard model.health != nil else { return }
+        do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+        await load()
     }
     private func refreshArticleContent(_ id: String) async {
         if let updated = try? await model.decoded("news.preview", ["article_id": id], as: NewsArticle.self),
