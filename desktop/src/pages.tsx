@@ -28,11 +28,13 @@ export function ArticleImage({
   cover?: boolean;
 }) {
   const [src, setSrc] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
   const placeholder = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let live = true;
     setSrc("");
+    setExpanded(false);
     setFailed(false);
     if (!id) return;
     const observer = new IntersectionObserver(
@@ -71,13 +73,15 @@ export function ArticleImage({
           <span>{t("No cover available")}</span>
         </div>
       ) : src ? (
-        <img
-          className="article-image"
-          src={src}
-          alt=""
-          loading="lazy"
-          onError={() => setFailed(true)}
-        />
+        cover ? <img className="article-image" src={src} alt="" loading="lazy" onError={() => setFailed(true)} /> :
+        <button
+          className={`reader-image-toggle${expanded ? " expanded" : ""}`}
+          aria-expanded={expanded}
+          aria-label={getLocale() === "ar" ? (expanded ? "تصغير الصورة" : "تكبير الصورة") : (expanded ? "Reduce image" : "Enlarge image")}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <img className="article-image" src={src} alt="" loading="lazy" onError={() => setFailed(true)} />
+        </button>
       ) : (
         <div className="image-placeholder" aria-hidden="true" />
       )}

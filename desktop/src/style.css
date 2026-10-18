@@ -1320,3 +1320,15 @@ button:active:not(:disabled) { filter: brightness(.94); }
 }
 .reader-content .article-explanation[open] { color: var(--text); }
 .reader-content h1[dir="auto"] { line-height: 1.4; }
+
+/* Compact reader artwork, with the complete image available on demand. */
+.reader-image-toggle { display: flex; width: 100%; padding: 0; margin: 22px 0;
+  justify-content: center; cursor: zoom-in; background: transparent; }
+.reader-image-toggle:hover { background: transparent; }
+.reader-content .reader-image-toggle .article-image {
+  display: block; width: auto; max-width: 100%; height: auto;
+  max-height: min(300px, 40vh); margin: 0; object-fit: contain; border-radius: 8px;
+}
+.reader-image-toggle.expanded { cursor: zoom-out; }
+.reader-content .reader-image-toggle.expanded .article-image { max-height: none; }
+.reader-content .image-placeholder { height: min(300px, 40vh); aspect-ratio: auto; }

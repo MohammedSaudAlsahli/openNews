@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { ArticleImage } from "./pages";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -39,6 +39,12 @@ it("requests an image only when it approaches the viewport", async () => {
     imageId: "image-1",
   });
   expect(container.querySelector("img")?.src).toContain("data:image/png");
+  const imageButton = screen.getByRole("button", { name: "Enlarge image" });
+  expect(imageButton.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(imageButton);
+  expect(imageButton.getAttribute("aria-expanded")).toBe("true");
+  fireEvent.click(imageButton);
+  expect(imageButton.getAttribute("aria-expanded")).toBe("false");
   unmount();
   expect(disconnect).toHaveBeenCalled();
 });
