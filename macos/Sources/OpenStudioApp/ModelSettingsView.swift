@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 private enum SettingsSection: String, CaseIterable {
-    case general, connections, agents, permissions, assistant, newsMemory, summaryModels, application
+    case general, connections, agents, permissions, assistant, newsMemory, summaryModels, application, dailyReport
 }
 
 struct ModelSettingsView: View {
@@ -24,6 +24,7 @@ struct ModelSettingsView: View {
                         Label(L("الوكلاء"), systemImage: "person.2").tag(SettingsSection.agents)
                         Label(L("تخصيص المساعد"), systemImage: "slider.horizontal.3").tag(SettingsSection.assistant)
                         Label(L("البحث في الأخبار"), systemImage: "books.vertical").tag(SettingsSection.newsMemory)
+                        Label(L("التقرير اليومي"), systemImage: "calendar").tag(SettingsSection.dailyReport)
                         Label(L("تلخيص الأخبار"), systemImage: "text.alignleft").tag(SettingsSection.summaryModels)
                     }
                     Section(L("التطبيق")) {
@@ -37,6 +38,7 @@ struct ModelSettingsView: View {
             Divider()
             // Keep each editor alive while navigating between settings sections.
             ZStack {
+                if section == .dailyReport { DailyReportSettings() }
                 if section == .general || visited.contains(.general) {
                 VStack(alignment: .leading, spacing: 0) {
                     settingsHeading(L("اللغة والمظهر"), subtitle: L("تُطبّق تغييرات اللغة والمظهر فورًا وتُحفظ تلقائيًا."))

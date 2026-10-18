@@ -49,6 +49,8 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         from .news_digest import NewsDigest
         self.news_digest = NewsDigest(self)
         self.news.digest = self.news_digest
+        from .daily_report import DailyReports
+        self.daily_reports = DailyReports(self)
         from .news_knowledge import NewsKnowledge
         self.news.knowledge = NewsKnowledge(self.news)
         from .feed_directory import FeedDirectory
@@ -168,6 +170,7 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         task.add_done_callback(self.feed_tasks.discard)
 
     async def close(self):
+        await self.daily_reports.close()
         if hasattr(self.news.knowledge.embedder, 'close'):
             self.news.knowledge.embedder.close()
         await self.news_digest.local.close()

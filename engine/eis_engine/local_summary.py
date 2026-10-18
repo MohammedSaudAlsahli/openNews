@@ -301,11 +301,11 @@ class LocalSummaryModels:
             raise Failure('CAPACITY','هذا النموذج أكبر من ذاكرة جهازك المتاحة للتلخيص. اختر إصدارًا أصغر.')
         async with self.service.model_lock:
             model = Ollama(id=name,host=HOST,api_key=None,timeout=120,keep_alive=0,client_params={'trust_env':False},
-                           options={'num_ctx':8192,'num_predict':800,'num_thread':2,'temperature':0.2},
+                           options={'num_ctx':8192,'num_predict':2000,'num_thread':2,'temperature':0.2},
                            request_params={'think':False} if 'thinking' in self.capabilities.get(name,[]) else None)
             agent = Agent(model=model,instructions=instructions,output_schema=schema,markdown=False)
             try:
-                result = await asyncio.wait_for(agent.arun(json.dumps({**data, "output_language": "العربية فقط؛ ترجم الملخص ولا تنسخ النص الإنجليزي." if "Arabic." in instructions else "English only."},ensure_ascii=False)),timeout=120)
+                result = await asyncio.wait_for(agent.arun(json.dumps({**data, "output_language": "العربية فقط؛ ترجم الملخص ولا تنسخ النص الإنجليزي." if data.get("output_language") == "Arabic." else "English only."},ensure_ascii=False)),timeout=120)
             finally:
                 # Also release weights on cancellation/error; keep_alive covers normal completion.
                 try:

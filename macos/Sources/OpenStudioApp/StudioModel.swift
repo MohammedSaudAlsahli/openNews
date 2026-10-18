@@ -84,6 +84,7 @@ import AppKit
                         break
                     }
                     ticks += 1
+                    if ticks % 60 == 0 { await DailyReportNotifications.check(self) }
                     if ticks % 5 == 0 {
                         let thermal: String
                         switch ProcessInfo.processInfo.thermalState {

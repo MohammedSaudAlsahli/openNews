@@ -9,6 +9,17 @@ from .storage import digest, encode, now, uid
 
 class ServiceCommandsMixin:
     async def dispatch(self, command, p):
+        if command == 'daily.get': return self.daily_reports.status()
+        if command == 'daily.set':
+            if p.get('enabled') and p.get('consent') is not True:
+                raise Failure('PERMISSION_DENIED','فعّل استخدام النماذج أولًا.')
+            return self.daily_reports.configure(p)
+        if command == 'daily.check':
+            if p.get('consent') is not True:
+                if self.daily_reports.task: self.daily_reports.task.cancel()
+                return self.daily_reports.status()
+            return self.daily_reports.check()
+
         if command in {"assistant.get", "assistant.save", "assistant.reset"}:
             return self.personalization.dispatch(command,p)
         if command == "chat.progress":

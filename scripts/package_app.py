@@ -102,6 +102,6 @@ if os.environ.get('EIS_APP_OUTPUT_DIR'):
 (Path(staging.name)/'Applications').symlink_to('/Applications')
 image=ROOT/f'dist/OpenStudio-{version}-macOS-arm64.dmg'
 subprocess.run(['hdiutil','create','-volname','OpenStudio','-srcfolder',str(Path(staging.name)),'-ov','-format','UDZO',str(image)],check=True)
-subprocess.run(['hdiutil','verify',str(image)],check=True)
+subprocess.run([sys.executable,str(ROOT/'scripts/dmg_verify.py'),str(image)],check=True)
 print(image)
 staging.cleanup()

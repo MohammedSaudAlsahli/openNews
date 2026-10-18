@@ -5,7 +5,7 @@ from .storage import digest, encode
 
 
 def fingerprint(row):
-    return digest(encode({k: row.get(k) for k in ('title','url','published_at','text','body_status')}))
+    return digest('explanation-3:' + encode({k: row.get(k) for k in ('title','url','published_at','text','body_status')}))
 
 
 def matches_language(text, language):
