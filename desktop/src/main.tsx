@@ -771,7 +771,21 @@ function App() {
               </div>
             </div>
           ) : page === "articles" ? (
-            <Articles snapshot={snapshot} onError={setError} />
+            <Articles
+              snapshot={snapshot}
+              onError={setError}
+              onDiscuss={(article) => {
+                navigationVersion.current += 1;
+                setSelected("");
+                setDetail(undefined);
+                setPage("chat");
+                setAttachments((old) => ({ ...old, new: [article] }));
+                setDrafts((old) => ({
+                  ...old,
+                  new: t("Discuss this article with me") + ": " + article.title,
+                }));
+              }}
+            />
           ) : page === "sources" ? (
             <Sources snapshot={snapshot} refresh={refresh} onError={setError} />
           ) : page === "drafts" ? (

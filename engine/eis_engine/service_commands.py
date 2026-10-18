@@ -126,7 +126,7 @@ class ServiceCommandsMixin:
         if command == "news.image":
             return await self.news.image(p["article_id"], p["image_id"])
         if command == "news.preview":
-            return self.news.article(p["article_id"], mark_read=False)
+            return self.news.article(p["article_id"], mark_read=False) | {"prepared_summary":self.news_digest.preview(p["article_id"])}
         if command == "news.article":
             return self.news.article(p["article_id"]) | {"prepared_summary":self.news_digest.preview(p["article_id"])}
         if command == "news.reader.capture":

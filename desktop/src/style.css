@@ -1182,3 +1182,28 @@ progress {
 .quick-reader .filters { flex-wrap:wrap; gap:12px; }
 .quick-reader .article-card { min-height:0; }
 .quick-reader .reader-toolbar { top:0; padding:16px 24px; }
+
+/* App chrome does not behave like selectable document text. Reading stays selectable. */
+body { -webkit-user-select: none; user-select: none; }
+input, textarea, .prose, .reader-content, .message, .revision-diff {
+  -webkit-user-select: text; user-select: text;
+}
+.article-card { position: relative; min-width: 0; height: 100%; }
+.article-grid { align-items: stretch; }
+.article-open::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+.article-open:focus-visible { outline: none; }
+.article-open:focus-visible::after { outline: 2px solid var(--accent); outline-offset: 6px; }
+.article-card:has(.article-open:hover) { border-top-color: var(--muted); }
+.article-card footer { margin-top: auto; padding-top: 22px; }
+.article-card footer button { position: relative; z-index: 1; }
+.article-title { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.article-card > p:not(.eyebrow) { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.article-explanation { margin: 28px 0; padding: 20px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.article-explanation summary { cursor: pointer; font-weight: 600; }
+.article-explanation .prose { margin-top: 18px; }
+.article-explanation p { margin: 12px 0; }
+.article-explanation .notice { font-size: 13px; }
+
+.reader-content .prose { font-size: var(--reading-size, 17px); }
+
+.summary-status { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:12px 0; margin-bottom:16px; color:var(--muted); font-size:13px; border-bottom:1px solid var(--line); }

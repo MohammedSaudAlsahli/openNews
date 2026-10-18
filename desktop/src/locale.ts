@@ -4,6 +4,27 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Automatic explanations are paused. Saved explanations remain available.":
+    "الشرح التلقائي متوقف مؤقتًا. الشروح المحفوظة لا تزال متاحة.",
+  "Enable automatic explanations": "تفعيل الشرح التلقائي",
+
+  "Discuss article": "ناقش المقالة",
+  "Discuss this article with me": "ناقش معي هذه المقالة",
+  "Smaller text": "تصغير النص",
+  "Larger text": "تكبير النص",
+  "All dates": "كل التواريخ",
+  "Last 24 hours": "آخر 24 ساعة",
+  "Last 7 days": "آخر 7 أيام",
+  "Last 30 days": "آخر 30 يومًا",
+
+  "Not explained": "لم يُشرح بعد",
+  "Preparing explanation…": "جارٍ إعداد الشرح…",
+  "Explanation will retry": "ستتم إعادة محاولة الشرح",
+  "No explanation yet. Generate one using your selected summary model.":
+    "لم يُجهّز الشرح بعد. يمكنك إعداده بالنموذج الذي اخترته للتلخيص.",
+  "Explanation could not be prepared. Try again.":
+    "تعذّر إعداد الشرح. أعد المحاولة.",
+
   Author: "الكاتب",
   "Original link": "رابط المصدر الأصلي",
   "Import text or Markdown": "استيراد ملف نصي أو Markdown",
@@ -76,7 +97,6 @@ const ar: Record<string, string> = {
   "Ready to read": "جاهزة للقراءة",
   "Excerpt only": "مقتطف فقط",
   Explained: "مشروحة",
-  "Not explained": "لم تُشرح بعد",
 
   "Add a source": "إضافة مصدر",
   "Create draft": "إنشاء مسودة",

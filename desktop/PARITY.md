@@ -41,3 +41,25 @@ Updated 2026-10-18. Evidence below distinguishes automated contracts from live U
   signed-update installation fixture.
 - TypeScript production build passed. macOS release bundle and signed updater
   artifact built locally. These results are not a claim that remote CI ran.
+
+## Reader parity follow-up, 2026-10-18
+
+- Full article cards now open through a stretched native button, including images
+  and whitespace. The bookmark remains a separate button above the hit target.
+  Verified by clicking an image in the running macOS bundle.
+- Explanations are expanded before the article body, with local generation feedback
+  and visibility-aware polling for newly completed background explanations. Preview
+  reads include valid cached explanations without changing read state.
+- Disabled automatic explanations are now explicitly disclosed in the article list,
+  with an opt-in enable action. Migration's paused setting is not silently overridden.
+- Restored article discussion attachments, persistent reading font size, date filters,
+  filter reset and an original-source action for complete articles as well as excerpts.
+- App chrome is not text-selectable; article/message prose and editors remain selectable.
+- 14 frontend tests and 23 conversation/preview engine tests passed. The earlier
+  migration commit 9d69a02 passed both GitHub workflow runs; these follow-up changes
+  have not yet run remotely.
+- Local Tauri installation is distinct from publishing a replacement release. The
+  original Swift bundle and workspace remain available for rollback. Original-site
+  browsing currently opens the external browser rather than an embedded website tab;
+  image enlargement and native Share menu parity still need implementation. The
+  update/clean-machine gates above remain open.

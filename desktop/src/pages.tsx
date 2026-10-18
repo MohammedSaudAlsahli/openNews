@@ -1,3 +1,4 @@
+import { ArticleExplanation } from "./article-explanation";
 import { t, getLocale } from "./locale";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -89,12 +90,21 @@ const date = (v: string) =>
 export function Articles({
   onError,
   snapshot,
-}: Props & { snapshot: RecordData }) {
+  onDiscuss,
+}: Props & {
+  snapshot: RecordData;
+  onDiscuss?: (article: RecordData) => void;
+}) {
   const [articles, setArticles] = useState<RecordData[]>([]),
     [query, setQuery] = useState(""),
     [scope, setScope] = useState("all"),
     [source, setSource] = useState(""),
     [order, setOrder] = useState("newest"),
+    [days, setDays] = useState(0),
+    [digestStatus, setDigestStatus] = useState<RecordData>(),
+    [fontSize, setFontSize] = useState(
+      () => Number(localStorage.getItem("reader-font-size")) || 17,
+    ),
     [history, setHistory] = useState<RecordData[]>([]),
     [revision, setRevision] = useState<RecordData>(),
     [more, setMore] = useState(false),
@@ -105,6 +115,28 @@ export function Articles({
     [states, setStates] = useState<RecordData>({});
   const request = useRef(0),
     selection = useRef(0);
+  useEffect(() => {
+    let live = true,
+      pending = false;
+    async function status() {
+      if (pending || document.visibilityState === "hidden") return;
+      pending = true;
+      try {
+        const result = await call("news.digest.status");
+        if (live) setDigestStatus(result);
+      } catch {
+        /* The reader remains usable if background status is unavailable. */
+      } finally {
+        pending = false;
+      }
+    }
+    void status();
+    const timer = setInterval(() => void status(), 15000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
   async function load(append = false) {
     const token = ++request.current;
     setBusy(true);
@@ -114,6 +146,7 @@ export function Articles({
         scope,
         source_id: source,
         order,
+        days,
         limit: 30,
         offset: append ? articles.length : 0,
       });
@@ -147,7 +180,7 @@ export function Articles({
       clearTimeout(timer);
       ++request.current;
     };
-  }, [query, scope, source, order]);
+  }, [query, scope, source, order, days]);
   useEffect(
     () => () => {
       ++selection.current;
@@ -231,6 +264,41 @@ export function Articles({
             {t("Articles")}
           </button>
           <span />
+          {onDiscuss && (
+            <button onClick={() => onDiscuss(selected)}>
+              {t("Discuss article")}
+            </button>
+          )}
+          <button
+            title={t("Read original")}
+            onClick={() =>
+              void invoke("open_external", { address: selected.url }).catch(
+                (e) => onError(String(e)),
+              )
+            }
+          >
+            <ArrowUpRight size={17} />
+          </button>
+          <button
+            title={t("Smaller text")}
+            disabled={fontSize <= 14}
+            onClick={() => {
+              setFontSize(fontSize - 1);
+              localStorage.setItem("reader-font-size", String(fontSize - 1));
+            }}
+          >
+            A−
+          </button>
+          <button
+            title={t("Larger text")}
+            disabled={fontSize >= 24}
+            onClick={() => {
+              setFontSize(fontSize + 1);
+              localStorage.setItem("reader-font-size", String(fontSize + 1));
+            }}
+          >
+            A+
+          </button>
           {reading && <LoaderCircle className="spin" size={16} />}
           <button
             title={t("Refresh article")}
@@ -246,7 +314,10 @@ export function Articles({
             />
           </button>
         </div>
-        <div className="reader-content">
+        <div
+          className="reader-content"
+          style={{ "--reading-size": `${fontSize}px` } as React.CSSProperties}
+        >
           <p className="eyebrow">
             {selected.source_title} · {date(selected.published_at)}
           </p>
@@ -281,6 +352,7 @@ export function Articles({
               </button>
             </div>
           )}
+          <ArticleExplanation key={selected.id} article={selected} />
           {selected.body_status === "full" &&
           selected.reader?.blocks?.length ? (
             selected.reader.blocks.map((b: RecordData, i: number) =>
@@ -334,32 +406,6 @@ export function Articles({
               </>
             )}
           </details>
-          <details className="summary-section">
-            <summary>{t("Article explanation")}</summary>
-            {selected.prepared_summary ? (
-              <Markdown text={selected.prepared_summary.summary} />
-            ) : (
-              <button
-                disabled={reading}
-                onClick={async () => {
-                  setReading(true);
-                  try {
-                    const summary = await call("news.summarize", {
-                      article_id: selected.id,
-                      consent: true,
-                    });
-                    setSelected({ ...selected, prepared_summary: summary });
-                  } catch (e) {
-                    onError(String(e));
-                  } finally {
-                    setReading(false);
-                  }
-                }}
-              >
-                {t("Generate explanation with my model")}
-              </button>
-            )}
-          </details>
           {related.length > 0 && (
             <section>
               <h2>{t("Related reading")}</h2>
@@ -402,7 +448,9 @@ export function Articles({
               className={s === scope ? "selected" : ""}
               onClick={() => setScope(s)}
             >
-              {s === "saved" ? t("Bookmarks") : s[0].toUpperCase() + s.slice(1)}
+              {s === "saved"
+                ? t("Bookmarks")
+                : t(s[0].toUpperCase() + s.slice(1))}
             </button>
           ))}
         </div>
@@ -434,7 +482,56 @@ export function Articles({
             <option value="oldest">{t("Oldest first")}</option>
           </select>
         </label>
+        <label>
+          {t("Date")}{" "}
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+          >
+            <option value={0}>{t("All dates")}</option>
+            <option value={1}>{t("Last 24 hours")}</option>
+            <option value={7}>{t("Last 7 days")}</option>
+            <option value={30}>{t("Last 30 days")}</option>
+          </select>
+        </label>
+        {(days !== 0 || source || query || order !== "newest") && (
+          <button
+            onClick={() => {
+              setDays(0);
+              setSource("");
+              setQuery("");
+              setOrder("newest");
+            }}
+          >
+            {t("Clear filters")}
+          </button>
+        )}
       </div>
+      {digestStatus && !digestStatus.enabled && (
+        <div className="summary-status">
+          <span>
+            {t(
+              "Automatic explanations are paused. Saved explanations remain available.",
+            )}
+          </span>
+          <button
+            onClick={async () => {
+              try {
+                setDigestStatus(
+                  await call("news.digest.set", {
+                    enabled: true,
+                    consent: true,
+                  }),
+                );
+              } catch (e) {
+                onError(String(e));
+              }
+            }}
+          >
+            {t("Enable automatic explanations")}
+          </button>
+        </div>
+      )}
       {articles.length === 0 && !busy ? (
         <div className="empty">
           <BookOpen size={28} />
@@ -450,7 +547,7 @@ export function Articles({
               )}
               <p className="eyebrow">{a.source_title}</p>
               <button
-                className="article-title"
+                className="article-title article-open"
                 onClick={() => void open(a.id)}
                 dir="auto"
               >
@@ -460,11 +557,17 @@ export function Articles({
               <footer>
                 <span>
                   {date(a.published_at)} ·{" "}
-                  {states[a.id] === "ready"
-                    ? t("Explained")
-                    : a.body_status === "full"
-                      ? t("Ready to read")
-                      : t("Excerpt only")}
+                  {t(
+                    (
+                      {
+                        ready: "Explained",
+                        summarizing: "Preparing explanation…",
+                        retrying: "Explanation will retry",
+                        pending: "Not explained",
+                        incomplete: "Excerpt only",
+                      } as Record<string, string>
+                    )[states[a.id]] || "Not explained",
+                  )}
                 </span>
                 <button title={t("Bookmark")} onClick={() => void bookmark(a)}>
                   <Bookmark

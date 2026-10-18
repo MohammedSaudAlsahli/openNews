@@ -355,6 +355,7 @@ def test_source_preview_is_local_read_only_and_workspace_scoped(service, monkeyp
     async def scenario():
         preview = await service.dispatch("news.preview", {"article_id": identifier})
         assert preview["text"] == "مادة الخبر الأصلية"
+        assert "prepared_summary" in preview
         assert service.db.execute("SELECT is_read FROM news_articles WHERE id=?", (identifier,)).fetchone()[0] == 0
         assert service.factory.calls == []
         other = uid()
