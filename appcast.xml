@@ -3,13 +3,13 @@
     <channel>
         <title>OpenStudio</title>
         <item>
-            <title>0.2.2</title>
-            <pubDate>Sun, 18 Oct 2026 10:43:51 +0300</pubDate>
-            <sparkle:version>203</sparkle:version>
-            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
+            <title>0.2.3</title>
+            <pubDate>Sun, 18 Oct 2026 19:06:17 +0300</pubDate>
+            <sparkle:version>204</sparkle:version>
+            <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/MohammedSaudAlsahli/openStudio/releases/download/v0.2.2/OpenStudio-0.2.2-macOS-arm64.dmg" length="297131690" type="application/octet-stream" sparkle:edSignature="5dsWJXijMbDfhK3OEwLX3SLeYlyBRqvmXyz5URrmepvCfaLYtmKNU3UO7vXyDx1zAKkeTDUJrrtWDkcxWqAuAg=="/>
+            <enclosure url="https://github.com/MohammedSaudAlsahli/openStudio/releases/download/v0.2.3/OpenStudio-0.2.3-macOS-arm64.dmg" length="294171755" type="application/octet-stream" sparkle:edSignature="QbXx7vArdL48ufJsQxpqlhrTlEqv4+NQt8Yd9Qa+4Q449/2zdWTvYF+JrXDSQaG1zGzTkEf6wjs0Qqs+5ZRvBg=="/>
         </item>
     </channel>
 </rss>
