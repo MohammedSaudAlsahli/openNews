@@ -22,7 +22,7 @@ export function ArticleImage({
   cover = false,
 }: {
   article: string;
-  id: string;
+  id?: string;
   cover?: boolean;
 }) {
   const [src, setSrc] = useState("");
@@ -32,6 +32,7 @@ export function ArticleImage({
     let live = true;
     setSrc("");
     setFailed(false);
+    if (!id) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return;
@@ -39,7 +40,10 @@ export function ArticleImage({
         // The engine keeps the disk cache; only visible images enter webview memory.
         invoke<string>("article_image", { articleId: article, imageId: id })
           .then((value) => {
-            if (live) setSrc(value);
+            if (live) {
+              if (value) setSrc(value);
+              else setFailed(true);
+            }
           })
           .catch(() => {
             if (live) setFailed(true);
@@ -59,7 +63,7 @@ export function ArticleImage({
       className={cover ? "cover-frame" : ""}
       hidden={failed && !cover}
     >
-      {failed ? (
+      {!id || failed ? (
         <div className="cover-fallback">
           <BookOpen size={28} />
           <span>{t("No cover available")}</span>
@@ -542,9 +546,7 @@ export function Articles({
         <div className="article-grid">
           {articles.map((a) => (
             <article className="article-card" key={a.id}>
-              {a.cover_image_id && (
-                <ArticleImage article={a.id} id={a.cover_image_id} cover />
-              )}
+              <ArticleImage article={a.id} id={a.cover_image_id} cover />
               <p className="eyebrow">{a.source_title}</p>
               <button
                 className="article-title article-open"

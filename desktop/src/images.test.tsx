@@ -69,3 +69,11 @@ it("keeps the cover footprint and displays a fallback after an image failure", a
     false,
   );
 });
+
+it("shows a fixed cover placeholder without fetching when an article has no image", () => {
+  const { container } = render(<ArticleImage article="no-image" cover />);
+  expect(screen.getByText("No cover available")).toBeTruthy();
+  expect(container.querySelector(".cover-frame")).toBeTruthy();
+  expect(container.querySelector(".image-placeholder")).toBeNull();
+  expect(invoke).not.toHaveBeenCalled();
+});
