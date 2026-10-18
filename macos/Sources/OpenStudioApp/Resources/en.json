@@ -1361,5 +1361,7 @@
   "التنبيهات غير مفعلة في macOS؛ سيبقى التقرير متاحًا هنا.": "Notifications are disabled in macOS; your report remains available here.",
   "تقرير أخبارك اليومي جاهز": "Your daily news report is ready",
   "افتح الإعدادات ← التقرير اليومي لقراءته.": "Open Settings → Daily report to read it.",
-  "تعذّر تجهيز الشرح باللغة المطلوبة. أعد المحاولة لاحقًا أو اختر نموذجًا آخر.": "Could not prepare the explanation in the requested language. Try again later or choose another model."
+  "تعذّر تجهيز الشرح باللغة المطلوبة. أعد المحاولة لاحقًا أو اختر نموذجًا آخر.": "Could not prepare the explanation in the requested language. Try again later or choose another model.",
+  "حفظ الإعدادات": "Save settings",
+  "جارٍ الحفظ…": "Saving…"
 }
