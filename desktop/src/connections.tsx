@@ -12,6 +12,10 @@ export function Connections({
   refresh: () => Promise<void>;
   onError: (s: string) => void;
 }) {
+  const [checking, setChecking] = useState("");
+  const [checkFailures, setCheckFailures] = useState<Record<string, string>>(
+    {},
+  );
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -136,6 +140,20 @@ export function Connections({
       setBusy(false);
     }
   }
+  async function checkConnection(id: string) {
+    setChecking(id);
+    setCheckFailures((old) => ({ ...old, [id]: "" }));
+    try {
+      const result = await call("providers.check", { profile_id: id });
+      if (result.error) throw new Error(result.error);
+      await refresh();
+    } catch (e) {
+      setCheckFailures((old) => ({ ...old, [id]: settingsMessage(String(e)) }));
+      await refresh().catch(() => {});
+    } finally {
+      setChecking("");
+    }
+  }
   async function action(command: string, p: RecordData) {
     setBusy(true);
     setError("");
@@ -203,17 +221,23 @@ export function Connections({
               <h3>{p.label || p.provider_key}</h3>
               <span>{p.model_id || t("Choose a model")}</span>
             </div>
+            <ConnectionStatus
+              connection={p.connection}
+              checking={checking === p.id}
+              failure={checkFailures[p.id]}
+            />
+            <button
+              className="connection-check"
+              disabled={busy || Boolean(checking)}
+              onClick={() => void checkConnection(p.id)}
+            >
+              {t(
+                checking === p.id ? "Checking connection…" : "Check connection",
+              )}
+            </button>
             <details className="connection-manage">
               <summary>{t("Manage account")}</summary>
               <div className="reader-actions">
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void action("providers.check", { profile_id: p.id })
-                  }
-                >
-                  {t("Check connection")}
-                </button>
                 <button disabled={busy} onClick={() => void loadModels(p.id)}>
                   {t("Refresh models")}
                 </button>
@@ -409,5 +433,94 @@ export function Connections({
         </section>
       )}
     </>
+  );
+}
+
+const connectionStates: Record<string, [string, string, string]> = {
+  connected: [
+    "Ready",
+    "Connection verified. This account is ready to use.",
+    "ready",
+  ],
+  configured: [
+    "Not checked yet",
+    "Account saved. Check the connection before using it.",
+    "neutral",
+  ],
+  unverified: [
+    "Needs a fresh check",
+    "The last verification is more than ten minutes old.",
+    "neutral",
+  ],
+  needs_login: [
+    "Sign-in required",
+    "Sign in again from Manage account.",
+    "warning",
+  ],
+  disconnected: [
+    "Disconnected",
+    "Reconnect this account to use it.",
+    "neutral",
+  ],
+  network_error: [
+    "Connection problem",
+    "Check your internet connection or local model server, then retry.",
+    "warning",
+  ],
+  service_error: [
+    "Service unavailable",
+    "The provider is unavailable. Try again shortly.",
+    "warning",
+  ],
+  restricted: [
+    "Access restricted",
+    "Your account does not have permission for this service.",
+    "warning",
+  ],
+  limited: [
+    "Usage limit reached",
+    "Check your provider usage limit or try again later.",
+    "warning",
+  ],
+  check_failed: [
+    "Could not verify",
+    "Check the account settings and try again.",
+    "warning",
+  ],
+};
+function ConnectionStatus({
+  connection,
+  checking,
+  failure,
+}: {
+  connection?: RecordData;
+  checking: boolean;
+  failure?: string;
+}) {
+  const [label, description, tone] = checking
+    ? ["Checking connection…", "", "neutral"]
+    : failure
+      ? ["Could not verify", failure, "warning"]
+      : connectionStates[connection?.state] || connectionStates.configured;
+  const stamp = connection?.checked_at && new Date(connection.checked_at);
+  return (
+    <div
+      className={`connection-status ${tone}`}
+      role="status"
+      aria-live="polite"
+    >
+      <strong>
+        <span aria-hidden="true">
+          {tone === "ready" ? "✓" : tone === "warning" ? "!" : "○"}
+        </span>{" "}
+        {t(label)}
+      </strong>
+      {description && <p>{t(description)}</p>}
+      {stamp && !Number.isNaN(stamp.getTime()) && (
+        <small>
+          {t("Last checked")}: {stamp.toLocaleString(getLocale())}
+        </small>
+      )}
+    </div>
   );
 }

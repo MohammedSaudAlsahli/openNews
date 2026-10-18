@@ -1240,3 +1240,11 @@ input, textarea, .prose, .reader-content, .message, .revision-diff {
 .settings-content input, .settings-content select { min-height:38px; }
 @media (max-width:1000px) { .settings-layout { grid-template-columns:190px minmax(0,1fr); } .settings-section-heading { flex-wrap:wrap; } }
 @media (prefers-reduced-motion:reduce) { .settings-layout button { transition:none; } }
+
+.connection-status { margin: 14px 0 8px; font-size: 12px; color: var(--muted); }
+.connection-status strong { font-weight: 500; }
+.connection-status.ready strong { color: #76aa87; }
+.connection-status.warning strong { color: #cc995c; }
+.connection-status p { margin: 6px 0; font-size: 12px; }
+.connection-status small { display: block; font-size: 11px; }
+.connection-check { margin-bottom: 16px; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }

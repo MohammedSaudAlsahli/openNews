@@ -92,3 +92,43 @@ it("keeps adding an account separate and advanced server settings collapsed", as
   fireEvent.click(screen.getByText("Cancel"));
   expect(screen.queryByLabelText("Provider")).toBeNull();
 });
+
+it("shows saved health and live check failures without leaving a green ready state", async () => {
+  let rejectCheck: (reason: Error) => void = () => {};
+  vi.mocked(call).mockImplementation(async (command) => {
+    if (command === "providers.check")
+      return new Promise((_resolve, reject) => {
+        rejectCheck = reject;
+      });
+    return { providers: [] };
+  });
+  render(
+    <Connections
+      snapshot={{ profiles: [{ id: "p", connection: { state: "connected" } }] }}
+      refresh={async () => {}}
+      onError={vi.fn()}
+    />,
+  );
+  expect(screen.getByText(/Ready/)).toBeTruthy();
+  fireEvent.click(screen.getByText("Check connection"));
+  expect(screen.queryByText(/^Ready$/)).toBeNull();
+  expect(screen.getAllByText(/Checking connection/).length).toBeGreaterThan(0);
+  rejectCheck(new Error("Network offline"));
+  expect(await screen.findByText("Network offline")).toBeTruthy();
+  expect(screen.getByText(/Could not verify/)).toBeTruthy();
+});
+
+it("does not call a saved but unchecked account ready", async () => {
+  vi.mocked(call).mockResolvedValue({ providers: [] });
+  render(
+    <Connections
+      snapshot={{
+        profiles: [{ id: "p", connection: { state: "configured" } }],
+      }}
+      refresh={async () => {}}
+      onError={vi.fn()}
+    />,
+  );
+  expect(screen.getByText(/Not checked yet/)).toBeTruthy();
+  expect(screen.getByText("Check connection")).toBeTruthy();
+});

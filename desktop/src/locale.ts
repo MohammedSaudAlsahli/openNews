@@ -4,6 +4,36 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Last checked": "آخر تحقق",
+  "Checking connection\u2026": "جارٍ التحقق من الاتصال…",
+  "Check the account settings and try again.":
+    "راجع إعدادات الحساب وأعد المحاولة.",
+  "Could not verify": "تعذّر التحقق",
+  "Check your provider usage limit or try again later.":
+    "راجع حد الاستخدام لدى المزوّد أو حاول لاحقًا.",
+  "Usage limit reached": "تم بلوغ حد الاستخدام",
+  "Your account does not have permission for this service.":
+    "حسابك لا يملك صلاحية استخدام هذه الخدمة.",
+  "Access restricted": "الوصول غير مسموح",
+  "The provider is unavailable. Try again shortly.":
+    "المزوّد غير متاح حاليًا. أعد المحاولة لاحقًا.",
+  "Service unavailable": "الخدمة غير متاحة",
+  "Check your internet connection or local model server, then retry.":
+    "تحقق من الإنترنت أو خادم النموذج المحلي ثم أعد المحاولة.",
+  "Connection problem": "مشكلة في الاتصال",
+  "Reconnect this account to use it.": "أعد ربط الحساب لاستخدامه.",
+  Disconnected: "غير متصل",
+  "Sign in again from Manage account.": "سجّل الدخول مجددًا من إدارة الحساب.",
+  "Sign-in required": "يلزم تسجيل الدخول",
+  "The last verification is more than ten minutes old.":
+    "مرّ أكثر من عشر دقائق على آخر تحقق.",
+  "Needs a fresh check": "يحتاج تحققًا جديدًا",
+  "Account saved. Check the connection before using it.":
+    "الحساب محفوظ. تحقق من الاتصال قبل استخدامه.",
+  "Not checked yet": "لم يتم التحقق بعد",
+  "Connection verified. This account is ready to use.":
+    "تم التحقق من الاتصال. الحساب جاهز للاستخدام.",
+  Ready: "جاهز",
   "Another task is running. Wait for it to finish, then try again.":
     "هناك مهمة قيد التشغيل. انتظر اكتمالها ثم أعد المحاولة.",
   "This model is not available yet. Download it or choose an installed model below.":
