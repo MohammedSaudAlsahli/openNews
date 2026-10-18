@@ -4,6 +4,13 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Hide technical instructions": "إخفاء التعليمات التقنية",
+  "Technical instructions": "التعليمات التقنية",
+  "Optional. Create a separate assistant only when a task needs its own instructions or model.":
+    "اختياري. أنشئ مساعدًا مستقلًا عندما تحتاج المهمة تعليمات أو نموذجًا خاصًا بها.",
+  "Advanced: specialized assistants": "متقدم: المساعدون المتخصصون",
+  "Examples & references": "الأمثلة والمراجع",
+  "Instructions & style": "التعليمات وأسلوب الرد",
   "Last checked": "آخر تحقق",
   "Checking connection\u2026": "جارٍ التحقق من الاتصال…",
   "Check the account settings and try again.":

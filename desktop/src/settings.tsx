@@ -41,7 +41,11 @@ export default function Settings({
     onError("");
   }, []);
   const [tab, setTab] = useState(
-      sessionStorage.getItem("settings-tab") || "appearance",
+      ["agents", "writing"].includes(
+        sessionStorage.getItem("settings-tab") || "",
+      )
+        ? "instructions"
+        : sessionStorage.getItem("settings-tab") || "appearance",
     ),
     [data, setData] = useState<RecordData>({}),
     [section, setSection] = useState("role"),
@@ -51,6 +55,9 @@ export default function Settings({
     [busy, setBusy] = useState(false),
     [saved, setSaved] = useState(false),
     [indexedArticles, setIndexedArticles] = useState<RecordData[]>([]);
+  const [customizationView, setCustomizationView] = useState("instructions");
+  const [showAgents, setShowAgents] = useState(false);
+  const [advancedInstructions, setAdvancedInstructions] = useState(false);
   const statusLabels: Record<string, string> = {
     enabled: "Background processing",
     language: "Explanation language",
@@ -190,9 +197,7 @@ export default function Settings({
           {
             title: "Assistant & writing",
             items: [
-              [SlidersHorizontal, "instructions", "Assistant instructions"],
-              [SlidersHorizontal, "agents", "Assistants"],
-              [BookOpen, "writing", "Writing & references"],
+              [SlidersHorizontal, "instructions", "Customize assistant"],
               [BookOpen, "skills", "Writing skills"],
             ],
           },
@@ -238,87 +243,160 @@ export default function Settings({
         {busy && <LoaderCircle className="spin busy-indicator" size={17} />}{" "}
         {tab === "instructions" ? (
           <>
-            <h2>{t("Assistant instructions")}</h2>
+            <h2>{t("Customize assistant")}</h2>
             <p className="muted">
               {t(
                 "These are the instructions it actually uses. Read them, make them yours, and save.",
               )}
             </p>
-            <label className="field">
-              {t("Applies to")}
-              <select
-                value={instructionScope}
-                onChange={(e) => setInstructionScope(e.target.value)}
-              >
-                <option value="general">
-                  {t("All assistants and conversations")}
-                </option>
-                <option value="writer">{t("Writing assistant")}</option>
-                <option value="analyst">{t("Analysis assistant")}</option>
-              </select>
-            </label>
-            <div className="instruction-tabs">
-              {Object.entries(sections).map(([k, v]) => (
-                <button
-                  key={k}
-                  className={section === k ? "selected" : ""}
-                  onClick={() => setSection(k)}
-                >
-                  {t(v)}
-                </button>
-              ))}
-            </div>
-            <div className="editor-header">
-              <h3>{t(sections[section])}</h3>
-              <div className="segments">
-                <button
-                  className={!preview ? "selected" : ""}
-                  onClick={() => setPreview(false)}
-                >
-                  {t("Write")}
-                </button>
-                <button
-                  className={preview ? "selected" : ""}
-                  onClick={() => setPreview(true)}
-                >
-                  {t("Preview")}
-                </button>
-              </div>
-            </div>
-            {preview ? (
-              <div className="markdown-preview">
-                <Markdown
-                  text={
-                    data.settings?.[section] || "No additional instructions."
-                  }
-                />
-              </div>
-            ) : (
-              <textarea
-                className="editor"
-                dir="auto"
-                aria-label={t(sections[section])}
-                value={data.settings?.[section] || ""}
-                onChange={(e) => setting(section, e.target.value)}
-              />
-            )}
-            <div className="save-row">
-              <small>{t("Saved locally · Applied to new responses")}</small>
+            <div
+              className="segments customization-tabs"
+              role="group"
+              aria-label={t("Customize assistant")}
+            >
               <button
-                className="primary"
-                disabled={busy}
-                onClick={() => void save()}
+                aria-pressed={customizationView === "instructions"}
+                className={
+                  customizationView === "instructions" ? "selected" : ""
+                }
+                onClick={() => setCustomizationView("instructions")}
               >
-                {saved ? (
-                  <>
-                    <Check size={15} />
-                    {t("Saved")}
-                  </>
-                ) : (
-                  "Save instructions"
-                )}
+                {t("Instructions & style")}
+              </button>
+              <button
+                aria-pressed={customizationView === "references"}
+                className={customizationView === "references" ? "selected" : ""}
+                onClick={() => setCustomizationView("references")}
+              >
+                {t("Examples & references")}
               </button>
             </div>
+            <div hidden={customizationView !== "instructions"}>
+              <label className="field">
+                {t("Applies to")}
+                <select
+                  value={instructionScope}
+                  onChange={(e) => setInstructionScope(e.target.value)}
+                >
+                  <option value="general">
+                    {t("All assistants and conversations")}
+                  </option>
+                  <option value="writer">{t("Writing assistant")}</option>
+                  <option value="analyst">{t("Analysis assistant")}</option>
+                </select>
+              </label>
+              <div className="instruction-tabs">
+                {Object.entries(sections)
+                  .filter(
+                    ([k]) =>
+                      advancedInstructions ||
+                      !["system_prompt", "developer_prompt"].includes(k),
+                  )
+                  .map(([k, v]) => (
+                    <button
+                      key={k}
+                      className={section === k ? "selected" : ""}
+                      onClick={() => setSection(k)}
+                    >
+                      {t(v)}
+                    </button>
+                  ))}
+              </div>
+              <button
+                className="advanced-instructions-toggle"
+                aria-expanded={advancedInstructions}
+                onClick={() => {
+                  setAdvancedInstructions(!advancedInstructions);
+                  if (
+                    advancedInstructions &&
+                    ["system_prompt", "developer_prompt"].includes(section)
+                  )
+                    setSection("role");
+                }}
+              >
+                {t(
+                  advancedInstructions
+                    ? "Hide technical instructions"
+                    : "Technical instructions",
+                )}
+              </button>
+              <div className="editor-header">
+                <h3>{t(sections[section])}</h3>
+                <div className="segments">
+                  <button
+                    className={!preview ? "selected" : ""}
+                    onClick={() => setPreview(false)}
+                  >
+                    {t("Write")}
+                  </button>
+                  <button
+                    className={preview ? "selected" : ""}
+                    onClick={() => setPreview(true)}
+                  >
+                    {t("Preview")}
+                  </button>
+                </div>
+              </div>
+              {preview ? (
+                <div className="markdown-preview">
+                  <Markdown
+                    text={
+                      data.settings?.[section] || "No additional instructions."
+                    }
+                  />
+                </div>
+              ) : (
+                <textarea
+                  className="editor"
+                  dir="auto"
+                  aria-label={t(sections[section])}
+                  value={data.settings?.[section] || ""}
+                  onChange={(e) => setting(section, e.target.value)}
+                />
+              )}
+              <div className="save-row">
+                <small>{t("Saved locally · Applied to new responses")}</small>
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={() => void save()}
+                >
+                  {saved ? (
+                    <>
+                      <Check size={15} />
+                      {t("Saved")}
+                    </>
+                  ) : (
+                    t("Save instructions")
+                  )}
+                </button>
+              </div>
+            </div>
+            {customizationView === "references" && (
+              <WritingLibrary
+                snapshot={snapshot}
+                refresh={refresh}
+                onError={setPageError}
+              />
+            )}
+            <details
+              className="specialist-assistants"
+              onToggle={(e) => setShowAgents(e.currentTarget.open)}
+            >
+              <summary>{t("Advanced: specialized assistants")}</summary>
+              <p className="muted">
+                {t(
+                  "Optional. Create a separate assistant only when a task needs its own instructions or model.",
+                )}
+              </p>
+              {showAgents && (
+                <Agents
+                  snapshot={snapshot}
+                  refresh={refresh}
+                  onError={setPageError}
+                />
+              )}
+            </details>
           </>
         ) : tab === "skills" ? (
           <>
@@ -356,18 +434,6 @@ export default function Settings({
               onError={setPageError}
             />
           </>
-        ) : tab === "agents" ? (
-          <Agents
-            snapshot={snapshot}
-            refresh={refresh}
-            onError={setPageError}
-          />
-        ) : tab === "writing" ? (
-          <WritingLibrary
-            snapshot={snapshot}
-            refresh={refresh}
-            onError={setPageError}
-          />
         ) : tab === "connections" ? (
           <Connections
             snapshot={snapshot}

@@ -1248,3 +1248,8 @@ input, textarea, .prose, .reader-content, .message, .revision-diff {
 .connection-status p { margin: 6px 0; font-size: 12px; }
 .connection-status small { display: block; font-size: 11px; }
 .connection-check { margin-bottom: 16px; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+
+.customization-tabs { margin: 24px 0; width: fit-content; }
+.specialist-assistants { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.specialist-assistants > summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.advanced-instructions-toggle { font-size: 12px; color: var(--muted); margin: 4px 0 12px; }

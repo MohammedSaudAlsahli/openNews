@@ -132,3 +132,41 @@ it("does not call a saved but unchecked account ready", async () => {
   expect(screen.getByText(/Not checked yet/)).toBeTruthy();
   expect(screen.getByText("Check connection")).toBeTruthy();
 });
+
+it("groups customization without losing instruction edits when opening references", async () => {
+  const { default: Settings } = await import("./settings");
+  sessionStorage.setItem("settings-tab", "instructions");
+  vi.mocked(call).mockResolvedValue({
+    settings: { role: "Original instructions" },
+  });
+  render(
+    <Settings
+      snapshot={{ sources: [] }}
+      refresh={async () => {}}
+      theme="dark"
+      setTheme={vi.fn()}
+      onError={vi.fn()}
+    />,
+  );
+  const editor = await screen.findByDisplayValue("Original instructions");
+  fireEvent.change(editor, { target: { value: "My edited instructions" } });
+  fireEvent.click(screen.getByText("Examples & references"));
+  fireEvent.click(screen.getByText("Instructions & style"));
+  expect(screen.getByDisplayValue("My edited instructions")).toBeTruthy();
+  expect(
+    screen.queryByRole("button", { name: /^Assistants$/ }),
+  ).toBeNull();
+  expect(
+    screen.getByText("Advanced: specialized assistants").closest("details")
+      ?.open,
+  ).toBe(false);
+  fireEvent.click(screen.getByText("Save instructions"));
+  await waitFor(() =>
+    expect(call).toHaveBeenCalledWith("assistant.save", {
+      scope: "general",
+      target_id: "",
+      settings: { role: "My edited instructions" },
+    }),
+  );
+  sessionStorage.clear();
+});
