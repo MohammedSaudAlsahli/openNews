@@ -1,4 +1,4 @@
-"""Reuse the verified embedded CPython runtime; no Nuitka or runtime pip install."""
+"""Stage relocatable embedded CPython; dependency installation happens only at build time."""
 import argparse, shutil, subprocess, sys
 from pathlib import Path
 p = argparse.ArgumentParser(); p.add_argument('app', type=Path, nargs='?'); args=p.parse_args()

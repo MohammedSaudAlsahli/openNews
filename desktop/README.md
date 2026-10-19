@@ -1,4 +1,4 @@
-# OpenStudio Tauri migration
+# openNews desktop
 
 React/TypeScript + Tauri 2 with the existing embedded CPython/Agno engine. The
 approved reading-room interface supports light/dark themes and Arabic/English.
@@ -6,16 +6,14 @@ See [PARITY.md](PARITY.md) for feature coverage, evidence and release gates.
 
 ## Build and test
 
-Requires macOS 14+, Node 22+, Rust stable and Xcode command-line tools. Stage the
-verified native app's embedded Python runtime; models and user data are not bundled.
+Requires macOS 14+, Node 22+, Rust stable, uv and Xcode command-line tools.
+The build stages a relocatable CPython runtime directly; no SwiftUI app is needed.
+Models and user data are not bundled.
 
 ```sh
-npm --prefix desktop ci
-python3 desktop/scripts/stage-runtime.py /path/to/OpenStudio.app
-engine/.venv/bin/python -m pytest engine/tests -q
-npm --prefix desktop test
+bash scripts/test.sh
+bash scripts/build_app.sh
 cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
-npm --prefix desktop run tauri -- build --bundles app
 ```
 
 ## Data and background work
@@ -33,7 +31,7 @@ a temporary nonpersistent WebKit helper; it cannot recover private/paywalled pag
 
 ## Signed updates
 
-The Tauri preview channel is separate from native Sparkle and is not published yet.
+The Tauri update channel is separate from legacy Sparkle and is not published yet.
 `python3 desktop/scripts/package-update.py` builds a signed archive locally using
 an owner-only key outside the repository. It never publishes an update. Back up
 that release key securely; losing it prevents updates to this signed channel.
@@ -41,5 +39,5 @@ No private key belongs in the repository, application, logs or CI artifact.
 
 A signed-fixture integration test verifies rejection of tampering and replacement
 of one bundle while preserving outside data. A real two-version upgrade and
-measured download size are still required before replacing the native app. No
+measured download size are still required before publishing automatic updates. No
 incremental/delta-download claim is made.
