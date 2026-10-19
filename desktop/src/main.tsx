@@ -1,3 +1,5 @@
+import { ComposerPicker } from "./composer-picker";
+import { SupportPanel } from "./support-panel";
 import { BrandMark } from "./brand";
 import { Onboarding } from "./onboarding";
 import { ConversationOptions } from "./conversation-options";
@@ -48,6 +50,14 @@ const Drafts = lazy(() =>
 );
 function App() {
   useLocale();
+  const [support, setSupport] = useState(false);
+  const [reportCode, setReportCode] = useState("");
+  const [uncleanExit, setUncleanExit] = useState(false);
+  useEffect(() => { void invoke<boolean>("previous_unclean_exit").then(setUncleanExit).catch(()=>{}); }, []);
+  const [files, setFiles] = useState<Record<string, {name:string; text:string}[]>>({});
+  const fileInput = useRef<HTMLInputElement>(null);
+  const diagnosticStates = useRef(new Map<string,string>());
+
   const [showWelcome, setShowWelcome] = useState(
     localStorage.getItem("welcome-dismissed") !== "true",
   );
@@ -121,6 +131,16 @@ function App() {
     setAgents((await call("agents.list")).agents || []);
     setChats(c.conversations || []);
   }, []);
+  useEffect(() => {
+    for (const row of [...(snapshot.subscriptions || []), ...(snapshot.jobs || [])]) {
+      const failed = row.status === "error" || row.state === "failed";
+      const stamp = `${row.status || row.state}:${row.last_checked || row.updated_at || ""}`;
+      if (failed && diagnosticStates.current.get(row.id) !== stamp) {
+        void invoke("record_diagnostic", {operation: row.status ? "feed.sync" : "background.job", code: row.status ? "SOURCE_FETCH_FAILED" : "JOB_FAILED"}).catch(()=>{});
+      }
+      diagnosticStates.current.set(row.id,stamp);
+    }
+  }, [snapshot]);
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -230,6 +250,12 @@ function App() {
       );
       return;
     }
+    const fileText = (files[key] || []).map(f => `
+
+--- Attached file: ${f.name} ---
+${f.text}
+--- End attached file ---`).join("");
+    if ((text + fileText).length > 12000) { setError(t("Message and files must fit within 12,000 characters.")); return; }
     const startedAtNavigation = navigationVersion.current;
     setSending(true);
     setError("");
@@ -245,7 +271,7 @@ function App() {
       }
       const result = await call("chat.send", {
         conversation_id: id,
-        message: text,
+        message: text + fileText,
         profile_id: profile,
         model_id: model,
         consent: true,
@@ -257,6 +283,7 @@ function App() {
         ...(agent ? { agent_id: agent } : {}),
       });
       setDrafts((d) => ({ ...d, [key]: "" }));
+      setFiles(f => ({...f, [key]: []}));
       setAttachments((a) => ({ ...a, [key]: [] }));
       setProgress((p) => ({
         ...p,
@@ -281,6 +308,13 @@ function App() {
   }
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === ",") {
+        event.preventDefault(); setPage("settings"); return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "b") {
+        event.preventDefault(); setSidebar(s => !s); return;
+      }
+      if (event.key === "Escape") { setOptions(false); setSupport(false); }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         choose("");
@@ -298,10 +332,19 @@ function App() {
   const profiles = snapshot.profiles || [];
   return (
     <div className={`app ${sidebar ? "" : "collapsed"}`}>
+      <header className="window-chrome" data-tauri-drag-region>
+        {!sidebar && (
+          <button className="sidebar-reveal" aria-label={t("Show sidebar")} title={t("Show sidebar")} onClick={() => setSidebar(true)}>
+            <PanelLeftOpen size={18} />
+          </button>
+        )}
+        {!ready && <span className="engine-starting" role="status">{t("Starting engine…")}</span>}
+      </header>
+      {support && <SupportPanel incidentCode={reportCode} onClose={()=>setSupport(false)} onError={setError}/>}
       <aside className="sidebar">
         <div className="brand">
           <BrandMark className="brand-mark" />
-          <strong>{t("OpenStudio")}</strong>
+          <strong>{"openNews"}</strong>
           <button title={t("Hide sidebar")} onClick={() => setSidebar(false)}>
             <PanelLeftClose size={17} />
           </button>
@@ -373,9 +416,10 @@ function App() {
             <SettingsIcon size={16} />
             {t("Settings")}
           </button>
+          <button onClick={()=>{setReportCode("");setSupport(true)}}>{t("Help & diagnostics")}</button>
           <div className="preview-note">
             <Circle size={7} fill="currentColor" />
-            {t("Tauri preview · Separate workspace")}
+            {"openNews"}
           </div>
         </div>
       </aside>
@@ -402,33 +446,13 @@ function App() {
               }}
             />
           )}
-        <header className="topbar">
-          {!sidebar && (
-            <button title={t("Show sidebar")} onClick={() => setSidebar(true)}>
-              <PanelLeftOpen size={18} />
-            </button>
-          )}
-          <span>
-            {page === "chat"
-              ? detail?.title || t("New conversation")
-              : t(
-                  {
-                    articles: "Your reading room",
-                    sources: "Sources",
-                    drafts: "Saved drafts",
-                    settings: "Settings",
-                    activity: "Background activity",
-                  }[page] || page,
-                )}
-          </span>
-          <span className="connection">
-            <i className={ready ? "online" : ""} />
-            {ready ? t("Saved on this Mac") : t("Starting engine…")}
-          </span>
-        </header>
+        {uncleanExit && <div className="error" role="alert">{t("The previous session ended unexpectedly. You can review and report it.")}
+          <button onClick={()=>{setReportCode("UNEXPECTED_EXIT");setSupport(true);setUncleanExit(false)}}>{t("Report problem")}</button>
+          <button onClick={()=>setUncleanExit(false)}>{t("Dismiss")}</button></div>}
         {error && (
           <div className="error" role="alert">
             {error}
+            <button onClick={()=>{setReportCode(error.match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] || "REQUEST_FAILED");setSupport(true)}}>{t("Report problem")}</button>
             <button onClick={() => setError("")}>{t("Dismiss")}</button>
           </div>
         )}
@@ -588,7 +612,7 @@ function App() {
                   <textarea
                     aria-label={t("Message")}
                     rows={2}
-                    placeholder={t("Ask a question, explore an idea…")}
+                    placeholder={t("Ask anything · / commands · @ articles")}
                     value={message}
                     dir="auto"
                     onChange={(e) =>
@@ -608,36 +632,26 @@ function App() {
                       }
                     }}
                   />
-                  {message.startsWith("/") && (
-                    <div className="slash-menu">
-                      {[
-                        "research",
-                        "summarize",
-                        "x",
-                        "thread",
-                        "shorts",
-                        "hooks",
-                        "linkedin",
-                        "youtube",
-                        "rewrite",
-                        "plan",
-                      ]
-                        .filter((x) => x.startsWith(message.slice(1)))
-                        .map((x) => (
-                          <button
-                            key={x}
-                            onClick={() =>
-                              setDrafts((d) => ({
-                                ...d,
-                                [selected || "new"]: "/" + x + " ",
-                              }))
-                            }
-                          >
-                            /{x}
-                          </button>
-                        ))}
-                    </div>
-                  )}
+                  <ComposerPicker message={message}
+                    onMessage={value=>setDrafts(d=>({...d,[selected||"new"]:value}))}
+                    onArticle={row=>setAttachments(old=>{
+                      const key=selected||"new", rows=old[key]||[];
+                      if(rows.some(a=>a.id===row.id))return old;
+                      if(rows.length>=12){setError(t("Attach up to 12 articles."));return old;}
+                      return {...old,[key]:[...rows,{id:row.id,title:row.title}]};
+                    })} onError={setError}/>
+                  <input type="file" ref={fileInput} hidden accept=".txt,.md,.csv,.json" onChange={async e=>{
+                    const file=e.target.files?.[0], key=selected||"new"; e.target.value="";
+                    if(!file)return;
+                    try {
+                      if(!/\.(txt|md|csv|json)$/i.test(file.name)||file.size>48000)throw new Error(t("Choose a text, Markdown, CSV or JSON file up to 48 KB."));
+                      if((files[key]||[]).length>=3)throw new Error(t("Attach up to 3 files."));
+                      const text=await file.text();
+                      if(text.includes("\0")||text.length>10000)throw new Error(t("Text files must contain at most 10,000 characters."));
+                      setFiles(old=>({...old,[key]:[...(old[key]||[]),{name:file.name,text}]}));
+                    }catch(error){setError(String(error));}
+                  }}/>
+                  {(files[selected||"new"]||[]).length>0&&<div className="attached-articles">{(files[selected||"new"]||[]).map((f,i)=><button key={i} title={t("Remove attachment")} onClick={()=>setFiles(old=>({...old,[selected||"new"]:(old[selected||"new"]||[]).filter((_,j)=>j!==i)}))}>{f.name} ×</button>)}</div>}
                   <div className="composer-tools">
                     <button
                       onClick={() => setOptions(!options)}
@@ -646,6 +660,7 @@ function App() {
                     >
                       <Plus size={18} />
                     </button>
+                    <button title={t("Attach text file") + " (TXT, MD, CSV, JSON · 10,000 characters)"} aria-label={t("Attach text file")} onClick={()=>fileInput.current?.click()}><FileText size={17}/></button>
                     <select
                       aria-label={t("Model connection")}
                       value={profile}
@@ -707,6 +722,8 @@ function App() {
                     )}
                     <details className="context-options">
                       <summary>{t("Context")}</summary>
+                      <div className="context-popover">
+                      <strong>{t("Where the assistant can look")}</strong>
                       <label>
                         <input
                           type="checkbox"
@@ -723,6 +740,7 @@ function App() {
                         />
                         {t("Allow web research")}
                       </label>
+                      </div>
                     </details>
                     <button
                       className="send"

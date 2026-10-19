@@ -1,4 +1,4 @@
-name: Editorial contracts and bundle
+name: openNews tests and Tauri bundle
 on: [push, pull_request]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -11,35 +11,21 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.12.13'
-      - name: Contract and integration tests
-        run: bash scripts/test.sh
-      - name: Build and smoke-test embedded runtime
-        run: bash scripts/build_app.sh
-        env:
-          EIS_APP_OUTPUT_DIR: ${{ runner.temp }}/openstudio-native
       - uses: actions/setup-node@v4
-        if: hashFiles('desktop/package-lock.json') != ''
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: desktop/package-lock.json
-      - name: Tauri frontend contracts
-        if: hashFiles('desktop/package-lock.json') != ''
-        run: |
-          npm --prefix desktop ci
-          npm --prefix desktop test
-          npm --prefix desktop run build
       - uses: dtolnay/rust-toolchain@stable
-        if: hashFiles('desktop/src-tauri/Cargo.lock') != ''
-      - name: Tauri bridge and bundle
-        if: hashFiles('desktop/src-tauri/Cargo.lock') != ''
-        run: |
-          python3 desktop/scripts/stage-runtime.py "$RUNNER_TEMP/openstudio-native/OpenStudio.app"
-          cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
-          npm --prefix desktop run tauri -- build --bundles app
+      - name: Engine and frontend contracts
+        run: bash scripts/test.sh
+      - name: Build standalone Tauri app
+        run: bash scripts/build_app.sh
+      - name: Native bridge and embedded runtime tests
+        run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
+      - name: Archive app preserving permissions and symlinks
+        run: ditto -c -k --sequesterRsrc --keepParent desktop/src-tauri/target/release/bundle/macos/openNews.app openNews-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: development-evidence
-          path: |
-            build/bundle-sha256.json
-            engine/eis_engine/provider_catalog.json
+          name: openNews-macOS
+          path: openNews-macOS.zip

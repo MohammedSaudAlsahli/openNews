@@ -48,7 +48,7 @@ def test_page_sync_persists_articles_and_only_adds_new_links(tmp_path):
     asyncio.run(news.sync(identifier))
     assert len(news.list_articles({})['articles'])==2
     row=store.one('SELECT * FROM news_subscriptions WHERE id=?',(identifier,))
-    assert row['interval_minutes']==360
+    assert row['interval_minutes']==5
     page=b'<html>Login required</html>'
     asyncio.run(news.sync(identifier))
     assert news.snapshot()['subscriptions'][0]['status']=='error'

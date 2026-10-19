@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "OpenStudio Preview",
+  "productName": "openNews",
   "version": "0.3.0-preview.1",
   "identifier": "com.editorialintelligence.studio.preview",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "OpenStudio Preview",
+        "title": "openNews",
         "width": 1320,
         "height": 900,
         "minWidth": 860,

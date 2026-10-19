@@ -88,7 +88,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let installed = temp
             .path()
-            .join("OpenStudio Preview.app/Contents/MacOS/openstudio-desktop");
+            .join("openNews.app/Contents/MacOS/openstudio-desktop");
         std::fs::create_dir_all(installed.parent().unwrap()).unwrap();
         std::fs::write(&installed, "old-fixture").unwrap();
         let data = temp.path().join("workspace.sqlite");

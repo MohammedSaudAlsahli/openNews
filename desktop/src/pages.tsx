@@ -1,3 +1,7 @@
+import { RefreshInterval } from "./refresh-interval";
+import { RelativeTime } from "./relative-time";
+import { SupportPanel } from "./support-panel";
+import type { ArticleIncident } from "./support-report";
 import { readerMarkdown, readerLayout } from "./reader-format";
 import { ArticleSite } from "./article-site";
 import { ArticleExplanation } from "./article-explanation";
@@ -90,13 +94,6 @@ export function ArticleImage({
 }
 
 type Props = { onError: (e: string) => void };
-const date = (v: string) =>
-  v
-    ? new Date(v).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      })
-    : "";
 export function Articles({
   onError,
   snapshot,
@@ -124,6 +121,17 @@ export function Articles({
     [reading, setReading] = useState(false),
     [related, setRelated] = useState<RecordData[]>([]),
     [states, setStates] = useState<RecordData>({});
+  const [clock, setClock] = useState(Date.now);
+  const [articleReport, setArticleReport] = useState<ArticleIncident>();
+  const [openStage, setOpenStage] = useState("idle");
+  const openTiming = useRef({started:0, finished:0, stage:"idle", errorCode:""});
+  function phase(stage: string) { openTiming.current.stage=stage; setOpenStage(stage); }
+  function reportArticle() {
+    if (!selected) return;
+    const timing=openTiming.current;
+    setArticleReport({title:selected.title || "",url:selected.url || "",source:selected.source_title || "",articleId:selected.id,
+      stage:timing.stage,elapsedMs:(timing.finished || performance.now())-timing.started,bodyStatus:selected.body_status || "unknown",errorCode:timing.errorCode});
+  }
   const request = useRef(0),
     selection = useRef(0);
   useEffect(() => {
@@ -192,6 +200,28 @@ export function Articles({
       ++request.current;
     };
   }, [query, scope, source, order, days]);
+  useEffect(() => {
+    let live = true, pending = false;
+    async function refreshVisible() {
+      if (document.visibilityState === "hidden") return;
+      setClock(Date.now());
+      if (selected || busy || pending) return;
+      pending = true;
+      const token = request.current;
+      try {
+        const count = Math.max(30, articles.length);
+        const pages = await Promise.all(Array.from({length:Math.ceil(count/100)},(_,index)=>call("news.list", {
+          query, scope, source_id:source, order, days, limit:Math.min(100,count-index*100),offset:index*100,
+        })));
+        if (live && token === request.current) { setArticles(pages.flatMap(page=>page.articles));setMore(pages[pages.length-1].has_more); }
+      } catch { /* Retain the displayed cache during temporary engine unavailability. */ }
+      finally { pending = false; }
+    }
+    const timer = setInterval(()=>void refreshVisible(), 60000);
+    const visible = () => { if(document.visibilityState === "visible") void refreshVisible(); };
+    document.addEventListener("visibilitychange",visible);
+    return ()=>{live=false;clearInterval(timer);document.removeEventListener("visibilitychange",visible)};
+  }, [query,scope,source,order,days,selected?.id,busy,articles.length]);
   useEffect(
     () => () => {
       ++selection.current;
@@ -223,6 +253,11 @@ export function Articles({
   }, [selected?.id, selected?.body_status, reading]);
   async function open(id: string, refresh = false) {
     const token = ++selection.current;
+    openTiming.current={started:performance.now(),finished:0,stage:"local_cache",errorCode:""};
+    phase("local_cache");
+    // Paint the reader immediately from the card; never wait on IPC/network to navigate.
+    const card = articles.find(a=>a.id===id) || related.find(a=>a.id===id) || (selected?.id===id ? selected : undefined);
+    setSelected(card || {id,title:t("Loading…"),body_status:"loading"});
     setReading(true);
     setSiteMode(false);
     setRelated([]);
@@ -232,20 +267,35 @@ export function Articles({
       const article = await call("news.article", { article_id: id });
       if (token !== selection.current) return;
       setSelected(article);
-      let r = await call("news.reader", { article_id: id, refresh });
-      if (token !== selection.current) return;
-      if (r.body_status !== "full" && r.body_status !== "media_summary") {
-        try { r = await invoke<RecordData>("recover_article", { articleId: id }); }
-        catch { /* Keep the original available when the publisher blocks extraction. */ }
+      // A complete cached article is readable now. Explicit refresh still re-fetches it.
+      if (refresh || !["full","media_summary"].includes(article.body_status)) {
+        phase("fetching_text");
+        let result = await call("news.reader", { article_id: id, refresh });
+        if (token !== selection.current) return;
+        setSelected({ ...article, ...result });
+        if (!["full","media_summary"].includes(result.body_status)) {
+          phase("website_recovery");
+          try { result = await invoke<RecordData>("recover_article", { articleId: id }); }
+          catch (error) { openTiming.current.errorCode=String(error).match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] || "RECOVERY_FAILED"; }
+          if (token !== selection.current) return;
+          setSelected({ ...article, ...result });
+        }
+        phase(["full","media_summary"].includes(result.body_status) ? "ready" : "text_unavailable");
+      } else phase("cached_ready");
+      openTiming.current.finished=performance.now();
+      setReading(false);
+      // Related stories must not keep the primary article in a loading state.
+      void call("news.related", { article_id: id }).then(result=>{
+        if(token===selection.current) setRelated(result.articles || []);
+      }).catch(()=>{});
+    } catch (error) {
+      if (token === selection.current) {
+        openTiming.current.errorCode=String(error).match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] || "ARTICLE_OPEN_FAILED";
+        phase("failed");
+        onError(String(error));
       }
-      if (token !== selection.current) return;
-      setSelected({ ...article, ...r });
-      const related = await call("news.related", { article_id: id });
-      if (token === selection.current) setRelated(related.articles || []);
-    } catch (e) {
-      if (token === selection.current) onError(String(e));
     } finally {
-      if (token === selection.current) setReading(false);
+      if (token === selection.current) { openTiming.current.finished=performance.now();setReading(false); }
     }
   }
   async function bookmark(a: RecordData) {
@@ -269,6 +319,7 @@ export function Articles({
   if (selected)
     return (
       <div className={`reader ${siteMode ? "reader-site-mode" : ""}`} key={selected.id}>
+        {articleReport && <SupportPanel incidentCode="ARTICLE_READING_PROBLEM" article={articleReport} onClose={()=>setArticleReport(undefined)} onError={onError}/>}
         <div className="reader-toolbar">
           <button
             onClick={() => {
@@ -329,6 +380,7 @@ export function Articles({
           >
             <RefreshCw size={17} />
           </button>
+          <button onClick={reportArticle}>{t("Report this article")}</button>
           <button title={t("Bookmark")} onClick={() => void bookmark(selected)}>
             <Bookmark
               size={17}
@@ -347,7 +399,7 @@ export function Articles({
               <div className="reader-source">
                 {layout?.logo && <div className="reader-source-logo"><ArticleImage article={selected.id} id={layout.logo.id} /></div>}
                 <span dir="auto">{selected.source_title}</span>
-                <span className="muted">· {date(selected.published_at)}</span>
+                <span className="muted">· <RelativeTime value={selected.published_at} now={clock}/></span>
               </div>
               <h1 dir="auto">{selected.title}</h1>
             </div>
@@ -359,7 +411,7 @@ export function Articles({
           {selected.body_status !== "full" && (
             <p className="notice">
               {reading
-                ? t("Retrieving article text…")
+                ? t(openStage === "local_cache" ? "Opening saved article…" : openStage === "website_recovery" ? "Retrieving text from the original website…" : "Retrieving article text…")
                 : t(
                     "The full article has not been retrieved yet. You can retry or read the original.",
                   )}
@@ -586,7 +638,7 @@ export function Articles({
               <p dir="auto">{articleExcerpt(a.summary)}</p>
               <footer>
                 <span>
-                  {date(a.published_at)} ·{" "}
+                  <RelativeTime value={a.published_at} now={clock}/> ·{" "}
                   {t(
                     (
                       {
@@ -633,7 +685,13 @@ export function Sources({
     [cursor, setCursor] = useState<string>(),
     [busy, setBusy] = useState(false),
     [url, setUrl] = useState(""),
-    [adding, setAdding] = useState(false);
+    [adding, setAdding] = useState(false),
+    [catalog, setCatalog] = useState<RecordData[]>([]);
+  useEffect(()=>{void call("news.curated").then(r=>setCatalog(r.feeds||[])).catch(()=>{})},[]);
+  function description(source:RecordData) {
+    const entry=catalog.find(row=>row.url===source.feed_url||row.url===source.url||row.title===source.title);
+    return (getLocale()==="ar" ? source.description_ar||entry?.description_ar : source.description_en||entry?.description_en) || source.description || t("No description from this publisher yet. Refresh the source to check.");
+  }
   async function discover(append = false) {
     setBusy(true);
     try {
@@ -691,13 +749,14 @@ export function Sources({
       </p>
       {adding && (
         <form
-          className="inline-form"
+          className="inline-form source-add-form"
           onSubmit={(e) => {
             e.preventDefault();
             void add(url);
           }}
         >
           <input
+            aria-label={t("Source URL")}
             type="url"
             required
             placeholder={t("Paste a website, RSS, subreddit or X RSS link")}
@@ -730,7 +789,7 @@ export function Sources({
           />
         </label>
       </div>
-      <div className="source-list">
+      <div className="source-list subscriptions">
         {list.map((s: RecordData) => (
           <div key={s.id || s.url}>
             <span className="source-monogram">
@@ -738,15 +797,10 @@ export function Sources({
             </span>
             <div>
               <strong>{s.title}</strong>
-              <p>
-                {(getLocale() === "ar"
-                  ? s.description_ar || s.description_en
-                  : s.description_en || s.description_ar) ||
-                  s.error ||
-                  s.url ||
-                  s.feed_url}
-              </p>
-              {s.status && <small>{s.status}</small>}
+              <p className="source-description" dir="auto">{description(s)}</p>
+              <small className="source-address" dir="ltr">{s.url || s.feed_url}</small>
+              <span className={`source-status ${!s.enabled&&tab==="following"?"paused":s.status||""}`}><i/>{t(!s.enabled&&tab==="following"?"Paused":({ready:"Ready",error:"Needs attention",syncing:"Refreshing…",pending:"Waiting for first refresh"}[String(s.status)]||"Available"))}</span>
+              {s.error&&<p className="source-error" role="status" dir="auto">{s.error}</p>}
               {tab === "following" && (
                 <div className="reader-actions">
                   <button
@@ -776,30 +830,7 @@ export function Sources({
                   >
                     {t("Refresh source")}
                   </button>
-                  <label>
-                    {t("Refresh interval")}
-                    <select
-                      aria-label={t("Refresh interval") + " " + s.title}
-                      value={s.interval_minutes || 60}
-                      onChange={async (e) => {
-                        try {
-                          await call("news.update", {
-                            subscription_id: s.id,
-                            interval_minutes: Number(e.target.value),
-                          });
-                          await refresh();
-                        } catch (error) {
-                          onError(String(error));
-                        }
-                      }}
-                    >
-                      {[15, 30, 60, 180, 360, 720, 1440].map((n) => (
-                        <option key={n} value={n}>
-                          {n} {t("Minutes")}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <RefreshInterval id={s.id} title={s.title} minutes={s.interval_minutes ?? 5} onSaved={refresh} onError={onError}/>
                 </div>
               )}
             </div>
@@ -855,6 +886,7 @@ export function Drafts({
     <div className="page">
       <p className="eyebrow">{t("WORK IN PROGRESS")}</p>
       <h1>{t("Saved drafts")}</h1>
+      <p className="muted">{t("Your posts and scripts, ready to edit, copy or export. Nothing is published automatically.")}</p>
       {notice && (
         <p role="status" className="notice">
           {notice}
@@ -1009,7 +1041,7 @@ export function Drafts({
               }}
             >
               <strong>{d.topic || d.title}</strong>
-              <small>{d.format}</small>
+              <small>{({x_post:"X",linkedin:"LinkedIn",youtube_long:"YouTube",shorts:t("Short video"),reels:"Reels",tiktok:"TikTok"} as Record<string,string>)[d.format] || d.format}</small>
               <ArrowUpRight size={16} />
             </button>
           ))}

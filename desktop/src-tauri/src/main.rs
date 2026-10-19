@@ -282,9 +282,9 @@ fn background(app: tauri::AppHandle, helper: PathBuf, workspace: PathBuf) {
                                         "Your daily news report is ready"
                                     })
                                     .body(if ar {
-                                        "افتح التقرير اليومي في OpenStudio لقراءته."
+                                        "افتح التقرير اليومي في openNews لقراءته."
                                     } else {
-                                        "Open Daily report in OpenStudio to read it."
+                                        "Open Daily report in openNews to read it."
                                     })
                                     .show()
                                     .is_ok()
@@ -387,7 +387,7 @@ async fn export_draft(
 ) -> Result<String, String> {
     let export = engine_call(state, "drafts.export".into(), json!({"draft_id":draft_id})).await?;
     let directory = app.path().download_dir().map_err(|e| e.to_string())?;
-    let path = directory.join(format!("OpenStudio-{}.md", uuid::Uuid::new_v4()));
+    let path = directory.join(format!("openNews-{}.md", uuid::Uuid::new_v4()));
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -488,6 +488,38 @@ async fn save_credentials(
         values,
     )
 }
+// Store only bounded technical metadata, never payloads or raw error messages.
+static DIAGNOSTIC_LOCK: Mutex<()> = Mutex::new(());
+#[tauri::command]
+fn record_diagnostic(app: tauri::AppHandle, operation: String, code: String) -> Result<(), String> {
+    if operation.len()>80 || code.len()>60 || !operation.chars().chain(code.chars()).all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)) { return Err("Invalid diagnostic event".into()); }
+    let _guard=DIAGNOSTIC_LOCK.lock().map_err(|_| "Log busy")?;
+    let dir=app.path().app_log_dir().map_err(|e|e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e|e.to_string())?;
+    std::fs::set_permissions(&dir,std::fs::Permissions::from_mode(0o700)).map_err(|e|e.to_string())?;
+    let path=dir.join("diagnostics.jsonl");
+    if std::fs::metadata(&path).map(|m|m.len()>256*1024).unwrap_or(false) {
+        std::fs::rename(&path,dir.join("diagnostics.previous.jsonl")).map_err(|e|e.to_string())?;
+    }
+    let mut file=std::fs::OpenOptions::new().create(true).append(true).open(path).map_err(|e|e.to_string())?;
+    let timestamp=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+    writeln!(file,"{}",json!({"time":timestamp,"operation":operation,"code":code})).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn diagnostics_report(app: tauri::AppHandle) -> Result<String,String> {
+    let _guard=DIAGNOSTIC_LOCK.lock().map_err(|_| "Log busy")?;
+    let path=app.path().app_log_dir().map_err(|e|e.to_string())?.join("diagnostics.jsonl");
+    let logs=std::fs::read_to_string(path).unwrap_or_default();
+    let recent=logs.lines().rev().take(150).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n");
+    Ok(format!("openNews {}\nPlatform: {} / {}\nRecent technical events (Unix timestamps):\n{}",env!("CARGO_PKG_VERSION"),std::env::consts::OS,std::env::consts::ARCH,recent))
+}
+#[tauri::command]
+fn export_diagnostics(app: tauri::AppHandle) -> Result<String,String> {
+    let report=diagnostics_report(app.clone())?;
+    let path=app.path().download_dir().map_err(|e|e.to_string())?.join(format!("openNews-diagnostics-{}.txt",uuid::Uuid::new_v4()));
+    std::fs::write(&path,report).map_err(|e|e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
 #[tauri::command]
 fn open_external(address: String) -> Result<(), String> {
     let url = url::Url::parse(&address).map_err(|_| "Invalid URL")?;
@@ -549,6 +581,13 @@ async fn recover_article(app: tauri::AppHandle, state: tauri::State<'_, Runtime>
         Ok(article)
     }).await.map_err(|e| e.to_string())?
 }
+// A remaining marker means the prior process did not complete normal shutdown.
+// It is deliberately called unexpected exit, not a confirmed crash.
+#[derive(Default)]
+struct SessionHealth { previous_unclean: bool }
+#[tauri::command]
+fn previous_unclean_exit(state: tauri::State<SessionHealth>) -> bool { state.previous_unclean }
+
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
@@ -561,6 +600,10 @@ fn main() {
             engine_call,
             article_image,
             open_external,
+            record_diagnostic,
+            diagnostics_report,
+            previous_unclean_exit,
+            export_diagnostics,
             open_article_site,
             close_article_site,
             recover_article,
@@ -570,13 +613,23 @@ fn main() {
             export_draft
         ])
         .setup(|app| {
+            let directory = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&directory)?;
+            let marker = directory.join("session-active");
+            let previous_unclean = marker.exists();
+            app.manage(SessionHealth { previous_unclean });
+            std::fs::write(&marker, std::process::id().to_string())?;
+            if previous_unclean {
+                let _ = record_diagnostic(app.handle().clone(), "app.lifecycle".into(), "UNEXPECTED_EXIT".into());
+            }
+
             let menu = tauri::menu::Menu::with_items(
                 app,
                 &[
                     &tauri::menu::MenuItem::with_id(
                         app,
                         "open",
-                        "Open OpenStudio",
+                        "Open openNews",
                         true,
                         None::<&str>,
                     )?,
@@ -597,7 +650,7 @@ fn main() {
                     &tauri::menu::MenuItem::with_id(
                         app,
                         "quit",
-                        "Quit OpenStudio",
+                        "Quit openNews",
                         true,
                         None::<&str>,
                     )?,
@@ -606,7 +659,7 @@ fn main() {
             let tray = tauri::tray::TrayIconBuilder::new()
                 .icon(tauri::include_image!("icons/tray.png"))
                 .icon_as_template(true)
-                .tooltip("OpenStudio")
+                .tooltip("openNews")
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     if event.id.as_ref() == "quit" {
@@ -620,7 +673,7 @@ fn main() {
                                 "reader",
                                 tauri::WebviewUrl::App("index.html?reader=1".into()),
                             )
-                            .title("OpenStudio · Reader")
+                            .title("openNews · Reader")
                             .inner_size(500.0, 760.0)
                             .min_inner_size(400.0, 500.0)
                             .skip_taskbar(true)
@@ -664,7 +717,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("Could not create OpenStudio window");
+        .expect("Could not create openNews window");
     app.run(|handle, event| match event {
         tauri::RunEvent::WindowEvent {
             label,
@@ -683,6 +736,10 @@ fn main() {
             }
         }
         tauri::RunEvent::Exit => {
+            if let Ok(directory) = handle.path().app_data_dir() {
+                let _ = std::fs::remove_file(directory.join("session-active"));
+            }
+
             handle
                 .state::<Runtime>()
                 .stopping

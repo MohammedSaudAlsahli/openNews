@@ -12,8 +12,11 @@ class HTMLInfo(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.parts, self.feeds, self.links, self.icons = [], [], [], []
         self.ignored = 0
+        self.description = ""
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
+        if tag == "meta" and (attributes.get("name", "").lower() == "description" or attributes.get("property", "").lower() == "og:description"):
+            self.description = self.description or attributes.get("content", "")[:1000]
         if tag in {"script","style","noscript"}: self.ignored += 1
         if tag == "link" and "alternate" in attributes.get("rel", "").lower().split() and attributes.get("type", "").lower() in {"application/rss+xml","application/atom+xml"}:
             self.feeds.append(attributes.get("href", ""))
@@ -228,3 +231,17 @@ def normalize_subscription(url, kind="auto"):
         return f"https://www.reddit.com/r/{name.lower()}/", f"https://www.reddit.com/r/{name}/new/.rss", "reddit"
     if kind not in {"auto", "rss", "webpage"}: raise NewsError("نوع مصدر الأخبار غير مدعوم.")
     return canonical, canonical, "webpage" if kind == "webpage" else "rss"
+
+
+def source_description(body):
+    """Publisher-provided feed/site description, never an individual item's summary."""
+    if re.search(br"<\s*(?:!doctype\s+html|html)\b", body[:4000], re.I):
+        page = HTMLInfo(); page.feed(body.decode("utf-8", "replace"))
+        return plain(page.description)[:1000]
+    if b"<!DOCTYPE" in body.upper() or b"<!ENTITY" in body.upper(): return ""
+    try:
+        root = ET.fromstring(body)
+        channel = next((n for n in root if local_name(n.tag) == "channel"), root)
+        return next((plain("".join(n.itertext()))[:1000] for n in channel if local_name(n.tag) in {"description", "subtitle"}), "")
+    except ET.ParseError:
+        return ""

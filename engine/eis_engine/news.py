@@ -28,7 +28,7 @@ NEWS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS news_subscriptions (
  id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id),
  title TEXT NOT NULL, url TEXT NOT NULL, feed_url TEXT NOT NULL, kind TEXT NOT NULL,
- enabled INTEGER NOT NULL DEFAULT 1, interval_minutes INTEGER NOT NULL DEFAULT 60,
+ enabled INTEGER NOT NULL DEFAULT 1, interval_minutes INTEGER NOT NULL DEFAULT 5,
  created_at TEXT NOT NULL, last_checked TEXT, last_success TEXT,
  error TEXT, status TEXT NOT NULL DEFAULT 'pending', etag TEXT, last_modified TEXT,
  UNIQUE(workspace_id,url)
@@ -195,6 +195,8 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
             self.db.execute("ALTER TABLE news_articles ADD COLUMN reader_json TEXT NOT NULL DEFAULT '{}'")
         if 'is_bookmarked' not in {row[1] for row in self.db.execute('PRAGMA table_info(news_articles)')}:
             self.db.execute("ALTER TABLE news_articles ADD COLUMN is_bookmarked INTEGER NOT NULL DEFAULT 0")
+        if 'description' not in {row[1] for row in self.db.execute('PRAGMA table_info(news_subscriptions)')}:
+            self.db.execute("ALTER TABLE news_subscriptions ADD COLUMN description TEXT NOT NULL DEFAULT ''")
         self.reader_locks = {}
         self.image_slots = asyncio.Semaphore(3)
         self.icon_results, self.icon_pending = {}, {}
@@ -204,7 +206,7 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
         self.archive = NewsArchive(self)
 
     def snapshot(self):
-        subscriptions = self.store.rows("""SELECT s.id,s.title,s.url,s.feed_url,s.kind,s.enabled,s.interval_minutes,s.last_checked,s.last_success,s.error,s.status,
+        subscriptions = self.store.rows("""SELECT s.id,s.title,s.url,s.feed_url,s.kind,s.enabled,s.interval_minutes,s.last_checked,s.last_success,s.error,s.status,s.description,
             (SELECT count(*) FROM news_articles a WHERE a.subscription_id=s.id AND a.is_read=0) AS unread_count
             FROM news_subscriptions s WHERE workspace_id=? AND kind!='manual' AND removed_at IS NULL ORDER BY created_at DESC""", (self.ws,))
         for row in subscriptions: row["enabled"] = bool(row["enabled"])

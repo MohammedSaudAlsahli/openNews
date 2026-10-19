@@ -494,7 +494,7 @@ export default function Settings({
             </button>
             <p className="notice">
               {t(
-                "Reports run while OpenStudio is open, including with its window closed. If your Mac sleeps, the report is prepared when you return. Enable OpenStudio notifications in macOS System Settings.",
+                "Reports run while openNews is open, including with its window closed. If your Mac sleeps, the report is prepared when you return. Enable openNews notifications in macOS System Settings.",
               )}
             </p>
             <TaskInstructions
