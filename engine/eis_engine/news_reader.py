@@ -58,10 +58,10 @@ class NewsReaderMixin:
         lock = self.reader_locks.setdefault(identifier, asyncio.Lock())
         async with lock:
             row = self.article(identifier, mark_read=False)
-            if not force and row["body_status"] == "full" and row["reader"].get("origin") == "feed" and row["reader"].get("version", 1) >= 3:
+            if not force and row["body_status"] == "full" and row["reader"].get("origin") == "feed" and row["reader"].get("version", 1) >= 4:
                 return row
             checked = row["reader"].get("checked_at")
-            if not force and checked and row["reader"].get("version", 1) >= 3:
+            if not force and checked and row["reader"].get("version", 1) >= 4:
                 if row["reader"].get("origin") == "article" or row["body_status"] == "full":
                     return row
                 try:
@@ -87,6 +87,7 @@ class NewsReaderMixin:
                 reader.pop("refresh_failed", None)
             except asyncio.CancelledError: raise
             except Exception:
+                full_text = ""
                 reader["refresh_failed"] = True
             reader["checked_at"] = now()
             with self.db:

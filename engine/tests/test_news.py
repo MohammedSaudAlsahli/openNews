@@ -370,3 +370,33 @@ def test_body_retry_backoff_and_render_lease_survive_new_manager(store):
     assert manager.next_public_capture()['article'] is None
     asyncio.run(manager._fetch_bodies(None))
     assert len(calls) == 3
+
+
+def test_source_description_is_publisher_metadata_not_first_article():
+    from eis_engine.feed_parser import source_description
+    assert source_description(b'<rss><channel><description>AI research and evaluations.</description><item><description>Unrelated story.</description></item></channel></rss>') == 'AI research and evaluations.'
+    assert source_description(b'<feed xmlns="http://www.w3.org/2005/Atom"><subtitle>Research notes</subtitle></feed>') == 'Research notes'
+    assert source_description(b'<html><head><meta name="description" content="Publisher topics"></head><body>Navigation</body></html>') == 'Publisher topics'
+    assert source_description(RSS) == ''
+
+
+def test_source_description_survives_reopening_store(store):
+    feed = b'<rss><channel><title>Science</title><description>Science and AI.</description></channel></rss>'
+    async def fetch(url, headers=None):
+        return {'status':200, 'url':url, 'body':feed, 'headers':{}}
+    manager = news.NewsManager(store, fetch)
+    asyncio.run(manager.add({'url':'https://publisher.example/feed'}))
+    assert manager.snapshot()['subscriptions'][0]['description'] == 'Science and AI.'
+    assert news.NewsManager(store, fetch).snapshot()['subscriptions'][0]['description'] == 'Science and AI.'
+
+def test_refresh_defaults_and_custom_interval_survive_restart(store):
+    manager=news.NewsManager(store)
+    identifier=asyncio.run(manager.add({'url':'https://publisher.example/feed'},sync=False))
+    assert store.one('SELECT interval_minutes FROM news_subscriptions WHERE id=?',(identifier,))['interval_minutes']==5
+    for minutes in (1,5,7,10080):
+        manager.update({'subscription_id':identifier,'interval_minutes':minutes})
+        assert store.one('SELECT interval_minutes FROM news_subscriptions WHERE id=?',(identifier,))['interval_minutes']==minutes
+    for minutes in (0,-1,1.5,True,10081):
+        with pytest.raises(news.Failure): manager.update({'subscription_id':identifier,'interval_minutes':minutes})
+    restarted=news.NewsManager(store)
+    assert store.one('SELECT interval_minutes FROM news_subscriptions WHERE id=?',(identifier,))['interval_minutes']==10080

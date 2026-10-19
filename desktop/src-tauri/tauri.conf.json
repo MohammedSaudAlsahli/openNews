@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "openNews",
+  "version": "0.3.0-preview.1",
+  "identifier": "com.editorialintelligence.studio.preview",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "openNews",
+        "width": 1320,
+        "height": 900,
+        "minWidth": 860,
+        "minHeight": 600,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app"
+    ],
+    "resources": {
+      "runtime/": "runtime/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "14.0"
+    },
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.icns"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQxRjBFNTdDQUMxRDc1MDkKUldRSmRSMnNmT1h3MGFmRi95UU5qaU13RlpQeXI2Ry9RaXNURG5tK1lqclBVamQwY0MxQkRmV0gK",
+      "endpoints": [
+        "https://raw.githubusercontent.com/MohammedSaudAlsahli/openStudio/main/updates/tauri-preview.json"
+      ],
+      "requireSignedVersion": true
+    }
+  }
+}

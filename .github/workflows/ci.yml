@@ -1,4 +1,4 @@
-name: Editorial contracts and bundle
+name: openNews tests and Tauri bundle
 on: [push, pull_request]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -11,13 +11,21 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.12.13'
-      - name: Contract and integration tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Engine and frontend contracts
         run: bash scripts/test.sh
-      - name: Build and smoke-test embedded runtime
+      - name: Build standalone Tauri app
         run: bash scripts/build_app.sh
+      - name: Native bridge and embedded runtime tests
+        run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
+      - name: Archive app preserving permissions and symlinks
+        run: ditto -c -k --sequesterRsrc --keepParent desktop/src-tauri/target/release/bundle/macos/openNews.app openNews-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: development-evidence
-          path: |
-            build/bundle-sha256.json
-            engine/eis_engine/provider_catalog.json
+          name: openNews-macOS
+          path: openNews-macOS.zip

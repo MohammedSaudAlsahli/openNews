@@ -6,14 +6,14 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import urlsplit, urljoin
 from .contracts import Failure
 from .news_urls import MAX_TEXT, NewsError, canonical_url
-from .feed_parser import HTMLInfo, parse_feed, normalize_subscription, extract_markdown
+from .feed_parser import HTMLInfo, parse_feed, normalize_subscription, extract_markdown, source_description
 from .storage import uid, now
 
 class NewsSyncMixin:
     async def add(self, payload, sync=True):
         try:
             url, feed, kind = normalize_subscription(payload.get("url", ""), payload.get("kind", "auto"))
-            interval = self._interval(payload.get("interval_minutes", 360 if kind == "webpage" else 60))
+            interval = self._interval(payload.get("interval_minutes", 5))
         except NewsError as error: raise Failure("VALIDATION_ERROR", str(error)) from None
         existing = self.store.one("SELECT id FROM news_subscriptions WHERE workspace_id=? AND url=?", (self.ws,url))
         if existing:
@@ -30,7 +30,7 @@ class NewsSyncMixin:
 
     @staticmethod
     def _interval(value):
-        if isinstance(value,bool) or not isinstance(value,int) or not 15 <= value <= 10080: raise NewsError("فترة التحديث بين 15 دقيقة وأسبوع.")
+        if isinstance(value,bool) or not isinstance(value,int) or not 1 <= value <= 10080: raise NewsError("فترة التحديث بين دقيقة واحدة وأسبوع.")
         return value
 
     def update(self, payload):
@@ -73,6 +73,7 @@ class NewsSyncMixin:
             response = await self.fetch(row["feed_url"], None if refresh_full else conditional)
             if response["status"] != 304:
                 body = response["body"]
+                description = source_description(body)
                 page_mode = False
                 if re.search(br"<\s*(?:!doctype\s+html|html)\b", body[:4000], re.I):
                     page = HTMLInfo(); page.feed(body.decode("utf-8", "replace"))
@@ -80,6 +81,7 @@ class NewsSyncMixin:
                         feed_url = canonical_url(urljoin(response["url"], page.feeds[0]))
                         response = await self.fetch(feed_url, None)
                         body = response["body"]
+                        description = description or source_description(body)
                         title, entries = parse_feed(body, response["url"], row["kind"])
                     else:
                         from .page_feed import parse_page
@@ -88,8 +90,10 @@ class NewsSyncMixin:
                 else:
                     title, entries = parse_feed(body,response["url"],row["kind"])
                 with self.db:
+                    if description:
+                        self.db.execute("UPDATE news_subscriptions SET description=? WHERE id=?", (description,row['id']))
                     if page_mode:
-                        self.db.execute("UPDATE news_subscriptions SET kind='webpage',interval_minutes=max(interval_minutes,360) WHERE id=?", (row['id'],))
+                        self.db.execute("UPDATE news_subscriptions SET kind='webpage' WHERE id=?", (row['id'],))
                     for entry in entries:
                         article_id = self.archive.find(row['id'],entry['guid'],entry['url'])
                         existing = self.store.one("SELECT * FROM news_articles WHERE id=?", (article_id,)) if article_id else None
