@@ -5,7 +5,7 @@ description = "Local editorial repositories and Agno orchestration"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "agno==3.1.2",
-    "pydantic==2.14.0",
+    "pydantic==2.14.1",
     "sqlite-vec==0.1.9",
     "openai==3.28.0",
     "anthropic==1.13.0",
