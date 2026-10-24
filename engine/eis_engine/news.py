@@ -204,6 +204,7 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
         self.db.commit()
         from .news_archive import NewsArchive
         self.archive = NewsArchive(self)
+        self.repair_reddit_posts()
 
     def snapshot(self):
         subscriptions = self.store.rows("""SELECT s.id,s.title,s.url,s.feed_url,s.kind,s.enabled,s.interval_minutes,s.last_checked,s.last_success,s.error,s.status,s.description,
@@ -264,4 +265,6 @@ class NewsManager(NewsReaderMixin, NewsSyncMixin):
         row["is_read"] = bool(row["is_read"])
         row["is_bookmarked"] = bool(row["is_bookmarked"])
         row["reader"] = json.loads(row.pop("reader_json", "{}"))
+        from .article_reader import READER_VERSION
+        row["reader_upgrade_required"] = row["body_status"] == "full" and (row["reader"].get("version", 1) < READER_VERSION or bool(row["reader"].get('reddit_needs_refresh')))
         return row

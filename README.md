@@ -1,44 +1,72 @@
+<div dir="rtl">
+
 # openNews
 
-تطبيق macOS لقراءة الأخبار ومناقشتها وصناعة المحتوى، بواجهة **Tauri + React** ومحرك **Python + Agno + SQLite** مضمّن.
+**أخبارك ومصادرك ومساعد الكتابة، في مساحة واحدة على جهاز Mac.**
 
-**`main` هو فرع التطوير الأساسي لنسخة Tauri.** توقّف تطوير واجهة SwiftUI، وحُفظت نسختها الكاملة وتاريخها في [swift-legacy](https://github.com/MohammedSaudAlsahli/openStudio/tree/swift-legacy). ملفات Swift الصغيرة داخل `desktop/native` هي خدمات macOS يستعملها Tauri وليست التطبيق القديم.
+[English](README.en.md) · [دليل الاستخدام](docs/SETUP.md) · [التوثيق](docs/README.md) · [تحميل آخر إصدار](https://github.com/MohammedSaudAlsahli/openNews/releases/latest)
 
-## المميزات الحالية
+[![الفحوصات والبناء](https://github.com/MohammedSaudAlsahli/openNews/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MohammedSaudAlsahli/openNews/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/MohammedSaudAlsahli/openNews)](https://github.com/MohammedSaudAlsahli/openNews/releases/latest)
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- RSS وAtom وReddit ومواقع بلا RSS، مع قارئ داخلي وصور محفوظة وشرح المقالات.
-- تحديث افتراضي كل 5 دقائق، وقائمة لاختيار الفترة من دقيقة إلى يوم، وأوقات نشر نسبية.
-- محادثات وأوامر `/` وإرفاق أخبار عبر `@` وملفات نصية، ومسودات قابلة للتحرير.
-- تعليمات قابلة للتعديل داخل التطبيق، نماذج محلية أو سحابية، بحث نصي ودلالي وتقارير يومية.
-- بلاغ GitHub قابل للمراجعة يتضمن تفاصيل الخبر ووقت التحميل عند اختياره، وتنبيه بعد إغلاق غير متوقع.
+openNews تطبيق macOS لجمع الأخبار وقراءتها ومناقشتها وتحويل الأفكار إلى مسودات قابلة للتحرير. واجهته عربية وإنجليزية، ويدعم النماذج المحلية عبر Ollama والحسابات السحابية عند اختيارها.
 
-## التطوير والبناء
+**نسخة Tauri هي التطبيق المعتمد، و`main` هو فرعها الأساسي.** واجهة React، وجسر Rust، ومحرك Python مضمّن مع SQLite. لا تحتاج إلى تثبيت Python أو Node لاستخدام النسخة الجاهزة. واجهة SwiftUI السابقة محفوظة في [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
 
-المتطلبات: macOS، أدوات Xcode Command Line Tools، Rust، Node.js 22، وuv مع CPython 3.12.13.
+## ما الذي يمكنك فعله؟
+
+- **اقرأ من مصادرك:** RSS وAtom وReddit وروابط المواقع العامة، مع أرشيف وقارئ داخلي وسجل نسخ المقال.
+- **ناقش واكتب:** محادثات مرتبطة بالأخبار، مراجع عبر `@`، أوامر مهارات عبر `/`، ومسودات تحفظ نسخها.
+- **ابحث في المحفوظات:** بحث نصي، وبحث دلالي اختياري بنموذج embedding محلي.
+- **أدر نماذجك من مكان واحد:** مكتبة Ollama موحّدة تعرض المحمّل وقدراته؛ اختر نموذج البحث ونموذج الشرح كلًا حسب وظيفته.
+- **خصّص مساعدك:** تعليمات وأمثلة كتابة ومهارات قابلة للتحرير، واكتشاف مهارات من skills.sh ومعاينة تعليماتها من GitHub قبل إضافتها.
+- **تحكّم في الخلفية:** إعدادات للأداء والبطارية والجدولة، وحالات واضحة للتنزيل والفهرسة والتقارير اليومية.
+
+استيراد المهارات يضيف تعليمات نصية فقط؛ لا يثبّت سكربتات أو ينفّذ ملفاتها. البحث الدلالي والشرح وظيفتان مختلفتان، حتى لو كان مزوّدهما Ollama نفسه.
+
+## التثبيت
+
+1. حمّل `openNews-<version>-macOS-arm64.zip` من [الإصدارات الرسمية](https://github.com/MohammedSaudAlsahli/openNews/releases/latest).
+2. فك الضغط، وانقل **openNews.app** إلى **Applications**، ثم افتحه.
+3. أضف مصدرًا وابدأ القراءة. ربط حساب أو تنزيل نموذج خطوة اختيارية.
+
+التوزيع الحالي لأجهزة **Apple Silicon**؛ الحد الأدنى المعلن **macOS 14**. الحزمة موقّعة محليًا بتوقيع ad-hoc، وليست موثّقة لدى Apple؛ راجع [دليل التثبيت](docs/SETUP.md) إذا منعها Gatekeeper. لا يتوفر بناء Intel أو Windows أو Linux ضمن هذا الإصدار.
+
+## بياناتك واتصالاتك
+
+تُحفظ المقالات والمحادثات والمسودات في مساحة محلية. استخدام حساب سحابي يرسل السياق اللازم إلى مزوّده؛ وجلب الأخبار والأدلة وتنزيل النماذج يحتاج الإنترنت. «محلي» لا يعني أن كل ميزات التطبيق بلا اتصال. التفاصيل في [الخصوصية](docs/privacy.md).
+
+يحافظ التطبيق على معرّف البيانات `com.editorialintelligence.studio.preview` للتوافق مع التثبيت السابق؛ كلمة `preview` في المسار اسم تقني قديم، وليست حالة الإصدار. لا تحذف مساحة البيانات أثناء التحديث.
+
+## للمطورين
+
+المتطلبات: macOS، أدوات Xcode Command Line Tools، Node.js 22، Rust stable، وuv مع CPython 3.12.13.
+
+</div>
 
 ```sh
+git clone https://github.com/MohammedSaudAlsahli/openNews.git
+cd openNews
 bash scripts/test.sh
 bash scripts/build_app.sh
 cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
 ```
 
-ناتج البناء: `desktop/src-tauri/target/release/bundle/macos/openNews.app`.
-يُجهّز البناء Python واعتماداته المقفلة مباشرة؛ لا يحتاج إلى بناء تطبيق SwiftUI أو تثبيت Python لدى المستخدم.
+<div dir="rtl">
 
-للتطوير بعد تجهيز المحرك:
+ناتج البناء: `desktop/src-tauri/target/release/bundle/macos/openNews.app`. لإطلاق وضع التطوير بعد تجهيز المحرك: `npm --prefix desktop run tauri -- dev`.
 
-```sh
-npm --prefix desktop run tauri -- dev
-```
+راجع [دليل المساهمة](CONTRIBUTING.md)، [المعمارية](docs/architecture.md)، و[إجراءات الإصدار](docs/RELEASING.md). الاعتمادات مقفلة في npm وCargo وuv؛ تبني CI الحزمة وتختبر المحرك والواجهة والجسر الأصلي.
 
-## البيانات والإصدارات
+## حدود واضحة
 
-معرّف نسخة Tauri باقٍ `com.editorialintelligence.studio.preview` للتوافق مع بيانات المستخدمين الحاليين؛ الاسم الظاهر هو **openNews**. تبقى البيانات في:
+المخرجات الآلية تحتاج مراجعتك؛ وجود رابط لا يثبت صحة الادعاء. لا ينشر التطبيق المحتوى نيابة عنك. قد تمنع بعض المواقع القراءة العامة. سرعة النماذج والذاكرة والحرارة تعتمد على الجهاز وحجم المحتوى؛ لا توجد دعوى «بلا حرارة» أو قياسات أداء عامة. التحديث الحالي عبر استبدال التطبيق من GitHub Releases؛ قناة التحديث التلقائي الموقّع لم تُفعّل بعد.
 
-`~/Library/Application Support/com.editorialintelligence.studio.preview/default/`
+## المشاركة والرخصة
 
-لم يتغير مسار بيانات نسخة Swift السابقة. يمكن استيراد بياناتها من داخل التطبيق. لا تنسخ ملفات الاعتماد إلى مستودع GitHub.
+[بلاغ مشكلة](https://github.com/MohammedSaudAlsahli/openNews/issues/new/choose) · [طلب ميزة](https://github.com/MohammedSaudAlsahli/openNews/issues/new/choose) · [الإبلاغ الأمني الخاص](SECURITY.md) · [سجل التغييرات](CHANGELOG.md)
 
-إصدارات Swift المنشورة سابقًا وملف Sparkle التاريخي لا تعني أن إصدار Tauri جديدًا قد نُشر. رفع الشفرة إلى `main` منفصل عن إصدار تحديث موقّع؛ قناة Tauri لا تُحدّث إلا بعد بناء الحزمة واختبارها. التطبيق الحالي تجريبي وغير موثّق لدى Apple.
+شفرة المشروع تحت [MIT](LICENSE). تراخيص الاعتمادات والنماذج والمحتوى الخارجي مستقلة؛ راجع [إشعارات الأطراف الثالثة](THIRD_PARTY_NOTICES.md). تسمح MIT بالاستخدام التجاري والتوزيع والبيع مع الاحتفاظ بالإشعارات المطلوبة.
 
-[البلاغات والقراءة والتحديث](docs/opennews-reporting.md) · [المحادثة والمرفقات](docs/tauri-composer-and-support.md). بقية مستندات Swift التاريخية مرجع للميزات السابقة؛ تعليمات بنائها موجودة في فرع `swift-legacy`.
+</div>

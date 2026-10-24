@@ -1,0 +1,33 @@
+name: بلاغ مشكلة / Bug report
+description: صف مشكلة يمكن إعادة إنتاجها / Report a reproducible problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "اكتب بالعربية أو الإنجليزية. لا ترسل مفاتيح أو قواعد بيانات أو محادثات خاصة. للثغرات استخدم SECURITY.md. / Arabic and English welcome. No secrets or private data; use SECURITY.md for vulnerabilities."
+  - type: input
+    id: version
+    attributes:
+      label: الإصدار والنظام / Version and macOS
+      placeholder: openNews 0.3.0, macOS version, Apple chip
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: الخطوات / Steps to reproduce
+      description: استخدم مثالًا اصطناعيًا / Use a synthetic example
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: المتوقع وما حدث / Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: تشخيص اختياري بعد تنقيحه / Optional redacted diagnostics
+      description: أزل المعلومات الخاصة من النص والصور / Remove private information from text and screenshots

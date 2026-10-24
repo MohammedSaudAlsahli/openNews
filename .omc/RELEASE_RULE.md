@@ -1,31 +1,23 @@
 # Release Rules
-<!-- last-analyzed: 2026-10-15 -->
+<!-- last-analyzed: 2026-10-25 -->
 
 ## Version Sources
-VERSION (marketing version), BUILD_VERSION (monotonically increasing Sparkle version),
-engine/pyproject.toml, engine/eis_engine/__init__.py, engine/eis_engine/service_commands.py;
-refresh engine/uv.lock with uv lock. Package Info.plist derives from VERSION/BUILD_VERSION.
+Primary: desktop/package.json. Match desktop/package-lock.json (root and packages[""]), desktop/src-tauri/tauri.conf.json, Cargo.toml and the application package in Cargo.lock. Stable version: 0.3.0. The Python package version is independent. VERSION, BUILD_VERSION and appcast.xml are historical Swift artifacts.
 
 ## Release Trigger
-Local scripts/publish_release.py after tests, build, source commit and green CI.
-GitHub prerelease v0.2.1 is explicitly authorized in this chat. Future releases require an explicit
-publish request. Existing CI runs tests and bundle smoke tests on push/pull requests.
+Push main, require successful ci.yml for that exact SHA, push an annotated vVERSION tag, then manually dispatch release.yml with tag and successful CI run ID. User authorized publishing the current Tauri work as the official application, not a prerelease. Never replace published tags/assets.
 
 ## Test Gate
-bash scripts/test.sh; bash scripts/build_app.sh. No bypass flags.
+bash scripts/test.sh; bash scripts/build_app.sh; cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml; relocated bundle smoke/signature validation. No bypass flags.
 
-## Distribution
-Public GitHub Releases, macOS 14+ Apple Silicon DMG. Ad-hoc Apple signature:
-not notarized, experimental. Sparkle 2.10.0 EdDSA signatures protect updates.
-Private key stays in login Keychain account com.editorialintelligence.studio.
-Only release-config.json's public key belongs in Git. Never replace the signing key.
+## Registry / Distribution
+GitHub Releases: official macOS Apple Silicon ZIP, SHA256SUMS, build-info.json. CI builds; release.yml publishes only the successful main/push artifact at the tagged SHA. Ad-hoc signed, not Apple-notarized. No registry package publishing or automatic update feed publication.
 
-## Release Notes
-CHANGELOG.md and docs/releases/vVERSION.md; user-visible changes and honest limitations.
+## Release Notes Strategy
+Arabic-first README/docs with English counterparts. CHANGELOG.md and bilingual docs/releases/vVERSION.md. Clearly disclose architecture/signing and upgrade behavior.
 
-## CI Workflow
-.github/workflows/ci.yml. Publishing is local because no private signing key is in CI.
+## CI Workflow Files
+.github/workflows/ci.yml and .github/workflows/release.yml. See docs/RELEASING.md.
 
 ## First-Time Setup Gaps
-No Apple Developer ID/notarization. First installation requires user trust of the
-experimental distribution. Automatic update checks work after installing v0.2.0.
+Apple Developer ID/notarization is not provisioned. The Tauri automatic-update channel has not been published; a real two-version upgrade remains required. Private keys stay outside source/CI. Never use scripts/publish_release.py or modify Sparkle appcast for Tauri.

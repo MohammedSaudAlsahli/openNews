@@ -12,10 +12,10 @@ export function Onboarding({
       role="region"
       aria-label={t("Getting started")}
     >
-      <h2>{t("Your news, your workspace.")}</h2>
+      <h1>{t("Set up openNews")}</h1>
       <p>
         {t(
-          "Read articles immediately. Connect a model when you want explanations and conversation.",
+          "Follow your sources to start reading. Add a model whenever you want explanations or conversation.",
         )}
       </p>
       <div className="reader-actions">

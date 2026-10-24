@@ -2,7 +2,7 @@ import asyncio
 import json
 import pytest
 from eis_engine import news
-from eis_engine.article_reader import extract_reader
+from eis_engine.article_reader import extract_reader, READER_VERSION
 from eis_engine.contracts import Failure
 from eis_engine.storage import Store
 
@@ -102,6 +102,123 @@ def test_preserved_code_retains_language_and_literal_source():
     tree = html.fromstring('<article><pre><code class="language-python"># عربي\nprint("hello")</code></pre></article>')
     blocks = preserve_special_blocks(tree, 'https://example.com')
     assert list(blocks.values()) == ['```python\n# عربي\nprint("hello")\n```']
+
+
+@pytest.mark.parametrize('fragment', [True, False])
+@pytest.mark.parametrize('lines', [
+    '<div class="token-line"><span>static double cross(double ax, double ay)</span><br></div><div class="token-line">{<br></div><div class="token-line">    return ax * ay;<br></div><div class="token-line">}<br></div>',
+    '<span class="line">static double cross(double ax, double ay)</span><span class="line">{</span><span class="line">    return ax * ay;</span><span class="line">}</span>',
+    'static double cross(double ax, double ay)<br>{<br>    return ax * ay;<br>}',
+])
+def test_publisher_code_lines_survive_extraction(fragment, lines):
+    body = '<article><p>'+PARA+'</p><pre class="language-cpp"><code>'+lines+'</code></pre><p>'+PARA+'</p></article>'
+    reader = extract_reader(body, BASE, fragment=fragment)
+    text = '\n'.join(b.get('text', '') for b in reader['blocks'])
+    assert '```cpp\nstatic double cross(double ax, double ay)\n{\n    return ax * ay;\n}\n```' in text
+
+
+@pytest.mark.parametrize('fragment', [True, False])
+def test_empty_adjacent_and_nested_inline_formatting_does_not_emit_markdown_stars(fragment):
+    markup = ('<p><strong>Part of <em>our series</em>.</strong> '
+              '<strong><a href="/series">Read more</a></strong><strong>. </strong><strong></strong> After.</p>'
+              '<h3>Permafrost<strong></strong></h3><p><strong>Outer <b>inner</b></strong> tail.</p>')
+    detail = 'Frozen ground stores carbon, and thawing changes the surrounding landscape. ' * 15
+    reader = extract_reader('<article><p>'+PARA+'</p>'+markup+'<p>'+detail+'</p></article>', BASE, fragment=fragment)
+    text = '\n'.join(b.get('text', '') for b in reader['blocks'])
+    assert '**' not in text
+    assert '<strong>Part of <em>our series</em>.</strong>' in text
+    assert '[Read more](https://publisher.example/series)' in text
+    assert text.count('After.') == 1 and text.count('tail.') == 1
+    if fragment:  # Full-page extraction may discard short standalone headings.
+        assert '### Permafrost' in text
+
+
+def test_preformatted_source_is_not_rewritten_as_code_formatter():
+    from eis_engine.article_reader import preformatted_text
+    from lxml import html
+    source = 'if (x) { return "<u>literal</u>"; }\n\n\t// keep blank lines\n'
+    from html import escape
+    assert preformatted_text(html.fromstring('<pre>'+escape(source)+'</pre>')) == source.strip('\n')
+
+
+@pytest.mark.parametrize('language,source', [
+    ('python', 'def read(url):\n    return {"url": url}\n\nprint(read("news"))'),
+    ('javascript', 'const read = (url) => {\n  return { url };\n};'),
+    ('typescript', 'function read(url: string): string {\n  return url;\n}'),
+    ('html', '<article>\n  <strong>News & updates</strong>\n</article>'),
+    ('sql', 'SELECT title, published_at\nFROM articles\nWHERE is_read = 0;'),
+    ('rust', 'fn main() {\n    println!("news");\n}'),
+    ('bash', '#!/bin/sh\nfor file in *.md; do\n  printf "%s\\n" "$file"\ndone'),
+    ('yaml', 'news:\n  sources:\n    - title: "News"\n      enabled: true'),
+    ('unknown-language', 'A & B < C\n    literal **markers**\n\tkeep tabs'),
+])
+def test_code_line_recovery_is_language_independent(language, source):
+    from html import escape
+    markup = ''.join('<span class="line">'+escape(line)+'</span>' for line in source.split('\n'))
+    reader = extract_reader('<article><pre><code class="language-'+language+'">'+markup+'</code></pre></article>', BASE, fragment=True)
+    text = '\n'.join(b.get('text', '') for b in reader['blocks'])
+    assert '```'+language+'\n'+source+'\n```' in text
+
+
+def test_inline_publisher_code_keeps_literal_markdown_punctuation():
+    from html import unescape
+    reader = extract_reader('<p>Use <code>a*b[0] &lt; limit</code> and <u>underlined</u>.</p>', BASE, fragment=True)
+    text = reader['blocks'][0]['text']
+    assert '<code>a*b[0] < limit</code>' in unescape(text)
+    assert '<u>underlined</u>' in text
+
+
+def test_saved_reader_format_upgrade_is_cached_and_preserves_old_content_on_failure(saved):
+    manager, store, calls = saved
+    legacy = {'version':4, 'origin':'feed', 'blocks':[{'type':'text','text':'Previously saved article'}]}
+    store.db.execute('UPDATE news_articles SET reader_json=?', (json.dumps(legacy),)); store.db.commit()
+    assert manager.article('article', mark_read=False)['reader_upgrade_required'] is True
+    updated = asyncio.run(manager.reader('article'))
+    assert updated['reader']['version'] == READER_VERSION
+    assert updated['reader_upgrade_required'] is False
+    asyncio.run(manager.reader('article'))
+    assert calls == [BASE]
+    store.db.execute('UPDATE news_articles SET reader_json=?', (json.dumps(legacy),)); store.db.commit()
+    async def offline(*args):
+        calls.append('offline')
+        raise news.NewsError('offline')
+    manager.fetch = offline
+    failed = asyncio.run(manager.reader('article'))
+    assert failed['reader']['blocks'] == legacy['blocks']
+    assert failed['reader']['refresh_failed'] is True
+    asyncio.run(manager.reader('article'))
+    assert calls.count('offline') == 1
+
+
+@pytest.mark.parametrize('fragment', [True, False])
+def test_tables_keep_rows_cells_caption_merged_cells_and_safe_links(fragment):
+    from lxml import html
+    table = ('<table style="width:99999px" onclick="bad()"><caption>Model comparison</caption>'
+             '<thead><tr><th scope="col">Feature</th><th colspan="2">Models</th></tr></thead>'
+             '<tbody><tr><th rowspan="2" scope="row">Latency</th><td><a href="/paper">185 ms</a></td><td>216 ms</td></tr>'
+             '<tr><td>1.25</td><td><strong>2.40</strong></td></tr></tbody></table>')
+    reader = extract_reader('<article><p>'+PARA+'</p>'+table+'<p>After comparison.</p></article>', BASE, fragment=fragment)
+    text = '\n'.join(b.get('text', '') for b in reader['blocks'])
+    parsed = html.fromstring('<div>'+text+'</div>')
+    assert len(parsed.xpath('.//table//tr')) == 3
+    assert parsed.xpath('.//table//td//text()') == ['185 ms', '216 ms', '1.25', '2.40']
+    assert parsed.xpath('.//caption/text()') == ['Model comparison']
+    assert parsed.xpath('.//th[@colspan="2"]') and parsed.xpath('.//th[@rowspan="2"]')
+    assert parsed.xpath('.//td/a/@href') == ['https://publisher.example/paper']
+    assert not parsed.xpath('.//table//@style | .//table//@onclick')
+    assert text.count('After comparison.') == 1
+
+
+def test_table_serialization_does_not_invent_boundaries_or_links():
+    from eis_engine.article_reader import table_markup
+    from lxml import html
+    node = html.fromstring('<table><tr><td><a>12345</a> &lt;script&gt;literal&lt;/script&gt;</td><td><a href="javascript:bad()">Unsafe</a><script>execute()</script></td></tr></table>')
+    result = table_markup(node, BASE)
+    parsed = html.fromstring(result)
+    assert len(parsed.xpath('.//td')) == 2
+    assert not parsed.xpath('.//a/@href | .//script')
+    assert parsed.xpath('.//td')[0].text_content() == '12345 <script>literal</script>'
+    assert 'execute()' not in result
 
 
 def test_linked_figures_do_not_leave_markdown_wrappers():
@@ -212,6 +329,7 @@ def test_newsletter_list_paragraphs_stay_with_markers():
     from eis_engine.article_reader import extract_reader
     result = extract_reader('<article><ul><li><p><strong>أخبار</strong> اليوم</p></li><li><p>تحليلات السوق</p></li></ul><hr/><p>متن المقالة</p></article>', 'https://example.com/story', fragment=True)
     text = '\n'.join(b.get('text', '') for b in result['blocks'])
-    assert '- **أخبار** اليوم' in text
+    assert '- <strong>أخبار</strong> اليوم' in text
+    assert text.count('اليوم') == 1
     assert '- تحليلات السوق' in text
     assert '---' in text

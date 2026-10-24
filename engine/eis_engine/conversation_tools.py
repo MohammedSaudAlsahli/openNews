@@ -57,11 +57,12 @@ class ConversationTools:
             if knowledge is None:
                 from .news_knowledge import NewsKnowledge
                 knowledge = self.news.knowledge = NewsKnowledge(self.news)
-            found = await knowledge.search(query, from_date, to_date)
+            report = await knowledge.search(query, from_date, to_date, include_status=True)
+            found = report['articles']
             for item in found: self.remember(item)
-            result = self.output({'articles': found, 'matched_at_least': len(found),
-                                'scope': 'Saved RSS library only. If results do not answer the question, use search_web.'})
-            self.saved_searches[key] = result
+            result = self.output({**report, 'matched_at_least': len(found),
+                                'scope': 'Saved RSS library only. Semantic search may still be warming, busy, unavailable or incomplete; empty lexical results do not prove there are no matching saved articles. State this limitation. If results do not answer the question, use search_web.'})
+            if report['search']['semantic'] in {'ready','disabled','not_requested'}: self.saved_searches[key] = result
             return result
         except (ValueError, TypeError):
             return self.output({'error': 'Use valid YYYY-MM-DD dates.'})

@@ -19,6 +19,21 @@ afterEach(() => {
   vi.useRealTimers();
   vi.resetAllMocks();
 });
+it("offers model setup instead of a guaranteed generation failure when no model is assigned", () => {
+  const configure = vi.fn();
+  render(
+    <ArticleExplanation
+      article={{ id: "a" }}
+      configured={false}
+      onConfigure={configure}
+    />,
+  );
+  fireEvent.click(screen.getByText("Article explanation"));
+  expect(screen.queryByText("Generate explanation with my model")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Choose a model" }));
+  expect(configure).toHaveBeenCalledOnce();
+  expect(call).not.toHaveBeenCalled();
+});
 it("shows an existing explanation in a collapsed section without interrupting reading", () => {
   const { container } = render(
     <ArticleExplanation

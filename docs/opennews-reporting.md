@@ -1,6 +1,6 @@
 # openNews identity and issue reporting
 
-Display name and newspaper icon now use openNews. The bundle identifier, existing workspace and updater repository remain unchanged, preserving local data. The GitHub repository is still openStudio.
+Display name and newspaper icon now use openNews. The bundle identifier, existing workspace and updater repository remain unchanged, preserving local data. The canonical GitHub repository is now MohammedSaudAlsahli/openNews. Tauri is the official application; see [current setup](SETUP.md).
 
 Help & diagnostics opens a reviewable GitHub issue draft containing version, platform, bounded technical events and the selected error code. The error banner has a Report problem action. Raw error messages, conversation contents, articles, paths and credentials are not added. User submits the issue on GitHub (sign-in may be required). Only the last 4,500 diagnostic characters are included in the URL; full diagnostics can be exported separately.
 

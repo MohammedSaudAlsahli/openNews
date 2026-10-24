@@ -1,0 +1,18 @@
+{
+  "identifier": "com.opennews.ui-qa",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "openNews",
+        "width": 1320,
+        "height": 900,
+        "minWidth": 860,
+        "minHeight": 600,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "backgroundThrottling": "disabled"
+      }
+    ]
+  }
+}

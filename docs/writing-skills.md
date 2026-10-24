@@ -23,7 +23,7 @@ Examples: `حوّل الخبر هذا لمنشور لينكدإن` or `Turn that
 
 Default guide text: `engine/eis_engine/writing_skills.py` (`GUIDES`). Routing policy: `ROUTING` in that same module. Guide catalog: `CATALOG`.
 
-Loaded guides are initialized once under the workspace's `instructions/skills/<id>.md`, beside `article-summary.md` and `daily-report.md`. Edit them inside Settings → Daily report → View and edit instructions. User edits are loaded on the next invocation and survive application updates. At most three guides are loaded per turn, each bounded to 12,000 characters. Guide IDs are allowlisted; paths and scripts cannot be executed through this interface.
+Loaded guides are initialized once under the workspace's `instructions/skills/<id>.md`, beside `article-summary.md` and `daily-report.md`. Edit them inside Settings → Assistant & writing → Writing skills. User edits are loaded on the next invocation and survive application updates. At most three guides are loaded per turn, each bounded to 12,000 characters. Included guide IDs are allowlisted; custom guide IDs are validated commands. Paths and scripts cannot be executed through this interface.
 
 News-derived drafts must cite retrieved article IDs. Original/user-supplied content uses `evidence_basis=original` so a personal LinkedIn post does not require an unrelated RSS article. References that are supplied are still validated before saving.
 
@@ -49,4 +49,14 @@ Directory security scores and popularity are discovery aids, not a compatibility
 
 ## Editing inside OpenStudio
 
-Settings → Daily report → View and edit instructions (also available from News summaries) opens the shared instruction editor. Choose any writing skill to view its active guide, save edits or restore defaults. Existing local customizations are preserved; there is no need to open the instructions folder.
+Settings → Assistant & writing → Writing skills opens the library. Choose a skill to view its active guide and save edits. Existing local customizations are preserved; there is no need to open the instructions folder.
+
+## Current skill library (October 24)
+
+Settings → Assistant & writing → Writing skills now opens a named library. **Discover skills** searches skills.sh live with writing/research topics or a custom query. **Add from a link** accepts public GitHub repository, folder or SKILL.md links, raw GitHub Markdown links and skills.sh skill links. A repository with several guides shows a choice. A preview shows source, editable name/command/purpose, supporting-file limits and full instructions before addition. No terminal is used.
+
+Custom guides persist in `instructions/custom-skills.json` beside the workspace database. A single atomic registry retains the original imported text and the current editable text, with source URL, Git blob SHA and supplied license metadata. Main instructions are limited to12,000 characters, with at most100 custom guides. They join `skills.catalog`, contextual `load_editorial_skill` and the conversation slash picker. Included guides retain their existing files and IDs.
+
+This is text-guide import, not a complete plugin runtime: scripts, referenced files, external accounts and extra tools are not installed. The preview names this boundary; upstream license metadata is shown as provenance rather than an endorsement. Public directory search uses the same `/api/search` service as [vercel-labs/skills](https://github.com/vercel-labs/skills/blob/main/src/find.ts). GitHub import resolves an immutable commit and permits redirects only within the GitHub API host. No repository code executes.
+
+With web research enabled, the assistant can use `find_writing_skills` and `inspect_writing_skill` when the user asks for new skill recommendations. Search uses short public task keywords. These tools return source data and compatibility limits; they do not add or activate a guide. A chosen guide is reviewed and added through settings. The model's actual ability to choose the right guide still depends on the selected model.

@@ -1,7 +1,11 @@
-import { ComposerPicker } from "./composer-picker";
+import { ChatComposer, ModelPicker } from "./chat-composer";
+import { ChatMessage } from "./chat-message";
+import { ConversationList } from "./conversation-list";
+import { navigateSafely } from "./unsaved-changes";
 import { SupportPanel } from "./support-panel";
 import { BrandMark } from "./brand";
 import { Onboarding } from "./onboarding";
+import { ActivityPage } from "./activity-page";
 import { ConversationOptions } from "./conversation-options";
 import { t, useLocale } from "./locale";
 import { listen } from "@tauri-apps/api/event";
@@ -33,6 +37,9 @@ import {
   ChevronLeft,
   BookOpen,
   LoaderCircle,
+  ArrowDown,
+  X,
+  HelpCircle,
 } from "lucide-react";
 import { Markdown, Trace } from "./components";
 import { call, active, duration, language, type RecordData } from "./engine";
@@ -48,31 +55,47 @@ const Settings = lazy(() => import("./settings"));
 const Drafts = lazy(() =>
   import("./pages").then((x) => ({ default: x.Drafts })),
 );
-function App() {
+export function App() {
   useLocale();
   const [support, setSupport] = useState(false);
   const [reportCode, setReportCode] = useState("");
   const [uncleanExit, setUncleanExit] = useState(false);
-  useEffect(() => { void invoke<boolean>("previous_unclean_exit").then(setUncleanExit).catch(()=>{}); }, []);
-  const [files, setFiles] = useState<Record<string, {name:string; text:string}[]>>({});
+  useEffect(() => {
+    void invoke<boolean>("previous_unclean_exit")
+      .then(setUncleanExit)
+      .catch(() => {});
+  }, []);
+  const [files, setFiles] = useState<
+    Record<string, { name: string; text: string }[]>
+  >({});
   const fileInput = useRef<HTMLInputElement>(null);
-  const diagnosticStates = useRef(new Map<string,string>());
+  const diagnosticStates = useRef(new Map<string, string>());
 
   const [showWelcome, setShowWelcome] = useState(
     localStorage.getItem("welcome-dismissed") !== "true",
   );
   const [newVersion, setNewVersion] = useState("");
   const [options, setOptions] = useState(false);
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
   const [attachments, setAttachments] = useState<Record<string, RecordData[]>>(
     {},
   );
   const [includeNews, setIncludeNews] = useState(true),
     [researchWeb, setResearchWeb] = useState(true);
   const [availableModels, setAvailableModels] = useState<RecordData[]>([]);
-  const [page, setPage] = useState("chat"),
-    [sidebar, setSidebar] = useState(true),
+  const [modelsLoading, setModelsLoading] = useState(false),
+    [modelsError, setModelsError] = useState(""),
+    [modelsAttempt, setModelsAttempt] = useState(0);
+  const [page, changePage] = useState("chat"),
+    [sidebar, setSidebar] = useState(window.innerWidth > 1050),
     [ready, setReady] = useState(false),
     [error, setError] = useState("");
+  const [libraryRequest, setLibraryRequest] = useState(0);
+  const setPage = (next: string) =>
+    navigateSafely(() => {
+      if (next === "articles") setLibraryRequest((value) => value + 1);
+      changePage(next);
+    });
   const [agents, setAgents] = useState<RecordData[]>([]),
     [agent, setAgent] = useState("");
   const [snapshot, setSnapshot] = useState<RecordData>({}),
@@ -91,6 +114,7 @@ function App() {
     [model, setModel] = useState(""),
     [search, setSearch] = useState(""),
     [sending, setSending] = useState(false),
+    [stopping, setStopping] = useState(false),
     [consent, setConsent] = useState(
       localStorage.getItem("model-consent") === "true",
     );
@@ -128,17 +152,27 @@ function App() {
       call("chat.list"),
     ]);
     setSnapshot(s);
-    setAgents((await call("agents.list")).agents || []);
     setChats(c.conversations || []);
   }, []);
   useEffect(() => {
-    for (const row of [...(snapshot.subscriptions || []), ...(snapshot.jobs || [])]) {
+    void call("agents.list")
+      .then((r) => setAgents(r.agents || []))
+      .catch(() => {});
+  }, [page]);
+  useEffect(() => {
+    for (const row of [
+      ...(snapshot.subscriptions || []),
+      ...(snapshot.jobs || []),
+    ]) {
       const failed = row.status === "error" || row.state === "failed";
       const stamp = `${row.status || row.state}:${row.last_checked || row.updated_at || ""}`;
       if (failed && diagnosticStates.current.get(row.id) !== stamp) {
-        void invoke("record_diagnostic", {operation: row.status ? "feed.sync" : "background.job", code: row.status ? "SOURCE_FETCH_FAILED" : "JOB_FAILED"}).catch(()=>{});
+        void invoke("record_diagnostic", {
+          operation: row.status ? "feed.sync" : "background.job",
+          code: row.status ? "SOURCE_FETCH_FAILED" : "JOB_FAILED",
+        }).catch(() => {});
       }
-      diagnosticStates.current.set(row.id,stamp);
+      diagnosticStates.current.set(row.id, stamp);
     }
   }, [snapshot]);
   useEffect(() => {
@@ -193,10 +227,24 @@ function App() {
     return () => clearInterval(timer);
   }, [ready, refresh, chats.map((c) => c.active_job_id).join()]);
   const navigationVersion = useRef(0);
+  const sendLock = useRef(false);
+  const stopLock = useRef(false);
+  const pendingConversation = useRef<
+    { id: string; navigation: number } | undefined
+  >(undefined);
+  const pendingSend = useRef<{ signature: string; key: string } | undefined>(
+    undefined,
+  );
   const transcript = useRef<HTMLDivElement>(null);
   const followLatest = useRef(true);
   const selectionRef = useRef(selected);
   selectionRef.current = selected;
+  const earlierRequest = useRef<object | null>(null);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  useEffect(() => {
+    earlierRequest.current = null;
+    setLoadingEarlier(false);
+  }, [selected]);
   const running = chats.find((c) => c.id === selected)?.active_job_id;
   useEffect(() => {
     if (!selected) {
@@ -206,9 +254,33 @@ function App() {
     let live = true;
     call("chat.detail", { conversation_id: selected })
       .then((d) => {
-        if (live) setDetail(d);
+        if (live)
+          setDetail((previous) => {
+            if (!previous || previous.id !== d.id) return d;
+            const incoming = new Set(
+              (d.messages || []).map((m: RecordData) => m.id),
+            );
+            return {
+              ...d,
+              ...(previous.messages?.[0] &&
+              !incoming.has(previous.messages[0].id)
+                ? {
+                    has_more: previous.has_more,
+                    next_before_message_id: previous.next_before_message_id,
+                  }
+                : {}),
+              messages: [
+                ...(previous.messages || []).filter(
+                  (m: RecordData) => !incoming.has(m.id),
+                ),
+                ...(d.messages || []),
+              ],
+            };
+          });
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => {
+        if (live) setError(String(e));
+      });
     return () => {
       live = false;
     };
@@ -223,98 +295,211 @@ function App() {
   useEffect(() => {
     let live = true;
     setAvailableModels([]);
+    setModelsError("");
+    setModelsLoading(Boolean(profile));
     if (profile)
       void call("providers.models", { profile_id: profile })
         .then((r) => {
-          if (live) setAvailableModels(r.models || []);
+          if (live) {
+            setAvailableModels(r.models || []);
+            if (r.error) setModelsError(String(r.error));
+          }
         })
         .catch((e) => {
-          if (live) setError(String(e));
+          if (live) setModelsError(String(e));
+        })
+        .finally(() => {
+          if (live) setModelsLoading(false);
         });
     return () => {
       live = false;
     };
-  }, [profile]);
+  }, [profile, modelsAttempt]);
   async function send() {
     const key = selected || "new",
-      text = drafts[key]?.trim();
-    if (!text || sending || running) return;
+      original = drafts[key] || "",
+      text = original.trim();
+    if (!text || !ready || sendLock.current || running) return;
     if (!profile || !model) {
       setPage("settings");
-      setError("Connect a model in Settings before sending.");
+      setError(t("Connect a model in Settings before sending."));
       return;
     }
     if (!consent) {
       setError(
-        "Enable model access below. Your message and selected context will be sent to your chosen provider.",
+        t(
+          "Enable model access below. Your message and selected context will be sent to your chosen provider.",
+        ),
       );
       return;
     }
-    const fileText = (files[key] || []).map(f => `
+    const sentFiles = files[key] || [],
+      sentArticles = attachments[key] || [];
+    const fileText = sentFiles
+      .map(
+        (f) => `
 
 --- Attached file: ${f.name} ---
 ${f.text}
---- End attached file ---`).join("");
-    if ((text + fileText).length > 12000) { setError(t("Message and files must fit within 12,000 characters.")); return; }
+--- End attached file ---`,
+      )
+      .join("");
+    if ((text + fileText).length > 12000) {
+      setError(t("Message and files must fit within 12,000 characters."));
+      return;
+    }
     const startedAtNavigation = navigationVersion.current;
+    sendLock.current = true;
     setSending(true);
     setError("");
     try {
       let id = selected;
       if (!id) {
-        id = (await call("chat.create", { title: text.slice(0, 80) }))
-          .conversation_id;
-        if (navigationVersion.current === startedAtNavigation) {
-          selectionRef.current = id;
-          setSelected(id);
+        if (pendingConversation.current?.navigation === startedAtNavigation) {
+          id = pendingConversation.current.id;
+        } else {
+          id = (await call("chat.create", { title: text.slice(0, 80) }))
+            .conversation_id;
+          pendingConversation.current = { id, navigation: startedAtNavigation };
         }
       }
-      const result = await call("chat.send", {
+      const payload = {
         conversation_id: id,
         message: text + fileText,
         profile_id: profile,
         model_id: model,
         consent: true,
-        idempotency_key: crypto.randomUUID(),
         format: "auto",
-        article_ids: (attachments[key] || []).map((a) => a.id),
+        article_ids: sentArticles.map((a) => a.id),
         include_news: includeNews,
         research_web: researchWeb,
         ...(agent ? { agent_id: agent } : {}),
+      };
+      const signature = JSON.stringify(payload);
+      if (pendingSend.current?.signature !== signature)
+        pendingSend.current = { signature, key: crypto.randomUUID() };
+      const result = await call("chat.send", {
+        ...payload,
+        idempotency_key: pendingSend.current.key,
       });
-      setDrafts((d) => ({ ...d, [key]: "" }));
-      setFiles(f => ({...f, [key]: []}));
-      setAttachments((a) => ({ ...a, [key]: [] }));
+      pendingSend.current = undefined;
+      const stillHere = navigationVersion.current === startedAtNavigation;
+      if (key !== "new" || stillHere) {
+        // Consume only the submitted content. A follow-up typed during this
+        // request belongs to the composer, not to the acknowledged message.
+        setDrafts((d) => ({
+          ...d,
+          [key]: "",
+          [id]: d[key] === original ? "" : d[key] || "",
+        }));
+        setFiles((f) => ({
+          ...f,
+          [key]: [],
+          [id]: (f[key] || []).filter((row) => !sentFiles.includes(row)),
+        }));
+        setAttachments((a) => ({
+          ...a,
+          [key]: [],
+          [id]: (a[key] || []).filter((row) => !sentArticles.includes(row)),
+        }));
+      }
+      if (!selected && stillHere) {
+        selectionRef.current = id;
+        setSelected(id);
+      }
+      setChats((old) => [
+        {
+          ...old.find((row) => row.id === id),
+          id,
+          title: text.slice(0, 80),
+          active_job_id: result.job_id,
+        },
+        ...old.filter((row) => row.id !== id),
+      ]);
       setProgress((p) => ({
         ...p,
         [id]: { job_id: result.job_id, state: "queued" },
       }));
-      await refresh();
-      const updated = await call("chat.detail", { conversation_id: id });
-      if (selectionRef.current === id) setDetail(updated);
+      try {
+        await refresh();
+        const updated = await call("chat.detail", { conversation_id: id });
+        if (selectionRef.current === id) setDetail(updated);
+      } catch {
+        setError(
+          t(
+            "Message sent. The conversation view could not refresh; it will retry automatically.",
+          ),
+        );
+      }
     } catch (e) {
       setError(String(e));
     } finally {
+      sendLock.current = false;
       setSending(false);
     }
   }
-  function choose(id: string) {
-    navigationVersion.current += 1;
-    followLatest.current = true;
-    selectionRef.current = id;
-    setSelected(id);
-    setPage("chat");
-    setDetail(undefined);
+  function choose(id: string, skill?: string, starter?: string) {
+    navigateSafely(() => {
+      if (skill)
+        setDrafts((old) => ({
+          ...old,
+          new: `/${skill} ${(old.new || "").replace(/^\/[\w-]+\s*/, "")}`,
+        }));
+      if (starter)
+        setDrafts((old) => ({
+          ...old,
+          new: [old.new, starter].filter(Boolean).join("\n\n"),
+        }));
+      navigationVersion.current += 1;
+      followLatest.current = true;
+      selectionRef.current = id;
+      setSelected(id);
+      changePage("chat");
+      setOptions(false);
+      setDetail(undefined);
+    });
+  }
+  async function stopResponse() {
+    if (!running || stopLock.current) return;
+    stopLock.current = true;
+    setStopping(true);
+    try {
+      await call("jobs.cancel", { job_id: running });
+      await refresh().catch(() =>
+        setError(
+          t(
+            "Stop requested. The conversation view will refresh automatically.",
+          ),
+        ),
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      stopLock.current = false;
+      setStopping(false);
+    }
   }
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === ",") {
-        event.preventDefault(); setPage("settings"); return;
+        event.preventDefault();
+        setPage("settings");
+        return;
       }
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "b") {
-        event.preventDefault(); setSidebar(s => !s); return;
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "b"
+      ) {
+        event.preventDefault();
+        setSidebar((s) => !s);
+        return;
       }
-      if (event.key === "Escape") { setOptions(false); setSupport(false); }
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        if (document.querySelector('dialog[open], [role="dialog"]')) return;
+        navigateSafely(() => setOptions(false));
+        setSupport(false);
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         choose("");
@@ -330,22 +515,92 @@ ${f.text}
   }, [selected, detail, progress, page]);
   const message = drafts[selected || "new"] || "";
   const profiles = snapshot.profiles || [];
+  function selectProfile(id: string) {
+    setAgent("");
+    setProfile(id);
+    setModel(profiles.find((p: RecordData) => p.id === id)?.model_id || "");
+  }
+  function selectAgent(id: string) {
+    setAgent(id);
+    const choice = agents.find((a) => a.id === id);
+    if (choice) {
+      setProfile(choice.profile_id);
+      setModel(choice.model_id);
+    }
+  }
+  const key = selected || "new";
+  const staged = attachments[key] || [];
+  const stagedFiles = files[key] || [];
+  function attachArticle(row: RecordData) {
+    if (staged.some((a) => a.id === row.id)) return;
+    if (staged.length >= 12) {
+      setError(t("Attach up to 12 articles."));
+      return;
+    }
+    setAttachments((old) => ({
+      ...old,
+      [key]: [...(old[key] || []), { id: row.id, title: row.title }],
+    }));
+  }
+  async function attachFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0],
+      draftKey = key;
+    event.target.value = "";
+    if (!file) return;
+    try {
+      if (!/\.(txt|md|csv|json)$/i.test(file.name) || file.size > 48000)
+        throw new Error(
+          t("Choose a text, Markdown, CSV or JSON file up to 48 KB."),
+        );
+      if (stagedFiles.length >= 3) throw new Error(t("Attach up to 3 files."));
+      const text = await file.text();
+      if (text.includes("\0") || text.length > 10000)
+        throw new Error(
+          t("Text files must contain at most 10,000 characters."),
+        );
+      setFiles((old) => ({
+        ...old,
+        [draftKey]: [...(old[draftKey] || []), { name: file.name, text }],
+      }));
+    } catch (e) {
+      setError(String(e));
+    }
+  }
   return (
     <div className={`app ${sidebar ? "" : "collapsed"}`}>
       <header className="window-chrome" data-tauri-drag-region>
         {!sidebar && (
-          <button className="sidebar-reveal" aria-label={t("Show sidebar")} title={t("Show sidebar")} onClick={() => setSidebar(true)}>
+          <button
+            className="sidebar-reveal"
+            aria-label={t("Show sidebar")}
+            title={t("Show sidebar")}
+            onClick={() => setSidebar(true)}
+          >
             <PanelLeftOpen size={18} />
           </button>
         )}
-        {!ready && <span className="engine-starting" role="status">{t("Starting engine…")}</span>}
+        {!ready && (
+          <span className="engine-starting" role="status">
+            {t("Starting engine…")}
+          </span>
+        )}
       </header>
-      {support && <SupportPanel incidentCode={reportCode} onClose={()=>setSupport(false)} onError={setError}/>}
+      {support && (
+        <SupportPanel
+          incidentCode={reportCode}
+          onClose={() => setSupport(false)}
+          onError={setError}
+        />
+      )}
       <aside className="sidebar">
         <div className="brand">
           <BrandMark className="brand-mark" />
           <strong>{"openNews"}</strong>
-          <button title={t("Hide sidebar")} onClick={() => setSidebar(false)}>
+          <button
+            title={t("Hide sidebar")}
+            aria-label={t("Hide sidebar")}
+            onClick={() => setSidebar(false)}
+          >
             <PanelLeftClose size={17} />
           </button>
         </div>
@@ -373,31 +628,13 @@ ${f.text}
             );
           })}
         </nav>
-        <div className="chat-heading">{t("Conversations")}</div>
-        <label className="sidebar-search">
-          <Search size={14} />
-          <input
-            placeholder={t("Search conversations")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </label>
-        <div className="chat-list">
-          {chats
-            .filter((c) => c.title.toLowerCase().includes(search.toLowerCase()))
-            .map((c) => (
-              <button
-                className={
-                  selected === c.id && page === "chat" ? "selected" : ""
-                }
-                key={c.id}
-                onClick={() => choose(c.id)}
-              >
-                <span dir="auto">{c.title}</span>
-                {c.active_job_id && <LoaderCircle size={13} className="spin" />}
-              </button>
-            ))}
-        </div>
+        <ConversationList
+          chats={chats}
+          selected={page === "chat" ? selected : ""}
+          search={search}
+          onSearch={setSearch}
+          onChoose={choose}
+        />
         <div className="sidebar-bottom">
           <button onClick={() => setPage("activity")}>
             <Activity size={16} />
@@ -416,7 +653,15 @@ ${f.text}
             <SettingsIcon size={16} />
             {t("Settings")}
           </button>
-          <button onClick={()=>{setReportCode("");setSupport(true)}}>{t("Help & diagnostics")}</button>
+          <button
+            onClick={() => {
+              setReportCode("");
+              setSupport(true);
+            }}
+          >
+            <HelpCircle size={16} />
+            {t("Help & diagnostics")}
+          </button>
           <div className="preview-note">
             <Circle size={7} fill="currentColor" />
             {"openNews"}
@@ -435,24 +680,38 @@ ${f.text}
             {t("Update available")}: {newVersion}
           </button>
         )}
-        {ready &&
-          showWelcome &&
-          !(snapshot.subscriptions?.length || snapshot.profiles?.length) && (
-            <Onboarding
-              go={setPage}
-              close={() => {
-                setShowWelcome(false);
-                localStorage.setItem("welcome-dismissed", "true");
+        {uncleanExit && (
+          <div className="error" role="alert">
+            {t(
+              "The previous session ended unexpectedly. You can review and report it.",
+            )}
+            <button
+              onClick={() => {
+                setReportCode("UNEXPECTED_EXIT");
+                setSupport(true);
+                setUncleanExit(false);
               }}
-            />
-          )}
-        {uncleanExit && <div className="error" role="alert">{t("The previous session ended unexpectedly. You can review and report it.")}
-          <button onClick={()=>{setReportCode("UNEXPECTED_EXIT");setSupport(true);setUncleanExit(false)}}>{t("Report problem")}</button>
-          <button onClick={()=>setUncleanExit(false)}>{t("Dismiss")}</button></div>}
+            >
+              {t("Report problem")}
+            </button>
+            <button onClick={() => setUncleanExit(false)}>
+              {t("Dismiss")}
+            </button>
+          </div>
+        )}
         {error && (
           <div className="error" role="alert">
             {error}
-            <button onClick={()=>{setReportCode(error.match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] || "REQUEST_FAILED");setSupport(true)}}>{t("Report problem")}</button>
+            <button
+              onClick={() => {
+                setReportCode(
+                  error.match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] || "REQUEST_FAILED",
+                );
+                setSupport(true);
+              }}
+            >
+              {t("Report problem")}
+            </button>
             <button onClick={() => setError("")}>{t("Dismiss")}</button>
           </div>
         )}
@@ -465,7 +724,31 @@ ${f.text}
           }
         >
           {page === "chat" ? (
-            <div className="chat">
+            <div className={"chat " + (!selected ? "is-new" : "")}>
+              <div className="chat-toolbar">
+                <ModelPicker
+                  profiles={profiles}
+                  profile={profile}
+                  model={model}
+                  models={availableModels}
+                  loading={modelsLoading}
+                  error={modelsError}
+                  onRetry={() => setModelsAttempt((value) => value + 1)}
+                  onProfile={selectProfile}
+                  onModel={setModel}
+                  onSettings={() => {
+                    sessionStorage.setItem("settings-tab", "connections");
+                    setPage("settings");
+                  }}
+                />
+                {selected && (
+                  <span className="chat-toolbar-title" dir="auto">
+                    {detail?.title ||
+                      chats.find((c) => c.id === selected)?.title}
+                  </span>
+                )}
+                <span className="local-scope">{t("Private workspace")}</span>
+              </div>
               <div
                 className="messages"
                 ref={transcript}
@@ -476,94 +759,155 @@ ${f.text}
                       element.scrollTop -
                       element.clientHeight <
                     100;
+                  setAwayFromLatest(!followLatest.current);
                 }}
               >
                 {!selected ? (
                   <div className="welcome">
                     <BrandMark className="welcome-symbol" />
-                    <p className="eyebrow">
-                      {t("YOUR SPACE TO THINK & CREATE")}
-                    </p>
-                    <h1>
-                      {t("Good stories start")}
-                      <br />
-                      {t("with a little curiosity.")}
-                    </h1>
-                    <p>
-                      {t(
-                        "Explore your news. Connect the dots. Make it your own.",
-                      )}
-                    </p>
-                    <div className="suggestions">
-                      {[
-                        "What’s happening in AI today?",
-                        "Explain a story from my sources",
-                        "Turn an idea into a post",
-                      ].map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setDrafts((d) => ({ ...d, new: t }))}
-                        >
-                          {t}
-                          <span>↗</span>
-                        </button>
-                      ))}
-                    </div>
+                    {ready &&
+                    showWelcome &&
+                    !(
+                      snapshot.subscriptions?.length ||
+                      snapshot.profiles?.length
+                    ) ? (
+                      <Onboarding
+                        go={setPage}
+                        close={() => {
+                          setShowWelcome(false);
+                          localStorage.setItem("welcome-dismissed", "true");
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <h1>{t("What would you like to explore?")}</h1>
+                        <p>
+                          {t(
+                            "Read your news, connect ideas, and make something of them.",
+                          )}
+                        </p>
+                        <div className="suggestions">
+                          {[
+                            "What’s happening in AI today?",
+                            "Explain a story from my sources",
+                            "Turn an idea into a post",
+                          ].map((prompt) => (
+                            <button
+                              key={prompt}
+                              onClick={() =>
+                                setDrafts((d) => ({ ...d, new: t(prompt) }))
+                              }
+                            >
+                              {t(prompt)}
+                              <ArrowUp size={15} />
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="transcript">
+                    {!detail && (
+                      <div
+                        className="conversation-skeleton"
+                        role="status"
+                        aria-label={t("Opening conversation…")}
+                      >
+                        <div className="skeleton-line" />
+                        <div className="skeleton-line short" />
+                      </div>
+                    )}
                     {detail?.has_more && (
                       <button
+                        className="load-earlier"
+                        disabled={loadingEarlier}
                         onClick={async () => {
+                          if (earlierRequest.current) return;
+                          const request = {};
+                          earlierRequest.current = request;
+                          setLoadingEarlier(true);
+                          const conversationId = selected;
+                          const atNavigation = navigationVersion.current;
                           try {
+                            const height =
+                              transcript.current?.scrollHeight || 0;
+                            const top = transcript.current?.scrollTop || 0;
                             const older = await call("chat.detail", {
                               conversation_id: selected,
                               before_message_id: detail.next_before_message_id,
                             });
-                            setDetail({
-                              ...older,
-                              messages: [...older.messages, ...detail.messages],
+                            if (
+                              selectionRef.current !== conversationId ||
+                              earlierRequest.current !== request
+                            )
+                              return;
+                            followLatest.current = false;
+                            setDetail((current) => {
+                              if (!current || current.id !== conversationId)
+                                return current;
+                              const known = new Set(
+                                current.messages.map(
+                                  (message: RecordData) => message.id,
+                                ),
+                              );
+                              return {
+                                ...current,
+                                has_more: older.has_more,
+                                next_before_message_id:
+                                  older.next_before_message_id,
+                                messages: [
+                                  ...older.messages.filter(
+                                    (message: RecordData) =>
+                                      !known.has(message.id),
+                                  ),
+                                  ...current.messages,
+                                ],
+                              };
+                            });
+                            requestAnimationFrame(() => {
+                              if (
+                                transcript.current &&
+                                selectionRef.current === conversationId &&
+                                navigationVersion.current === atNavigation
+                              )
+                                transcript.current.scrollTop =
+                                  top +
+                                  transcript.current.scrollHeight -
+                                  height;
                             });
                           } catch (e) {
-                            setError(String(e));
+                            if (earlierRequest.current === request)
+                              setError(String(e));
+                          } finally {
+                            if (earlierRequest.current === request) {
+                              earlierRequest.current = null;
+                              setLoadingEarlier(false);
+                            }
                           }
                         }}
                       >
-                        {t("Load earlier messages")}
+                        {loadingEarlier && (
+                          <LoaderCircle
+                            size={14}
+                            className="spin"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {t(
+                          loadingEarlier
+                            ? "Loading earlier messages…"
+                            : "Load earlier messages",
+                        )}
                       </button>
                     )}
                     {detail?.messages?.map((m: RecordData) => (
-                      <article key={m.id} className={"message " + m.role}>
-                        {m.activity && <Trace data={m.activity} />}
-                        <Markdown text={m.content} />
-                        {m.citations?.length > 0 && (
-                          <details className="citations">
-                            <summary>
-                              {t("Sources ·")}
-                              {m.citations.length}
-                            </summary>
-                            {m.citations.map((c: RecordData) => (
-                              <p key={c.id || c.url}>
-                                {c.title}
-                                <small>{c.url}</small>
-                              </p>
-                            ))}
-                          </details>
-                        )}
-                        {m.outputs?.map((o: RecordData, i: number) => (
-                          <div className="draft-artifact" key={i}>
-                            <span>{o.format?.replaceAll("_", " ")}</span>
-                            <Markdown text={o.text || ""} />
-                            <button
-                              onClick={() =>
-                                navigator.clipboard.writeText(o.text || "")
-                              }
-                            >
-                              {t("Copy draft")}
-                            </button>
-                          </div>
-                        ))}
-                      </article>
+                      <ChatMessage
+                        key={m.id}
+                        message={m}
+                        onError={setError}
+                        onDraft={() => setPage("drafts")}
+                      />
                     ))}
                     {running && (
                       <article className="message assistant">
@@ -571,12 +915,68 @@ ${f.text}
                         <Markdown text={progress[selected]?.message || ""} />
                       </article>
                     )}
+                    {!running &&
+                      ["failed", "cancelled"].includes(
+                        detail?.last_job?.state,
+                      ) && (
+                        <article
+                          className="message assistant response-notice"
+                          role={
+                            detail?.last_job?.state === "failed"
+                              ? "alert"
+                              : "status"
+                          }
+                        >
+                          <Trace
+                            data={{
+                              ...progress[selected],
+                              state: detail?.last_job?.state,
+                            }}
+                          />
+                          <p>
+                            {t(
+                              detail?.last_job?.state === "failed"
+                                ? "The response could not finish. Your message is saved. You can try again or report the problem."
+                                : "The response was stopped. Your message is saved.",
+                            )}
+                          </p>
+                          {detail?.last_job?.state === "failed" && (
+                            <button
+                              onClick={() => {
+                                setReportCode(
+                                  detail?.last_job?.error_code ||
+                                    "CHAT_RESPONSE_FAILED",
+                                );
+                                setSupport(true);
+                              }}
+                            >
+                              {t("Report problem")}
+                            </button>
+                          )}
+                        </article>
+                      )}
                   </div>
                 )}
               </div>
               <div className="composer-wrap">
+                {awayFromLatest && selected && (
+                  <button
+                    className="jump-latest icon-button"
+                    aria-label={t("Jump to latest")}
+                    onClick={() => {
+                      followLatest.current = true;
+                      transcript.current?.scrollTo({
+                        top: transcript.current.scrollHeight,
+                      });
+                      setAwayFromLatest(false);
+                    }}
+                  >
+                    <ArrowDown size={18} />
+                  </button>
+                )}
                 {options && (
                   <ConversationOptions
+                    onClose={() => setOptions(false)}
                     conversation={selected}
                     selected={attachments[selected || "new"] || []}
                     onSelect={(rows) =>
@@ -588,180 +988,76 @@ ${f.text}
                     onError={setError}
                   />
                 )}
-                <div className="composer">
-                  {(attachments[selected || "new"] || []).length > 0 && (
+                <input
+                  type="file"
+                  ref={fileInput}
+                  hidden
+                  accept=".txt,.md,.csv,.json"
+                  onChange={(e) => void attachFile(e)}
+                />
+                <ChatComposer
+                  message={message}
+                  onMessage={(value) =>
+                    setDrafts((d) => ({ ...d, [key]: value }))
+                  }
+                  onSend={() => void send()}
+                  onStop={() => void stopResponse()}
+                  stopping={stopping}
+                  running={Boolean(running)}
+                  sending={sending}
+                  ready={ready}
+                  onArticles={() =>
+                    navigateSafely(() => setOptions((value) => !value))
+                  }
+                  onFile={() => fileInput.current?.click()}
+                  onArticle={attachArticle}
+                  onError={setError}
+                  includeNews={includeNews}
+                  researchWeb={researchWeb}
+                  onNews={setIncludeNews}
+                  onWeb={setResearchWeb}
+                  agents={agents}
+                  agent={agent}
+                  onAgent={selectAgent}
+                  attachments={
                     <div className="attached-articles">
-                      {(attachments[selected || "new"] || []).map((a) => (
+                      {staged.map((a) => (
                         <button
                           key={a.id}
+                          title={t("Remove attachment")}
                           onClick={() =>
                             setAttachments((old) => ({
                               ...old,
-                              [selected || "new"]: (
-                                old[selected || "new"] || []
-                              ).filter((row) => row.id !== a.id),
+                              [key]: (old[key] || []).filter(
+                                (row) => row.id !== a.id,
+                              ),
                             }))
                           }
-                          title={t("Remove attachment")}
                         >
-                          {a.title} ×
+                          <Newspaper size={14} />
+                          <span>{a.title}</span>
+                          <X size={13} />
+                        </button>
+                      ))}
+                      {stagedFiles.map((f, i) => (
+                        <button
+                          key={i}
+                          title={t("Remove attachment")}
+                          onClick={() =>
+                            setFiles((old) => ({
+                              ...old,
+                              [key]: (old[key] || []).filter((_, j) => j !== i),
+                            }))
+                          }
+                        >
+                          <FileText size={14} />
+                          <span>{f.name}</span>
+                          <X size={13} />
                         </button>
                       ))}
                     </div>
-                  )}
-                  <textarea
-                    aria-label={t("Message")}
-                    rows={2}
-                    placeholder={t("Ask anything · / commands · @ articles")}
-                    value={message}
-                    dir="auto"
-                    onChange={(e) =>
-                      setDrafts((d) => ({
-                        ...d,
-                        [selected || "new"]: e.target.value,
-                      }))
-                    }
-                    onKeyDown={(e) => {
-                      if (
-                        e.key === "Enter" &&
-                        !e.shiftKey &&
-                        !e.nativeEvent.isComposing
-                      ) {
-                        e.preventDefault();
-                        void send();
-                      }
-                    }}
-                  />
-                  <ComposerPicker message={message}
-                    onMessage={value=>setDrafts(d=>({...d,[selected||"new"]:value}))}
-                    onArticle={row=>setAttachments(old=>{
-                      const key=selected||"new", rows=old[key]||[];
-                      if(rows.some(a=>a.id===row.id))return old;
-                      if(rows.length>=12){setError(t("Attach up to 12 articles."));return old;}
-                      return {...old,[key]:[...rows,{id:row.id,title:row.title}]};
-                    })} onError={setError}/>
-                  <input type="file" ref={fileInput} hidden accept=".txt,.md,.csv,.json" onChange={async e=>{
-                    const file=e.target.files?.[0], key=selected||"new"; e.target.value="";
-                    if(!file)return;
-                    try {
-                      if(!/\.(txt|md|csv|json)$/i.test(file.name)||file.size>48000)throw new Error(t("Choose a text, Markdown, CSV or JSON file up to 48 KB."));
-                      if((files[key]||[]).length>=3)throw new Error(t("Attach up to 3 files."));
-                      const text=await file.text();
-                      if(text.includes("\0")||text.length>10000)throw new Error(t("Text files must contain at most 10,000 characters."));
-                      setFiles(old=>({...old,[key]:[...(old[key]||[]),{name:file.name,text}]}));
-                    }catch(error){setError(String(error));}
-                  }}/>
-                  {(files[selected||"new"]||[]).length>0&&<div className="attached-articles">{(files[selected||"new"]||[]).map((f,i)=><button key={i} title={t("Remove attachment")} onClick={()=>setFiles(old=>({...old,[selected||"new"]:(old[selected||"new"]||[]).filter((_,j)=>j!==i)}))}>{f.name} ×</button>)}</div>}
-                  <div className="composer-tools">
-                    <button
-                      onClick={() => setOptions(!options)}
-                      aria-expanded={options}
-                      title={t("Articles and conversation instructions")}
-                    >
-                      <Plus size={18} />
-                    </button>
-                    <button title={t("Attach text file") + " (TXT, MD, CSV, JSON · 10,000 characters)"} aria-label={t("Attach text file")} onClick={()=>fileInput.current?.click()}><FileText size={17}/></button>
-                    <select
-                      aria-label={t("Model connection")}
-                      value={profile}
-                      onChange={(e) => {
-                        setAgent("");
-                        setProfile(e.target.value);
-                        setModel(
-                          profiles.find(
-                            (p: RecordData) => p.id === e.target.value,
-                          )?.model_id || "",
-                        );
-                      }}
-                    >
-                      <option value="">{t("Select a model")}</option>
-                      {profiles.map((p: RecordData) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label || p.model_id || p.provider_key}
-                        </option>
-                      ))}
-                    </select>
-                    {availableModels.length > 0 && (
-                      <select
-                        aria-label={t("Model")}
-                        value={model}
-                        onChange={(e) => {
-                          setAgent("");
-                          setModel(e.target.value);
-                        }}
-                      >
-                        {availableModels.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name || m.id}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    {agents.length > 0 && (
-                      <select
-                        aria-label={t("Assistant")}
-                        value={agent}
-                        onChange={(e) => {
-                          setAgent(e.target.value);
-                          const chosen = agents.find(
-                            (a) => a.id === e.target.value,
-                          );
-                          if (chosen) {
-                            setProfile(chosen.profile_id);
-                            setModel(chosen.model_id);
-                          }
-                        }}
-                      >
-                        <option value="">{t("Default assistant")}</option>
-                        {agents.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    <details className="context-options">
-                      <summary>{t("Context")}</summary>
-                      <div className="context-popover">
-                      <strong>{t("Where the assistant can look")}</strong>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={includeNews}
-                          onChange={(e) => setIncludeNews(e.target.checked)}
-                        />
-                        {t("Use saved news")}
-                      </label>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={researchWeb}
-                          onChange={(e) => setResearchWeb(e.target.checked)}
-                        />
-                        {t("Allow web research")}
-                      </label>
-                      </div>
-                    </details>
-                    <button
-                      className="send"
-                      title={t(
-                        running ? t("Stop response") : t("Send message"),
-                      )}
-                      disabled={
-                        !running && (!message.trim() || sending || !ready)
-                      }
-                      onClick={() => {
-                        if (running)
-                          void call("jobs.cancel", { job_id: running })
-                            .then(refresh)
-                            .catch((e) => setError(String(e)));
-                        else void send();
-                      }}
-                    >
-                      {running ? <Square size={16} /> : <ArrowUp size={18} />}
-                    </button>
-                  </div>
-                </div>
+                  }
+                />
                 <div className="composer-hint">
                   {!consent ? (
                     <label>
@@ -781,7 +1077,9 @@ ${f.text}
                       )}
                     </label>
                   ) : running ? (
-                    "You can switch conversations. Your response will keep running."
+                    t(
+                      "You can switch conversations. Your response will keep running.",
+                    )
                   ) : (
                     t("Your ideas stay here. Review sources before publishing.")
                   )}
@@ -790,26 +1088,63 @@ ${f.text}
             </div>
           ) : page === "articles" ? (
             <Articles
+              libraryRequest={libraryRequest}
               snapshot={snapshot}
+              onExploreSources={() => setPage("sources")}
               onError={setError}
+              onConfigureExplanations={() => {
+                sessionStorage.setItem("settings-tab", "summaries");
+                setPage("settings");
+              }}
               onDiscuss={(article) => {
-                navigationVersion.current += 1;
-                setSelected("");
-                setDetail(undefined);
-                setPage("chat");
-                setAttachments((old) => ({ ...old, new: [article] }));
-                setDrafts((old) => ({
-                  ...old,
-                  new: t("Discuss this article with me") + ": " + article.title,
-                }));
+                if (
+                  (attachments.new || []).length >= 12 &&
+                  !(attachments.new || []).some((row) => row.id === article.id)
+                ) {
+                  setError(t("Attach up to 12 articles."));
+                  return;
+                }
+                navigateSafely(() => {
+                  navigationVersion.current += 1;
+                  selectionRef.current = "";
+                  setSelected("");
+                  setDetail(undefined);
+                  setOptions(false);
+                  changePage("chat");
+                  setAttachments((old) => ({
+                    ...old,
+                    new: (old.new || []).some((row) => row.id === article.id)
+                      ? old.new
+                      : [...(old.new || []), article],
+                  }));
+                  setDrafts((old) => ({
+                    ...old,
+                    new: [
+                      old.new,
+                      t("Discuss this article with me") + ": " + article.title,
+                    ]
+                      .filter(Boolean)
+                      .join("\n\n"),
+                  }));
+                });
               }}
             />
           ) : page === "sources" ? (
             <Sources snapshot={snapshot} refresh={refresh} onError={setError} />
           ) : page === "drafts" ? (
-            <Drafts snapshot={snapshot} onError={setError} />
+            <Drafts snapshot={snapshot} onError={setError} refresh={refresh} />
           ) : page === "settings" ? (
             <Settings
+              onUseSkill={(id) => choose("", id)}
+              onRecommendSkills={() =>
+                choose(
+                  "",
+                  undefined,
+                  t(
+                    "Find useful writing and research skills for openNews. Search the directory, read the original instructions, and suggest a few with their sources and any missing requirements. Let me choose what to add.",
+                  ),
+                )
+              }
               snapshot={snapshot}
               refresh={refresh}
               theme={theme}
@@ -817,48 +1152,14 @@ ${f.text}
               onError={setError}
             />
           ) : (
-            <div className="page">
-              <p className="eyebrow">{t("HAPPENING IN YOUR WORKSPACE")}</p>
-              <h1>{t("Background activity")}</h1>
-              <p className="muted">
-                {t(
-                  "Work continues as you move between conversations and articles.",
-                )}
-              </p>
-              <div className="activity-list">
-                {(snapshot.jobs || []).length === 0 ? (
-                  <div className="empty">
-                    <Check />
-                    <h3>{t("All quiet for now")}</h3>
-                    <p>
-                      {t("Searches, reading and responses will appear here.")}
-                    </p>
-                  </div>
-                ) : (
-                  (snapshot.jobs || []).map((j: RecordData) => (
-                    <div key={j.id}>
-                      <Activity size={17} />
-                      <span>
-                        {j.type}
-                        <small>{j.error_code || j.updated_at}</small>
-                      </span>
-                      <span className={"status " + j.state}>{j.state}</span>
-                      {active(j.state) && (
-                        <button
-                          onClick={() =>
-                            void call("jobs.cancel", { job_id: j.id }).then(
-                              refresh,
-                            )
-                          }
-                        >
-                          {t("Stop")}
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <ActivityPage
+              jobs={snapshot.jobs || []}
+              refresh={refresh}
+              onReport={(code) => {
+                setReportCode(code);
+                setSupport(true);
+              }}
+            />
           )}
         </Suspense>
       </main>
@@ -897,7 +1198,10 @@ function QuickReader() {
     </main>
   );
 }
-createRoot(document.getElementById("root")!).render(
+const root =
+  import.meta.hot?.data?.root ?? createRoot(document.getElementById("root")!);
+if (import.meta.hot?.data) import.meta.hot.data.root = root;
+root.render(
   new URLSearchParams(window.location.search).has("reader") ? (
     <QuickReader />
   ) : (

@@ -129,7 +129,7 @@ mod tests {
 }
 
 pub async fn notify_available(app: tauri::AppHandle) {
-    // A missing preview feed is not an update and must not interrupt normal work.
+    // An unavailable update feed is not an update and must not interrupt normal work.
     if let Ok(result) = check_update(app.clone(), app.state::<Pending>()).await {
         if let Some(version) = result["update"]["version"].as_str() {
             let _ = app.emit("update-available", json!({"version":version}));

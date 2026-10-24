@@ -3,6 +3,7 @@ import json
 import re
 import sqlite3
 import time
+from datetime import datetime, timezone
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 from .contracts import Analyze, AnalysisResult, Failure, Generate, GeneratedDraft, ImportText, ManualDraft, Profile, Technique
@@ -33,6 +34,10 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         self.store = store
         self.db = store.db
         self.ws = store.workspace
+        self.db.execute('''CREATE TABLE IF NOT EXISTS model_usage(
+            workspace_id TEXT NOT NULL, profile_id TEXT NOT NULL, day TEXT NOT NULL,
+            requests INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(workspace_id,profile_id,day))''')
+        self.db.commit()
         self.factory = factory or ModelFactory()
         self.tasks = {}
         self.model_lock = asyncio.Lock()
@@ -88,7 +93,7 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         return dict(workspace_id=self.ws, sources=sources, techniques=techniques, drafts=drafts,
                     rules=self.store.rows("SELECT * FROM dna_rules WHERE workspace_id=? ORDER BY created_at", (self.ws,)),
                     dna_version=self.store.one("SELECT * FROM dna_versions WHERE workspace_id=? ORDER BY rowid DESC LIMIT 1", (self.ws,)),
-                    profiles=[row | {"auto_refresh":bool(row["auto_refresh"]), "connection":self.connections.status(self.profile(row["id"]))} for row in self.store.rows("SELECT p.*,coalesce(v.label,'') AS label,coalesce(v.auto_refresh,1) AS auto_refresh FROM provider_profiles p LEFT JOIN provider_preferences v ON v.profile_id=p.id WHERE p.workspace_id=? AND p.id NOT IN (SELECT profile_id FROM removed_provider_profiles) ORDER BY p.created_at", (self.ws,))],
+                    profiles=[row | {"auto_refresh":bool(row["auto_refresh"]), "connection":self.connections.status(self.profile(row["id"])), "usage_today":self.model_usage(row["id"])} for row in self.store.rows("SELECT p.*,coalesce(v.label,'') AS label,coalesce(v.auto_refresh,1) AS auto_refresh FROM provider_profiles p LEFT JOIN provider_preferences v ON v.profile_id=p.id WHERE p.workspace_id=? AND p.id NOT IN (SELECT profile_id FROM removed_provider_profiles) ORDER BY p.created_at", (self.ws,))],
                     assignments=self.store.rows("SELECT role,profile_id,model_id FROM agent_assignments WHERE workspace_id=?", (self.ws,)),
                     jobs=self.store.rows("SELECT id,type,state,error_code,updated_at FROM jobs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 30", (self.ws,)),
                     news_digest=self.news_digest.status(), news_search=self.news.knowledge.status(), **self.news.snapshot())
@@ -136,6 +141,17 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
     async def model(self, profile, instructions, data, schema):
         return await self.invoke_model(profile, SAFE_SYSTEM+"\n"+instructions, data, schema)
 
+    def model_usage(self, profile_id):
+        day = datetime.now(timezone.utc).date().isoformat()
+        row = self.store.one('SELECT requests FROM model_usage WHERE workspace_id=? AND profile_id=? AND day=?', (self.ws,profile_id,day))
+        return row['requests'] if row else 0
+
+    def record_model_usage(self, profile_id):
+        day = datetime.now(timezone.utc).date().isoformat()
+        with self.db:
+            self.db.execute('INSERT OR IGNORE INTO model_usage VALUES(?,?,?,0)', (self.ws,profile_id,day))
+            self.db.execute('UPDATE model_usage SET requests=requests+1 WHERE workspace_id=? AND profile_id=? AND day=?', (self.ws,profile_id,day))
+
     async def invoke_model(self, profile, instructions, data, schema, on_delta=None, on_start=None, tools=None, on_turn=None, on_reasoning=None, session_id=None, user_id=None, run_id=None, activity_translation=False):
         # A single auxiliary translation may run alongside cloud generation.
         # Local models retain the device-wide inference limit.
@@ -151,6 +167,7 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
                 request = self.factory.run_stream(profile, instructions, data, schema, on_delta, **options) if on_delta and hasattr(self.factory,"run_stream") else self.factory.run(profile, instructions, data, schema, **options)
                 result = await asyncio.wait_for(request, timeout=240 if tools else 120)
                 self.connections.set(profile["id"], "connected", generation)
+                self.record_model_usage(profile["id"])
                 return result
             except Failure as exc:
                 self.connections.failed(profile["id"], exc, generation)
@@ -171,9 +188,7 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
 
     async def close(self):
         await self.daily_reports.close()
-        if hasattr(self.news.knowledge.embedder, 'close'):
-            self.news.knowledge.embedder.close()
-        await self.news_digest.local.close()
+        self.news.knowledge.interrupt()
         await self.chatgpt_auth.close()
         if self.knowledge_task:
             self.knowledge_task.cancel()
@@ -181,6 +196,8 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         if self.digest_task:
             self.digest_task.cancel()
             await asyncio.gather(self.digest_task,return_exceptions=True)
+        await self.news.knowledge.close()
+        await self.news_digest.local.close()
         if self.news_task:
             self.news_task.cancel()
             await asyncio.gather(self.news_task,return_exceptions=True)

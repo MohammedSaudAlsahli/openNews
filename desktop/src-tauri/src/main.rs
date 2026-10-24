@@ -85,7 +85,7 @@ fn start(resources: PathBuf, workspace: PathBuf) -> Result<Engine, String> {
             .map_err(|e| e.to_string())?
             .is_some()
         {
-            return Err("Engine stopped. The preview workspace may already be open.".into());
+            return Err("Engine stopped. The workspace may already be open.".into());
         }
         if engine.socket.exists() {
             return Ok(engine);
@@ -514,8 +514,12 @@ fn diagnostics_report(app: tauri::AppHandle) -> Result<String,String> {
     Ok(format!("openNews {}\nPlatform: {} / {}\nRecent technical events (Unix timestamps):\n{}",env!("CARGO_PKG_VERSION"),std::env::consts::OS,std::env::consts::ARCH,recent))
 }
 #[tauri::command]
-fn export_diagnostics(app: tauri::AppHandle) -> Result<String,String> {
-    let report=diagnostics_report(app.clone())?;
+fn export_diagnostics(app: tauri::AppHandle, content: Option<String>) -> Result<String,String> {
+    let report=match content {
+        Some(value) if value.len() <= 65536 => value,
+        Some(_) => return Err("Diagnostic report is too large".into()),
+        None => diagnostics_report(app.clone())?,
+    };
     let path=app.path().download_dir().map_err(|e|e.to_string())?.join(format!("openNews-diagnostics-{}.txt",uuid::Uuid::new_v4()));
     std::fs::write(&path,report).map_err(|e|e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
@@ -551,9 +555,25 @@ async fn open_article_site(app: tauri::AppHandle, webview: tauri::Webview, addre
         site.set_size(size).map_err(|e| e.to_string())?;
         return Ok(());
     }
+    let builder = tauri::webview::WebviewBuilder::new(label, tauri::WebviewUrl::External(url))
+        .on_navigation(|url| ["http", "https"].contains(&url.scheme()));
+    // The opt-in QA runner exercises foreground interactions while Codex may
+    // cover its window. Match the QA main view's scheduling for its child too.
+    #[cfg(debug_assertions)]
+    let builder = if app.config().identifier == "com.opennews.ui-qa"
+        && std::env::var("OPENNEWS_NATIVE_QA").ok().as_deref() == Some("1") {
+        builder.background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled)
+            .on_page_load(|site, payload| {
+                if payload.event() == tauri::webview::PageLoadEvent::Finished
+                    && ["http", "https"].contains(&payload.url().scheme()) {
+                    if let Some(main) = site.app_handle().get_webview("main") {
+                        let _ = main.eval("window.__openNewsQaSiteLoads = (window.__openNewsQaSiteLoads || 0) + 1");
+                    }
+                }
+            })
+    } else { builder };
     webview.window().add_child(
-        tauri::webview::WebviewBuilder::new(label, tauri::WebviewUrl::External(url))
-            .on_navigation(|url| ["http", "https"].contains(&url.scheme())),
+        builder,
         position, size,
     ).map_err(|e| e.to_string())?;
     Ok(())
@@ -594,6 +614,27 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updates::Pending::default())
         .manage(Runtime::default())
+        .on_page_load(|webview, payload| {
+            // Opt-in native UI smoke test; excluded from release builds and
+            // restricted to the isolated QA identifier even in debug builds.
+            #[cfg(debug_assertions)]
+            if payload.event() == tauri::webview::PageLoadEvent::Finished
+                && webview.app_handle().config().identifier == "com.opennews.ui-qa"
+                && std::env::var("OPENNEWS_NATIVE_QA").as_deref() == Ok("1")
+            {
+                if webview.label() == "main" {
+                    let _ = webview.eval(include_str!("../../qa/native-flow.js"));
+                } else if webview.label().starts_with("article-site-")
+                    && ["http", "https"].contains(&payload.url().scheme())
+                {
+                    if let Some(main) = webview.app_handle().get_webview("main") {
+                        let _ = main.eval("window.__openNewsQaSiteLoads = (window.__openNewsQaSiteLoads || 0) + 1");
+                    }
+                }
+            }
+            #[cfg(not(debug_assertions))]
+            let _ = (webview, payload);
+        })
         .invoke_handler(tauri::generate_handler![
             updates::check_update,
             updates::install_update,

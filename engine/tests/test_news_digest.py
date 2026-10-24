@@ -114,6 +114,28 @@ def test_daily_budget_counts_failures_and_survives_reopen(service):
     asyncio.run(run())
 
 
+def test_legacy_daily_limit_does_not_stop_new_articles(service):
+    async def run():
+        saved = await service.dispatch('providers.save', {'provider_key':'openai','model_id':'economy'})
+        profile_id = saved['profile_id']
+        with service.db:
+            service.db.execute('INSERT INTO model_catalogs VALUES(?,?,?,?,?,?,?)',
+                (profile_id,service.ws,encode([{'id':'economy','available':True}]),'fixture',now(),None,9999999999))
+            service.db.execute("""INSERT INTO news_articles
+                (id,workspace_id,subscription_id,guid,title,url,discovered_at,summary,text,body_status)
+                VALUES('second',?,'feed','second','Second story','https://publisher.example/second',?,?,?,'full')""",
+                (service.ws,now(),'Feed excerpt','Another complete public story with enough factual context. ' * 20))
+        await service.dispatch('agents.assign', {'role':'news','profile_id':profile_id,'model_id':'economy'})
+        # Existing databases can still contain the old value. It is now ignored.
+        service.news_digest.configure({'enabled':True,'language':'en','daily_limit':1})
+        assert await service.news_digest.prepare_next()
+        assert await service.news_digest.prepare_next()
+        assert len(service.factory.calls) == 2
+        assert service.news_digest.status()['prepared'] == 2
+        assert service.news_digest.status()['requests_today'] == 2
+    asyncio.run(run())
+
+
 def test_incomplete_articles_never_enter_background_queue(service):
     with service.db: service.db.execute("UPDATE news_articles SET body_status='summary_only' WHERE id='story'")
     assert service.news_digest.status()['pending']==0

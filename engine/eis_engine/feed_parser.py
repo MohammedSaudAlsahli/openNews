@@ -163,11 +163,15 @@ def parse_feed(body, base, kind="rss"):
                 if link: break
         full_markup = node_markup(entry, {"encoded"}) or node_markup(entry, {"content"})
         summary = node_markup(entry, {"description", "summary"}) or full_markup
-        if kind == "reddit":
-            # Reddit feeds include the original external article as [link], before comments.
-            parser = HTMLInfo(); parser.feed(summary)
-            external = [u for u in parser.links if urlsplit(urljoin(base,u)).hostname not in {"www.reddit.com","reddit.com","old.reddit.com"}]
-            if external: link = external[0]
+        from .reddit_posts import post_url, saved_post_url, authored_markup, mark_reader
+        reddit_url = post_url(urljoin(base, link)) if link else None
+        if not reddit_url and kind in {'reddit', 'reddit_rss'}:
+            reddit_url = saved_post_url({'url':link, 'summary':summary, 'guid':node_text(entry, {'guid', 'id'})})
+        if reddit_url:
+            # A destination inside the post is evidence, never its identity.
+            link = reddit_url
+            full_markup = authored_markup(full_markup or summary)
+            summary = full_markup
         media_only = False
         if not link:
             # Podcast feeds may identify episodes only through an audio/video enclosure.
@@ -190,6 +194,7 @@ def parse_feed(body, base, kind="rss"):
         from .article_reader import extract_reader
         try: reader = extract_reader((full_markup or summary) if description else '<p></p>', link, fragment=True)
         except Exception: reader = {}
+        if reddit_url: mark_reader(reader, link)
         # RSS media/enclosure thumbnails may exist outside the HTML description.
         # An explicit feed thumbnail is the publisher's cover, even when the
         # article body begins with a newsletter logo or banner.
@@ -205,7 +210,9 @@ def parse_feed(body, base, kind="rss"):
                     blocks.insert(0, {'type':'image','id':'feed-cover','url':cover,'alt':'','caption':''})
                     break
         full_text = summary_markdown(full_markup, link) if full_markup and not media_only else ""
-        result.append({"full_text":full_text if len(plain(full_markup)) >= 120 else "", "reader":reader,"guid":guid,"title":plain(node_text(entry,{"title"}))[:500] or "خبر بلا عنوان", "url":link,
+        if reddit_url:
+            full_text = '\n\n'.join(b['text'] for b in reader.get('blocks', []) if b.get('type') == 'text')
+        result.append({"full_text":full_text if reddit_url or len(plain(full_markup)) >= 120 else "", "reader":reader,"guid":guid,"title":plain(node_text(entry,{"title"}))[:500] or "خبر بلا عنوان", "url":link,
                        "published_at":date_value(node_text(entry,{"pubdate","published","date"})), "summary":("وصف الحلقة من الخلاصة، وليس تفريغًا للصوت أو الفيديو.\n\n" if media_only else "") + description, "media_only":media_only})
     return title, result
 

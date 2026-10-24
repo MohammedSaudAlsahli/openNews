@@ -1,28 +1,49 @@
-# Native Markdown rendering
+# Shared Tauri text renderer
 
-The article reader (workspace and menu bar) and conversations share `RichTextView`.
-Inline code uses a smaller monospaced font and per-line rounded TextKit backgrounds,
-without adding padding characters to the source. Plain URLs remain links; code literals
-are not automatically linked. Paragraph direction is detected from prose rather than
-embedded commands and URLs. Block quotes use a content-direction leading rule.
+Articles, explanations, conversation replies, instruction previews and draft previews use `desktop/src/components.tsx`. Markdown structure comes from react-markdown and remark-gfm: headings, nested lists, tables, quotes, links, inline code and footnotes. Safe publisher HTML such as `<u>`, `<sup>`, `<sub>`, `<mark>` and `<kbd>` renders as formatting. HTML is sanitized before React receives it: scripts, event handlers, frames, styles and executable URLs are removed. Escaped HTML and code literals are never globally decoded.
 
-Fences retain their language and whitespace, including incomplete streaming fences.
-`MarkdownCodeBlock` provides a native SwiftUI copy button and horizontal scrolling.
-`CodeHighlighting` is a bounded lexical highlighter for Swift, Python, JS/TS, JSON,
-YAML, CSS and shell; other languages remain plain text. This is lexical coloring,
-not a full language parser. HTML article extraction retains language-/lang- classes
-on pre/code blocks. Previously cached extracted content cannot recover a language
-that was discarded before this change without refreshing the article.
+`code-block.tsx` handles every `pre` structurally, including single-line publisher HTML and unfinished streaming fences. The header identifies a declared language and offers Copy code with success/failure feedback. Copy preserves the displayed source, indentation and whitespace; the renderer does not rewrite or run code. Blocks remain left-to-right within Arabic text and scroll horizontally instead of widening the page.
 
-Validation: 316 Python tests and 43 Swift tests passed; the additional Arabic prose
-with long technical tokens regression passed separately. Visual inspection used the
-production renderer in an isolated native harness: dark/light, wide/narrow, mixed
-Arabic/English, links, inline commands, quotes, JSON/Python and copy interaction.
+Renderer component identities remain stable during streaming, preserving code focus, horizontal scroll and copy feedback when later paragraphs arrive. Completed blocks are memoized so additional prose does not repeat syntax detection. Delayed clipboard results cannot report success for a different version of the code. Optional highlighting failures fall back to readable, copyable source without hiding the article.
 
-## Reading polish
+`highlighted-code.tsx` loads separately, using the lowlight language registry. Declared language names and aliases are case-insensitive. Unlabelled blocks use a bounded common-language detector. Unknown languages and blocks over 50,000 characters stay readable as plain code; automatic detection is skipped over 10,000 characters. Detection is best-effort, not a guarantee for every programming language. Plain text is visible while highlighting loads.
 
-Inline capsules use font ascender/descender and the actual line baseline, excluding
-paragraph leading from their background height. Paragraphs have 18 pt separation;
-article line spacing is 5 pt. Code blocks use an inset neutral surface, a quiet
-header divider and 16 pt content padding. Verified in the native renderer with
-mixed Arabic/English at wide and narrow widths in light and dark appearances.
+Explicit plain-text blocks and oversized blocks do not load the highlighting module. The installed registry contains 192 languages; grammar coverage and detection remain library-dependent. Existing newsletter list-marker repair uses Markdown node positions to exclude fenced, indented and raw HTML code. It also recognizes Windows line endings. Neither this repair nor syntax coloring modifies the saved article or the source copied from code blocks.
+
+Footnote IDs are scoped to each renderer, so several replies can contain the same footnote labels without collisions. Footnote links scroll inside the corresponding rendered text rather than opening a browser. Normal links retain the app's external-link behavior.
+
+Verification: renderer tests cover the reported underline paragraph; literal and escaped HTML; twenty language/alias samples; streaming updates and preserved focus/scroll; unknown languages; copy success, failure and stale completions; optional-highlighter failure; nested Arabic lists and tables; safe HTML and unique footnote navigation; newsletter repair outside code. The browser-only `desktop/qa/formatting.html` fixture exercises production rendering in light/dark and Arabic/English without touching the user's workspace. Prior Swift implementation notes are retained in `swift-markdown-history.md`.
+
+## Publisher extraction regressions, 2026-10-24
+
+Reader format 5 preserves publisher code line containers and explicit `<br>` boundaries before article extraction. Docusaurus/Prism block lines, Shiki line spans, ordinary newlines, indentation and blank lines remain source text. The shared HTML code renderer also retains explicit breaks and block-line boundaries. It does not guess newlines in already flattened code or run an automatic code rewriter.
+
+Newsletter inline formatting is retained as allowlisted semantic HTML through extraction instead of independent Markdown emphasis delimiters. Empty/adjacent/nested emphasis therefore cannot produce the visible `****` debris reported in the MIT newsletter. Literal punctuation is character-escaped safely, including inside inline code. Tail text after a preserved element is included exactly once. The existing frontend HTML sanitization still applies.
+
+The engine identifies obsolete saved readers with `reader_upgrade_required`. The article view displays the saved body immediately, then requests extraction with the current format; up-to-date complete articles still avoid publisher requests. A failed upgrade preserves the saved body and uses a bounded retry interval. This is important because displaying cached full text alone would otherwise retain the original formatting defect indefinitely.
+
+The publisher fixture at `qa/formatting.html?publisher=1` contains small reproductions of the reported newsletter and restored 25-line C++ block, using the production renderer. Regression coverage includes both feed fragments and full-page extraction, HTML line wrappers/BRs, literal code, adjacent/nested emphasis, offline cache retention and nonblocking upgrade of a saved article.
+
+The recovery is language-independent. Parameterized extraction cases also cover Python, JavaScript, TypeScript, HTML, SQL, Rust, Bash, YAML and unknown syntax. A separate 193-case renderer suite checks exact character/line preservation through every one of the 192 registered highlighting grammars plus unknown-language fallback. Existing language/alias token-coloring cases remain in the shared renderer suite; this does not promise syntax detection for languages outside that registry.
+
+Verification for this repair: the full frontend suite passed 166 cases, then the additional registry suite passed all 193 cases. The full engine suite passed 433 cases, with the later language-independent extraction cases included in a 38-case reader run. TypeScript/Vite, optimized Tauri build, installed deep/strict signature verification and packaged-engine health passed. Browser review at 1280px dark and 860px light/Arabic confirmed 26 code text lines including the terminal newline, actual colored tokens, no literal emphasis debris, no page overflow and no browser errors. Captures: `/tmp/opennews-publisher-format-dark.png`, `/tmp/opennews-publisher-format-light-860.png`.
+
+The installed primary app was updated in place. Its packaged engine re-extracted both reported articles from their public publishers: reader format 5, 25 original C++ source lines, intact newsletter heading/emphasis/link text and no visible star debris. Existing profile, 17 feed subscriptions and 19 drafts remain present. The prior bundle and affected article rows were backed up under `~/Library/Application Support/openNews-backups/formatting-20261024/`; no model call was needed.
+
+## Comparison table recovery, 2026-10-24
+
+The reported CADRE article contained a real HTML table (7 columns, 11 rows). The RSS fragment converter had discarded table tags, joining cell values into one paragraph. Reader format 6 preserves semantic tables through both RSS and full-page extraction, including captions, row/column spans, inline formatting and safe links. Publisher styling, event attributes and executable content are removed. Tables render in an accessible focusable horizontal-scroll region, with readable numeric alignment, cell padding and header contrast. Cell boundaries come from publisher markup; the reader never guesses columns from an already flattened numeric string.
+
+Full frontend suite: 361 passed across 25 files. Full engine suite: 445 passed. TypeScript/Vite, optimized Tauri build and installed deep/strict signature verification passed. Tests assert all original comparison cells, merged-cell/caption preservation, safe links and removal of publisher attributes. Browser review at 1280px/dark and 860px/light/Arabic confirmed the 7×11 structure, horizontal scrolling/keyboard focus and no document overflow or browser errors. Captures: `/tmp/opennews-cadre-table-dark.png`, `/tmp/opennews-cadre-table-light-860.png`.
+
+The installed engine's direct re-fetch was rejected by the publisher, so it correctly retained the older saved content. The already retrieved public canonical page was independently available and verified. Only the backed-up affected article was re-extracted from that source through the current extractor and persisted with the reader's transaction/archive pattern; article identity, read/bookmark flags and revision history were retained. A subsequent actual installed-engine `news.reader` call verified format 6, all rows/cells and the exact latency-value mapping from cache without another fetch. Profile/subscription/draft counts remain 1/17/19. Rollback bundle and the affected prior row are under `~/Library/Application Support/openNews-backups/table-20261024/`. No model or paid provider request was used.
+
+## Reddit post provenance and legacy repair, 2026-10-24
+
+The Reddit feed importer previously replaced the post permalink with the first external URL in its description. This changed both identity and retrieval target, allowing a linked site's navigation/body to replace the author's own explanation. Reddit entries now retain their canonical post permalink and explicit `reddit` reader provenance. Author `.md` content is separated from Reddit's thumbnail/submitter layout table, preserving the actual authored tables, code, images and reference links. Short and link-only posts remain posts; they are not replaced by external pages. Standard RSS article identities and link-only news-source retrieval are unchanged.
+
+Refreshing a Reddit post fetches that post's RSS content and never falls through to extracting its embedded destination. Failed refresh preserves saved author content with bounded retry. Generic rendered-page capture cannot overwrite a Reddit post. Independent posts mentioning the same external website have independent identities. A legacy conflation can be repaired on subsequent sync without deleting either post or transferring its saved flags to the other. The authoritative comments-footer permalink is preferred over another Reddit post merely referenced by the author.
+
+Startup repair restores legacy posts from their retained feed descriptions without network access, keeps article IDs/read/bookmark flags and historical revisions, removes misleading external URL identity mappings and invalidates old summaries through the existing content fingerprint. Actual original-post RSS subsequently restores full structured content. Collision cases are retained rather than destructively merged. An isolated SQLite-copy migration preserved all 3,277 records/flags and corrected 163 affected posts. Ten dedicated regression cases cover original text, tables/code, short/link-only posts, independent identities, legacy conflation, offline retry, safe permalink choice and explicit original-post refresh. The full engine suite passed 455 cases; TypeScript/Vite and optimized packaging passed. The UI renderer is unchanged from the previously verified 361-case frontend suite.
+
+The production bundle was installed in place after full SQLite and previous-app backups under `~/Library/Application Support/openNews-backups/reddit-provenance-20261024/`. Deep/strict signature verification and packaged-engine health passed. Actual installed-engine `news.reader(refresh=true)` successfully retrieved the reported Jetson post's original Reddit RSS, preserving the author opening, three-column benchmark table and referenced site link; the incorrect website navigation is absent. A subsequent cached read retained this source. The old mismatched prepared summary was not returned; no replacement model request was made. All 3,277 prior records and their exact read/bookmark flags remain. One additional feed article arrived during verification, so requiring an identical total row count would have been an incorrect integrity check.

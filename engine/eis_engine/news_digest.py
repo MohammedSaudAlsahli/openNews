@@ -14,7 +14,9 @@ class NewsDigest:
         self.current_id = ''
         self.active_request = None
         from .background_budget import BackgroundBudget
-        self.budget = BackgroundBudget()
+        self.budget = BackgroundBudget(self.store)
+        self.last_worker = ""
+        self.quantum_started, self.quantum_units = 0.0, 0
         self._counts_key = None
         self._counts = None
         self.db.executescript('''
@@ -49,18 +51,13 @@ class NewsDigest:
 
     def status(self):
         setting, assignment = self.settings(), self.assignment()
-        key = (self.db.total_changes, self.db.execute('PRAGMA data_version').fetchone()[0],
-               setting['language'], tuple(sorted((assignment or {}).items())))
-        if key != self._counts_key:
-            rows = self.cache.rows()
-            pending = [r for r in rows if not (r['summary'] and self.cache.valid(r,setting['language'],assignment))]
-            retries = [r['retry_after'] or 0 if self.cache.valid(r,setting['language'],assignment) else 0 for r in pending]
-            self._counts = (len(rows), len(rows)-len(pending), min(retries, default=0))
-            self._counts_key = key
-        total, prepared, retry_at = self._counts
+        coverage = self.cache.coverage(setting['language'],assignment)
+        total,prepared,retry_at = coverage['total'],coverage['prepared'],coverage['retry_at'] or 0
         return {'enabled':bool(setting['enabled']), 'language':setting['language'], 'prepared':prepared,
                 'pending':total-prepared, 'current_title':self.current_title, 'phase':self.phase(setting, assignment, total, prepared, retry_at),
-                'daily_limit':setting['daily_limit'], 'used_today':self.cache.used(),
+                # `used_today` remains for older desktop clients. Both values are
+                # observational activity counts, never a request allowance.
+                'requests_today':self.cache.used(), 'used_today':self.cache.used(),
                 'engine':setting['engine'],'local_model':setting['local_model'],'current_id':self.current_id}
 
     def phase(self, setting, assignment, total, prepared, retry_at):
@@ -68,7 +65,6 @@ class NewsDigest:
         if not assignment: return 'needs_model'
         if self.current_title: return 'summarizing'
         if setting['engine']=='local' and self.budget.phase(): return self.budget.phase()
-        if setting['engine']!='local' and self.cache.used() >= setting['daily_limit']: return 'daily_limit'
         try:
             if setting['engine']=='local':
                 if assignment['model_id'] not in self.local.installed: return 'needs_download'
@@ -82,8 +78,7 @@ class NewsDigest:
     def configure(self, payload):
         current = self.settings()
         enabled, language = payload.get('enabled'), payload.get('language',current['language'])
-        limit = payload.get('daily_limit',current['daily_limit'])
-        if type(enabled) is not bool or language not in {'ar','en'} or type(limit) is not int or not 1<=limit<=200:
+        if type(enabled) is not bool or language not in {'ar','en'}:
             raise Failure('VALIDATION_ERROR', 'إعداد تلخيص الأخبار غير صالح.')
         engine = payload.get('engine',current['engine'])
         local_model = payload.get('local_model',current['local_model'])
@@ -99,19 +94,55 @@ class NewsDigest:
             self.service.validate_model(profile['id'],assignment['model_id'])
         with self.db:
             self.db.execute('''INSERT INTO news_digest_settings(workspace_id,enabled,language,daily_limit,engine,local_model) VALUES(?,?,?,?,?,?)
-                ON CONFLICT(workspace_id) DO UPDATE SET enabled=excluded.enabled,language=excluded.language,daily_limit=excluded.daily_limit,engine=excluded.engine,local_model=excluded.local_model''', (self.ws,int(enabled),language,limit,engine,local_model))
+                ON CONFLICT(workspace_id) DO UPDATE SET enabled=excluded.enabled,language=excluded.language,daily_limit=excluded.daily_limit,engine=excluded.engine,local_model=excluded.local_model''', (self.ws,int(enabled),language,current['daily_limit'],engine,local_model))
         self.interrupt_for_user()
         return self.status()
 
     def device_state(self, payload):
         result = self.budget.update(payload)
-        if result['phase'] in {'cooling','low_power','waiting_device'}:
+        if result['phase'] not in {'ready','resting'}:
             if self.settings()['engine']=='local': self.interrupt_for_user()
-            # Terminate only automatic embedding work; user searches have current_title empty.
-            knowledge = self.service.news.knowledge
-            if knowledge.current_title and hasattr(knowledge.embedder, 'close_process'):
-                knowledge.embedder.close_process()
+            self.service.news.knowledge.interrupt()
         return result
+
+    def processing_policy(self, payload=None):
+        if payload is None: return self.policy_status()
+        result = self.budget.configure(payload)
+        if result['phase'] not in {'ready','resting'}:
+            if self.settings()['engine']=='local': self.interrupt_for_user()
+            self.service.news.knowledge.interrupt()
+        return self.policy_status()
+
+    def policy_status(self):
+        result = self.budget.status()
+        knowledge = getattr(getattr(self.service,'news',None),'knowledge',None)
+        tasks = [self.active_request,getattr(knowledge,'active_request',None)]
+        if self.local.stop_lock.locked() or any(t and not t.done() and t.cancelling() for t in tasks):
+            result['phase'] = 'stopping'
+        return result
+
+    def has_pending(self):
+        setting,assignment = self.settings(),self.assignment()
+        if setting['engine']!='local' or not assignment or assignment['model_id'] not in self.local.installed: return False
+        return bool(setting['enabled'] and self.cache.has_pending(setting['language'],assignment,time.time()))
+
+    def worker_allowed(self, worker, other_pending):
+        if not self.last_worker or not other_pending: return True
+        cap = 32 if self.last_worker=='embedding' else 2
+        expired = time.monotonic()-self.quantum_started>=10 or self.quantum_units>=cap
+        return expired if self.last_worker!=worker else not expired
+
+    def begin_worker(self, worker):
+        if self.last_worker!=worker:
+            self.last_worker = worker
+            self.quantum_started, self.quantum_units = time.monotonic(),0
+
+    def finish_worker(self, worker, units):
+        if self.last_worker==worker:
+            # The warm quantum starts after cold load/first inference. A slow
+            # initial summary must still admit a second warm request after rest.
+            if not self.quantum_units: self.quantum_started = time.monotonic()
+            self.quantum_units += units
 
     def preview(self, article_id, language=None):
         row = self.store.one('''SELECT a.*,r.source_hash,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id
@@ -121,15 +152,22 @@ class NewsDigest:
         return {'summary':row['saved_summary'],'model':row['model_id'],'cached':True}
 
     def interrupt_for_user(self):
+        knowledge = getattr(getattr(self.service,'news',None),'knowledge',None)
+        if knowledge: knowledge.interrupt()
         if self.active_request and not self.active_request.done(): self.active_request.cancel()
 
     async def prepare_next(self):
         setting = self.settings()
-        if not setting['enabled'] or self.service.model_lock.locked() or self.active_request or (setting['engine']!='local' and self.cache.used()>=setting['daily_limit']): return False
+        if not setting['enabled'] or self.service.model_lock.locked() or self.active_request: return False
         if self.store.one("SELECT id FROM jobs WHERE workspace_id=? AND type IN ('chat.send','analysis.run','draft.generate') AND state IN ('queued','running') LIMIT 1", (self.ws,)): return False
         if setting['engine']=='local' and self.budget.phase(): return False
         assignment = self.assignment()
         if not assignment: return False
+        knowledge = self.service.news.knowledge
+        if setting['engine']=='local' and not self.worker_allowed('summary',knowledge.has_pending()): return False
+        current = time.time()
+        row = self.cache.candidate(setting['language'],assignment,current)
+        if not row: return False
         try:
             if setting['engine']=='local':
                 await self.local.start_runtime()
@@ -140,10 +178,8 @@ class NewsDigest:
                 self.service.validate_model(profile['id'],assignment['model_id'])
         except Failure: return False
         profile['model_id'] = assignment['model_id']
-        current = time.time()
-        for row in self.cache.rows():
+        if row:
             valid = self.cache.valid(row,setting['language'],assignment)
-            if valid and (row['summary'] or (row['retry_after'] or 0)>current): continue
             cached = self.store.one("""SELECT summary FROM news_digest_results WHERE workspace_id=?
                 AND source_hash=? AND language=? AND profile_id=? AND model_id=? AND summary!='' LIMIT 1""",
                 (self.ws,fingerprint(row),setting['language'],assignment['profile_id'],assignment['model_id']))
@@ -151,9 +187,10 @@ class NewsDigest:
                 self.cache.save(row,setting['language'],assignment,cached['summary'])
                 return True
             # The summary represents a bounded excerpt for very long articles, not invented coverage.
-            if setting['engine']!='local' and not self.cache.reserve(setting['daily_limit']): return False
+            if setting['engine']!='local': self.cache.record()
             self.current_title, self.current_id = row['title'], row['id']
             started = time.monotonic()
+            if setting['engine']=='local': self.begin_worker('summary')
             try:
                 self.active_request = asyncio.create_task(self.generate(profile,
                     load_instructions(self.store, 'article-summary'),
@@ -170,7 +207,9 @@ class NewsDigest:
                                 retry_after=current+min(86400,300*2**min(attempts,8)))
             finally:
                 self.active_request, self.current_title, self.current_id = None, '', ''
-                if setting['engine']=='local': self.budget.finished(time.monotonic()-started)
+                if setting['engine']=='local':
+                    self.finish_worker('summary',1)
+                    self.budget.finished(time.monotonic()-started)
             return True
         return False
 
@@ -185,8 +224,7 @@ class NewsDigest:
         if matches_language(result.summary, language): return result
         # One bounded language repair, rather than saving the wrong language or
         # leaving an explicit user request in a perpetual retry state.
-        if profile['id'] != 'local-summary' and not self.cache.reserve(self.settings()['daily_limit']):
-            raise Failure('SUMMARY_LANGUAGE', 'تعذّر تجهيز الشرح باللغة المطلوبة. أعد المحاولة لاحقًا أو اختر نموذجًا آخر.')
+        if profile['id'] != 'local-summary': self.cache.record()
         result = await request('Translate the supplied summary faithfully into ' +
             ('Arabic.' if language == 'ar' else 'English.') +
             ' Preserve facts, links and qualifications; add nothing. Return the required JSON schema.',

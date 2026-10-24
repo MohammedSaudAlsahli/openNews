@@ -68,10 +68,12 @@ def test_xml_dtd_and_entity_are_rejected():
     with pytest.raises(news.NewsError): news.parse_feed(b'<!DOCTYPE rss [<!ENTITY x "secret">]><rss/>',"https://publisher.example/")
 
 
-def test_atom_date_and_reddit_external_article():
+def test_atom_date_and_reddit_original_post_identity():
     body=b'''<feed xmlns="http://www.w3.org/2005/Atom"><title>Community</title><entry><id>t3_a</id><title>Headline</title><link href="https://www.reddit.com/r/science/comments/a/"/><published>2024-02-01T10:30:00Z</published><content type="html">&lt;a href="https://publisher.example/story"&gt;[link]&lt;/a&gt;</content></entry></feed>'''
     _, entries=news.parse_feed(body,"https://www.reddit.com/r/science/new/.rss","reddit")
-    assert entries[0]["url"]=="https://publisher.example/story"
+    assert entries[0]["url"]=="https://www.reddit.com/r/science/comments/a/"
+    assert 'https://publisher.example/story' in entries[0]['full_text']
+    assert entries[0]['reader']['origin'] == 'reddit'
     assert entries[0]["published_at"]=="2024-02-01T10:30:00+00:00"
     assert news.normalize_subscription("https://reddit.com/r/Science/")[1]=="https://www.reddit.com/r/Science/new/.rss"
 

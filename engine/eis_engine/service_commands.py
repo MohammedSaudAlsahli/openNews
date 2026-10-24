@@ -14,7 +14,19 @@ class ServiceCommandsMixin:
             return instruction_dispatch(self.store, command, p)
         if command == 'skills.catalog':
             from .writing_skills import catalog as writing_catalog
-            return writing_catalog()
+            return writing_catalog(self.store)
+        if command == 'skills.search':
+            from .skill_discovery import search
+            return await search(p.get('query'))
+        if command == 'skills.preview':
+            from .skill_discovery import preview
+            return await preview(p.get('url'))
+        if command == 'skills.add':
+            from .custom_skills import add
+            return add(self.store, p)
+        if command == 'skills.remove':
+            from .custom_skills import remove
+            return remove(self.store, p.get('id'))
         if command == 'daily.get': return self.daily_reports.status()
         if command == 'daily.set':
             if p.get('enabled') and p.get('consent') is not True:
@@ -71,6 +83,10 @@ class ServiceCommandsMixin:
             return self.news_digest.configure(p)
         if command == "news.summary.states":
             return self.news_digest.article_states(p.get('ids'))
+        if command == "news.local.policy":
+            return self.news_digest.processing_policy()
+        if command == "news.local.policy.set":
+            return self.news_digest.processing_policy(p)
         if command == "news.local.catalog":
             from .local_summary import CATALOG
             await asyncio.gather(*(self.news_digest.local.inspect(x['id']) for x in CATALOG),return_exceptions=True)

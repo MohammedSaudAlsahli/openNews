@@ -128,7 +128,7 @@ class ConversationManager:
 
     def submit(self, payload):
         data = ChatSend.model_validate(payload)
-        explicit(data.message)  # Reject typos before creating a job or charging a provider.
+        explicit(data.message, self.store)  # Reject typos before creating a job or charging a provider.
         conversation = self.service.require("conversations",data.conversation_id)
         request = data.model_dump(mode="json")
         existing = self.store.one("SELECT * FROM jobs WHERE workspace_id=? AND type='chat.send' AND idempotency_key=?",(self.ws,str(data.idempotency_key)))
@@ -182,9 +182,9 @@ class ConversationManager:
 
     async def run(self, job, data):
         request, context = dict(data["request"]), data["context"]
-        selected_skill = explicit(request["message"])
+        selected_skill = explicit(request["message"], self.store)
         if selected_skill:
-            request["format"] = next(s["format"] for s in catalog()["skills"] if s["id"]==selected_skill)
+            request["format"] = next(s["format"] for s in catalog(self.store)["skills"] if s["id"]==selected_skill)
         payload = {"current_date":datetime.now().astimezone().date().isoformat(),"current_request":request["message"],"format":request["format"],"target_seconds":request["target_seconds"],
             "working_draft":{"title":request["draft_title"],"text":request["draft_text"]},"conversation":data["history"], "context_info":data.get("context_info", {}), **context}
         language = "ar" if re.search(r"[\u0621-\u064a\u066e-\u06d3]", request["message"]) else "en"
@@ -204,7 +204,7 @@ class ConversationManager:
             self.previews[job].update(stage=stage, activity=detail)
             execution.add(stage, detail)
         skills = WritingSkills(self.store, activity, language)
-        payload["editorial_skills"] = catalog()["skills"]
+        payload["editorial_skills"] = catalog(self.store)["skills"]
         if selected_skill:
             payload["selected_skill"] = json.loads(skills.load_editorial_skill(selected_skill))
         prior_evidence = [{"id":citation["article_id"],"title":citation["title"],"url":citation["url"],
@@ -251,7 +251,7 @@ class ConversationManager:
         instructions = instructions.replace("{summary_language}", summary_language)
         try:
             reply = await self.service.invoke_model(data["profile_snapshot"],instructions,payload,ChatReply,
-                on_delta=on_delta,on_start=on_start,tools=toolkit.functions + [search_conversation_history, skills.load_editorial_skill],on_turn=on_turn,
+                on_delta=on_delta,on_start=on_start,tools=toolkit.functions + [search_conversation_history, skills.load_editorial_skill] + ([skills.find_writing_skills, skills.inspect_writing_skill] if request.get("research_web", True) else []),on_turn=on_turn,
                 on_reasoning=on_reasoning, session_id=data["conversation_id"], user_id=self.ws, run_id=job)
         except BaseException:
             translation.task.cancel()

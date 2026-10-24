@@ -39,6 +39,9 @@ def dispatch(store, command, payload):
     from .contracts import Failure
     from .writing_skills import GUIDES
     name = payload.get('id')
+    if isinstance(name, str) and name.startswith('skill:') and name[6:] not in GUIDES:
+        from .custom_skills import instructions
+        return instructions(store, name[6:], command, payload)
     defaults = {**DEFAULTS, **{'skill:' + key: value for key, value in GUIDES.items()}}
     if not isinstance(name, str) or name not in defaults:
         raise Failure('VALIDATION_ERROR', 'Unknown instruction document')

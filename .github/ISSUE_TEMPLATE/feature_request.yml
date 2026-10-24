@@ -1,0 +1,22 @@
+name: اقتراح تحسين / Feature request
+description: مشكلة المستخدم والنتيجة المطلوبة / User problem and desired outcome
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: المشكلة / Problem
+      description: ما الذي يصعب عليك؟ / What is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: النتيجة المرغوبة / Desired outcome
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: بدائل أو أمثلة / Alternatives or examples

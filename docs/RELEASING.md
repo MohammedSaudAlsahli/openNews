@@ -1,37 +1,32 @@
-# Publishing experimental updates
+# نشر إصدار رسمي
 
-Use `VERSION` and a strictly increasing numeric `BUILD_VERSION`. Update the engine
-package/version and run `uv lock --project engine`. Write `docs/releases/vVERSION.md`,
-run tests, review all changes, commit, push main, and verify GitHub CI is green.
+[English](RELEASING.en.md) · [بناء الحزمة](packaging.md)
 
-Then run on the release Mac:
+## الأرقام والحدود
+
+المصدر الأساسي لإصدار التطبيق هو `desktop/package.json`. يجب تطابقه مع جذري `desktop/package-lock.json` و`desktop/src-tauri/tauri.conf.json` ونسخة حزمة التطبيق في `Cargo.toml` و`Cargo.lock`. `VERSION` و`BUILD_VERSION` و`appcast.xml` تخص سجل Swift؛ لا تستخدمها لإصدار Tauri. حزمة Python لها رقم داخلي مستقل.
+
+## خطوات النشر
+
+1. حدّث أرقام التطبيق، `CHANGELOG.md` وملاحظات `docs/releases/v<version>.md` بالعربية والإنجليزية. لا تستخدم لاحقة preview للإصدار الرسمي.
+2. راجع التغييرات والأسرار المحتملة وبيانات الاختبار. لا تنشر أدلة QA المحلية أو قواعد البيانات أو المفاتيح.
+3. شغّل `bash scripts/test.sh` والبناء واختبارات Cargo. ارفع commit إلى `main` وانتظر نجاح **openNews tests and Tauri bundle** على نفس SHA.
+4. أنشئ وادفع وسمًا annotated باسم `v<version>` عند SHA الذي نجح. لا تنقل وسمًا منشورًا ولا تستبدل أصول إصدار موجود.
+5. شغّل workflow **Publish official Tauri release** مع الوسم ورقم CI الناجح. يتحقق من الـSHA ونوع الحدث والفرع وملف workflow، ويحمل الحزمة نفسها ثم يتحقق من بصمتها وينشر إصدارًا رسميًا، لا prerelease.
+6. تحقق من الإصدار والوسم والأصول، وحمّل ZIP للتحقق من SHA-256. يتضمن `build-info.json` نسخة التطبيق وSHA ورابط CI والمنصة وحدود التوقيع.
+
+مثال من جذر المستودع بعد نجاح CI:
 
 ```sh
-uv run --project engine python scripts/publish_release.py
+git tag -a v0.3.0 -m 'openNews 0.3.0'
+git push origin v0.3.0
+gh workflow run release.yml -f tag=v0.3.0 -f run_id=CI_RUN_ID
 ```
 
-Use the project Python (3.12+) rather than macOS system Python, which may be older.
+الـZIP من CI الناجح، لا من تثبيت المستخدم. SHA-256 تحقق سلامة؛ ليست توقيع ناشر مستقلًا. CI الحالي لا يتصل بحسابات المستخدم أو يشغّل نموذجًا حيًا.
 
-This re-tests, builds, signs the update archive using the existing Sparkle key in
-login Keychain, creates an immutable annotated tag, uploads a draft GitHub prerelease,
-publishes it, then commits/pushes the appcast **after** assets are available. It stops
-if the source is dirty, main is not pushed, a tag exists, or the public key differs.
-Do not overwrite old release assets or tags. If interrupted after tagging/upload,
-inspect the draft and published feed manually before resuming; the script deliberately
-refuses to overwrite an existing tag.
+## التحديث التلقائي وسجل Swift
 
-The app reads the HTTPS `appcast.xml` on main. Checks run periodically (one hour)
-and on startup according to Sparkle scheduling, with a manual command available.
-Users approve installation. Uploading an arbitrary file through GitHub without
-updating the signed appcast does not notify installed clients.
+النشر على GitHub مستقل عن قناة Tauri الموقّعة. `desktop/scripts/package-update.py` يجهّز تحديثًا موقّعًا محليًا فقط، بمفتاح خارج المستودع. لا تُنشئ مفتاحًا بديلًا للقناة ولا تضعه في CI أو السجلات. يلزم اختبار ترقية بين نسختين مع بقاء البيانات قبل نشر feed. لم تُفعّل القناة بعد، ولا ندّعي تحديثًا تفاضليًا. لا تعدّل appcast الخاص بـSwift.
 
-The private signing key stays in Keychain account `com.editorialintelligence.studio`.
-Back it up through a secure offline procedure; never commit it or print/export it
-into logs. `release-config.json` contains only the public key. Future CI publishing
-needs a deliberately provisioned signing secret; current CI tests/builds only.
-
-No Apple Developer ID/notarization is configured. Keep releases marked experimental,
-Apple Silicon only, and clearly disclose first-launch Gatekeeper restrictions.
-Sparkle authenticates update archives with EdDSA; it does not grant Apple notarization.
-Application data lives outside the bundle, under Application Support. Preserve the
-bundle identifier and data location across versions.
+[الإجراء التاريخي لـSwift](legacy/RELEASING.md) ليس مسار الإصدار الحالي.

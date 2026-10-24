@@ -20,7 +20,7 @@ cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
 
 `com.editorialintelligence.studio.preview` has its own Application Support workspace.
 Settings → Privacy & updates imports a copy of the original workspace only when
-its engine is closed. The previous preview is backed up and can be restored from
+its engine is closed. The current Tauri workspace is backed up and can be restored from
 the same page. Original articles/accounts remain untouched. Shared Ollama models
 are reused. Explanations, semantic indexing and daily reports are paused in the
 imported copy; enable them in their settings when ready to use this app.
@@ -31,7 +31,7 @@ a temporary nonpersistent WebKit helper; it cannot recover private/paywalled pag
 
 ## Signed updates
 
-The Tauri update channel is separate from legacy Sparkle and is not published yet.
+Tauri is the official application. Its update channel is separate from legacy Sparkle and is not published yet.
 `python3 desktop/scripts/package-update.py` builds a signed archive locally using
 an owner-only key outside the repository. It never publishes an update. Back up
 that release key securely; losing it prevents updates to this signed channel.

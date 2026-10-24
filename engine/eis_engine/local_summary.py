@@ -6,10 +6,13 @@ import platform
 import hashlib
 import re
 import shutil
+import time
+import signal
 from pathlib import Path
 
 import httpx
 from .contracts import Failure
+from .local_inference import settled
 
 HOST = 'http://127.0.0.1:11435'
 CATALOG = [
@@ -71,7 +74,10 @@ class LocalSummaryModels:
         self.runner = LocalRuntime(self.root)
         self.library = ModelLibrary()
         self.process = None
+        self.process_group = None
         self.start_lock = asyncio.Lock()
+        self.stop_lock = asyncio.Lock()
+        self.generation_name, self.generation_used = '',0.0
 
     def executable(self):
         return self.runner.executable()
@@ -112,7 +118,7 @@ class LocalSummaryModels:
                 'models':[dict(x, size=self.installed.get(x['id']) or self.checked.get(x['id']),
                                installed=x['id'] in self.installed, quality='untested') for x in CATALOG],
                 'installed':[{'id':k,'size':v} for k,v in self.installed.items() if 'cloud' not in k.lower()],
-                'download':dict(self.download)}
+                'download':dict(self.download,**({} if self.download['phase']=='downloading' else {'bytes_per_second':None,'seconds_left':None}))}
 
     async def start_runtime(self):
         async with self.start_lock:
@@ -124,7 +130,8 @@ class LocalSummaryModels:
             env = {**os.environ, 'OLLAMA_HOST':'127.0.0.1:11435','OLLAMA_MODELS':str(self.models_path),
                    'OLLAMA_NO_CLOUD':'1','OLLAMA_NUM_PARALLEL':'1','OLLAMA_MAX_LOADED_MODELS':'1'}
             self.process = await asyncio.create_subprocess_exec(executable,'serve',env=env,
-                stdout=asyncio.subprocess.DEVNULL,stderr=asyncio.subprocess.DEVNULL)
+                stdout=asyncio.subprocess.DEVNULL,stderr=asyncio.subprocess.DEVNULL,start_new_session=True)
+            self.process_group = self.process.pid
             for _ in range(20):
                 await asyncio.sleep(.25)
                 await self.refresh()
@@ -139,6 +146,58 @@ class LocalSummaryModels:
             except TimeoutError:
                 self.process.kill()
                 await self.process.wait()
+
+    async def stop_inference(self, name):
+        """Keep the caller's inference lease until the runner is observed stopped.
+
+        Ollama's empty-prompt unload schedules expiry; the HTTP acknowledgement
+        alone is not proof the runner has finished. /api/ps disappearance is.
+        Only the process created by this object may be terminated as a fallback.
+        """
+        async with self.stop_lock:
+            deadline = time.monotonic()+3
+            while True:
+                try:
+                    async with httpx.AsyncClient(trust_env=False,timeout=1) as client:
+                        response = await client.post(HOST+'/api/generate',json={'model':name,'keep_alive':0,'stream':False})
+                        response.raise_for_status()
+                        state = await client.get(HOST+'/api/ps'); state.raise_for_status()
+                        models = state.json().get('models')
+                        if not isinstance(models,list) or any(not isinstance(m,dict) or not (m.get('name') or m.get('model')) for m in models): raise ValueError('Invalid runner state')
+                        if not any(m.get('name',m.get('model'))==name for m in models):
+                            return
+                except (httpx.HTTPError,ValueError):
+                    if self.process and self.process.returncode is not None:
+                        self.runtime = False
+                        return
+                if time.monotonic()>=deadline and self.process and self.process.returncode is None:
+                    if self.process_group:
+                        try: os.killpg(self.process_group,signal.SIGTERM)
+                        except ProcessLookupError: pass
+                    else: self.process.terminate()
+                    try: await asyncio.wait_for(self.process.wait(),2)
+                    except TimeoutError:
+                        if self.process_group:
+                            try: os.killpg(self.process_group,signal.SIGKILL)
+                            except ProcessLookupError: pass
+                        else: self.process.kill()
+                        await self.process.wait()
+                    self.runtime = False
+                    return
+                # An external runtime must never be killed. Retain the lease and
+                # keep checking rather than permitting overlapping inference.
+                await asyncio.sleep(.1)
+
+    async def release_embedding(self):
+        knowledge = getattr(getattr(self.service,'news',None),'knowledge',None)
+        if knowledge and getattr(knowledge.embedder,'last_used',0):
+            await self.stop_inference(knowledge.embedder.name)
+            knowledge.embedder.last_used = 0
+
+    async def release_generation(self):
+        if self.generation_name:
+            await self.stop_inference(self.generation_name)
+            self.generation_name, self.generation_used = '',0.0
 
     def capacity(self, name, runtime_size=0):
         from .model_capacity import capacity
@@ -159,7 +218,7 @@ class LocalSummaryModels:
         self.checked[name] = size
         needs_upgrade = name.startswith('embeddinggemma-2:') and not await self.runner.compatible((0,40,0))
         runtime_size = await self.runner.metadata(force=True) if needs_upgrade else await self.runner.metadata()
-        return {'id':name,'size':size,'runtime_size':runtime_size,**self.capacity(name,runtime_size)}
+        return {'id':name,'size':size,'runtime_size':runtime_size,'capabilities':self.capabilities.get(name),**self.capacity(name,runtime_size)}
 
     async def begin(self, name, language='ar', purpose='summary'):
         name = model_name(name)
@@ -210,17 +269,25 @@ class LocalSummaryModels:
             self.download.update(phase='failed',error='تعذّر تجهيز النموذج. جرّب إصدارًا أصغر أو أعد المحاولة.')
 
     async def available(self, capability):
-        if capability not in {'embedding','completion'}: raise Failure('VALIDATION_ERROR','Invalid capability')
+        if capability not in {'','embedding','completion'}: raise Failure('VALIDATION_ERROR','Invalid capability')
         if not self.executable(): return {'installed':[]}
         await self.start_runtime()
         result = []
         async with httpx.AsyncClient(trust_env=False, timeout=5) as client:
             for name,size in self.installed.items():
-                response = await client.post(HOST+'/api/show',json={'model':name})
-                response.raise_for_status()
-                info = response.json()
-                if not info.get('remote_host') and not info.get('remote_model') and capability in info.get('capabilities',[]):
-                    result.append({'id':name,'size':size,'capabilities':info['capabilities']})
+                try:
+                    response = await client.post(HOST+'/api/show',json={'model':name})
+                    response.raise_for_status()
+                    info = response.json()
+                    if info.get('remote_host') or info.get('remote_model'): continue
+                    capabilities = info.get('capabilities', [])
+                    self.capabilities[name] = capabilities
+                    if not capability or capability in capabilities:
+                        result.append({'id':name,'size':size,'capabilities':capabilities})
+                except (httpx.HTTPError, ValueError):
+                    # Preserve the shared inventory if one model's metadata is unavailable.
+                    if not capability and 'cloud' not in name.lower():
+                        result.append({'id':name,'size':size,'capabilities':None})
         return {'installed':result}
 
     async def prepare_embedding(self, name):
@@ -240,11 +307,16 @@ class LocalSummaryModels:
                 dimensions = len(probe.json()['embeddings'][0])
                 if not 1<=dimensions<=8192: raise ValueError('Invalid dimensions')
             encoder = LocalNewsEmbeddings(name=name, dimensions=dimensions, digest=digest)
-            await asyncio.to_thread(encoder.encode, ['اختبار البحث / search test'], query=True)
+            encoder.stop = self.stop_inference
+            try: await encoder.aencode(['اختبار البحث / search test'], query=True)
+            finally: await self.stop_inference(name)
         await self.service.news.knowledge.select_model(name, dimensions, digest)
 
     async def pull(self, name):
         layers, totals = {}, {}
+        transferred = 0
+        last_time, last_completed = time.monotonic(), None
+        self.download.update(bytes_per_second=None,seconds_left=None)
         try:
             async with httpx.AsyncClient(trust_env=False, timeout=httpx.Timeout(120,connect=5)) as client:
                 async with client.stream('POST',HOST+'/api/pull',json={'model':name,'stream':True}) as response:
@@ -258,13 +330,23 @@ class LocalSummaryModels:
                         if event.get('digest'):
                             totals[event['digest']] = max(totals.get(event['digest'],0),event.get('total',0))
                             self.download['total'] = max(self.download['total'],sum(totals.values()))
-                            layers[event['digest']] = max(layers.get(event['digest'],0),min(event.get('completed',0),event.get('total',0)))
+                            previous = layers.get(event['digest'])
+                            layers[event['digest']] = max(previous or 0,min(event.get('completed',0),event.get('total',0)))
+                            if previous is not None: transferred += max(0,layers[event['digest']]-previous)
                             self.download['completed'] = min(sum(layers.values()),self.download['total'])
+                            moment, completed = time.monotonic(),transferred
+                            if last_completed is not None and moment-last_time>=.25:
+                                rate = max(0,completed-last_completed)/(moment-last_time)
+                                self.download.update(bytes_per_second=round(rate) if rate else None,
+                                    seconds_left=round((self.download['total']-self.download['completed'])/rate) if rate else None)
+                                last_time,last_completed = moment,completed
+                            elif last_completed is None:
+                                last_time,last_completed = moment,completed
                         if event.get('status','').startswith(('verifying','writing manifest')): self.download['phase'] = 'verifying'
                         if event.get('status') == 'success': self.download['phase'] = 'testing'
             await self.refresh()
             if name not in self.installed: raise ValueError('Model not found after download')
-            self.download.update(phase='testing',completed=self.download['total'])
+            self.download.update(phase='testing',completed=self.download['total'],bytes_per_second=None,seconds_left=None)
         except asyncio.CancelledError:
             self.download['phase'] = 'cancelled'
             raise
@@ -300,19 +382,34 @@ class LocalSummaryModels:
         if self.capacity(name)['fit']=='memory':
             raise Failure('CAPACITY','هذا النموذج أكبر من ذاكرة جهازك المتاحة للتلخيص. اختر إصدارًا أصغر.')
         async with self.service.model_lock:
-            model = Ollama(id=name,host=HOST,api_key=None,timeout=120,keep_alive=0,client_params={'trust_env':False},
+            await self.release_embedding()
+            if self.generation_name and self.generation_name!=name: await self.release_generation()
+            background = self.service.news_digest.active_request is asyncio.current_task()
+            model = Ollama(id=name,host=HOST,api_key=None,timeout=120,keep_alive='30s' if background else 0,client_params={'trust_env':False},
                            options={'num_ctx':8192,'num_predict':2000,'num_thread':2,'temperature':0.2},
                            request_params={'think':False} if 'thinking' in self.capabilities.get(name,[]) else None)
             agent = Agent(model=model,instructions=instructions,output_schema=schema,markdown=False)
+            interrupted = False
             try:
                 result = await asyncio.wait_for(agent.arun(json.dumps({**data, "output_language": "العربية فقط؛ ترجم الملخص ولا تنسخ النص الإنجليزي." if data.get("output_language") == "Arabic." else "English only."},ensure_ascii=False)),timeout=120)
+            except BaseException:
+                interrupted = True
+                raise
             finally:
-                # Also release weights on cancellation/error; keep_alive covers normal completion.
-                try:
-                    async with httpx.AsyncClient(trust_env=False,timeout=5) as client:
-                        await client.post(HOST+'/api/generate',json={'model':name,'keep_alive':0,'stream':False})
-                except httpx.HTTPError:
-                    pass
+                if interrupted:
+                    await settled(asyncio.create_task(self.stop_inference(name)))
+                    if self.generation_name==name: self.generation_name,self.generation_used = '',0.0
+                elif background:
+                    # Retain only between bounded background work quanta. The
+                    # shared lease is free for foreground requests after each job.
+                    self.generation_name,self.generation_used = name,time.monotonic()
+                else:
+                    try:
+                        async with httpx.AsyncClient(trust_env=False,timeout=5) as client:
+                            response = await client.post(HOST+'/api/generate',json={'model':name,'keep_alive':0,'stream':False})
+                            response.raise_for_status()
+                    except httpx.HTTPError: pass
+                    if self.generation_name==name: self.generation_name,self.generation_used = '',0.0
             if isinstance(result.content,schema): return result.content
             if isinstance(result.content,str): return schema.model_validate_json(result.content)
             return schema.model_validate(result.content)

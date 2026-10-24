@@ -7,6 +7,7 @@ from trafilatura import extract
 from .news import MAX_TEXT, MarkdownSummary, canonical_url, NewsError, plain, safe_content_link
 
 MAX_IMAGES = 30
+READER_VERSION = 6
 MARKER = 'https://openstudio.invalid/reader-image/'
 
 
@@ -66,6 +67,11 @@ def prepare_tree(body, base):
             if index:
                 paragraph.addprevious(html.Element('br'))
             paragraph.drop_tag()
+    # Empty newsletter emphasis has no visual meaning and should not become
+    # an extraction placeholder or a run of Markdown delimiters.
+    for node in list(tree.xpath('//strong|//b|//em|//i|//u|//mark|//sub|//sup|//s|//del')):
+        if node.getparent() is not None and not node.text_content().strip() and not node.xpath('.//img'):
+            node.drop_tag()
     images = []
     seen = set()
     for node in tree.xpath('//img'):
@@ -113,22 +119,98 @@ def blocks_from_markdown(markdown, images):
 
 
 class ReaderSummary(MarkdownSummary):
+    # HTML formatting can be adjacent, nested or empty. Emitting independent
+    # Markdown delimiters would turn those boundaries into literal ***** runs.
+    inline_tags = {'strong':'strong', 'b':'strong', 'em':'em', 'i':'em',
+                   'u':'u', 'mark':'mark', 'sub':'sub', 'sup':'sup', 's':'del', 'del':'del', 'code':'code'}
+
     def handle_starttag(self, tag, attrs):
-        if tag == 'img' and not self.ignored:
+        if tag in self.inline_tags and not self.ignored:
+            self.parts.append('<' + self.inline_tags[tag] + '>')
+        elif tag == 'img' and not self.ignored:
             source = dict(attrs).get('src', '')
             if source.startswith(MARKER): self.parts.append('\n\n![image](' + source + ')\n\n')
         elif tag == 'hr': self.parts.append('\n\n---\n\n')
         else: super().handle_starttag(tag, attrs)
 
+    def handle_endtag(self, tag):
+        if tag in self.inline_tags and not self.ignored:
+            self.parts.append('</' + self.inline_tags[tag] + '>')
+        else: super().handle_endtag(tag)
+
+    def handle_data(self, data):
+        if not self.ignored:
+            from html import escape
+            # Character references preserve literal publisher punctuation even
+            # inside inline code, without introducing visible escape slashes.
+            self.parts.append(escape(data, quote=False).translate(
+                {ord(char):f'&#{ord(char)};' for char in '\\*_[]`#|!-'}))
+
+
+def preformatted_text(node):
+    """Read publisher line wrappers/BRs without changing source indentation."""
+    parts = []
+
+    def visit(element):
+        start = len(parts)
+        if element.text: parts.append(element.text)
+        for child in element:
+            if child.tag == 'br': parts.append('\n')
+            else: visit(child)
+            if child.tail: parts.append(child.tail)
+        # Docusaurus, Shiki and GitHub also render one block element per line.
+        classes = set(element.get('class', '').split())
+        line = element.tag in {'div', 'p', 'li'} or bool(classes & {'line', 'token-line', 'code-line'})
+        if line and (len(parts) == start or not parts[-1].endswith('\n')):
+            parts.append('\n')
+
+    visit(node)
+    return ''.join(parts).strip('\n')
+
+
+def table_markup(node, base):
+    """Keep real cell boundaries and merged cells; never infer them from prose."""
+    from html import escape
+    allowed = {'table', 'caption', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
+               'p', 'div', 'span', 'br', 'strong', 'b', 'em', 'i', 'u', 'code',
+               'pre', 'mark', 'sub', 'sup', 'del', 's', 'ul', 'ol', 'li', 'a'}
+
+    def text(value):
+        return escape(value or '', quote=False).replace('\n', '&#10;').replace('\r', '&#13;')
+
+    def render(element):
+        tag = element.tag
+        if not isinstance(tag, str) or tag in {'script', 'style', 'iframe', 'object', 'embed'}:
+            return ''
+        content = text(element.text) + ''.join(render(child) + text(child.tail) for child in element)
+        if tag == 'img': return text(element.get('alt'))
+        if tag not in allowed: return content
+        attributes = ''
+        if tag == 'a' and element.get('href') and (href := safe_content_link(element.get('href'), base)):
+            attributes = ' href="' + escape(href, quote=True) + '"'
+        if tag in {'th', 'td'}:
+            for name in ('colspan', 'rowspan'):
+                value = element.get(name, '')
+                if value.isdigit() and 1 <= int(value) <= 100:
+                    attributes += f' {name}="{int(value)}"'
+            if element.get('scope') in {'row', 'col', 'rowgroup', 'colgroup'}:
+                attributes += ' scope="' + element.get('scope') + '"'
+        return '<' + tag + attributes + '>' + (content + '</' + tag + '>' if tag != 'br' else '')
+
+    return render(node)
+
 
 def preserve_special_blocks(tree, base):
     """Protect preformatted/quoted content from article extraction whitespace folding."""
     replacements = {}
-    for node in list(tree.xpath('//pre|//blockquote')):
-        if node.getparent() is None or any(p.tag in {'pre','blockquote'} for p in node.iterancestors()):
+    tags = {'pre', 'blockquote', 'table', *ReaderSummary.inline_tags}
+    for node in list(tree.xpath('//' + '|//'.join(sorted(tags)))):
+        if node.getparent() is None or any(p.tag in tags for p in node.iterancestors()):
             continue
-        if node.tag == 'pre':
-            value = node.text_content().strip('\n')
+        if node.tag == 'table':
+            value = '\n\n' + table_markup(node, base) + '\n\n'
+        elif node.tag == 'pre':
+            value = preformatted_text(node)
             fence = '`' * max(3, max((len(m[0])+1 for m in re.finditer(r'`+',value)), default=3))
             classes = ' '.join(element.get('class', '') for element in [node, *node.iterdescendants('code')])
             match = re.search(r'(?:language-|lang-)([A-Za-z0-9_+.-]+)', classes)
@@ -136,12 +218,14 @@ def preserve_special_blocks(tree, base):
             value = fence + language + '\n' + value + '\n' + fence
         else:
             parser = ReaderSummary(base)
-            parser.feed(html.tostring(node,encoding='unicode'))
-            value = ''.join(parser.parts).strip().removeprefix('> ').strip()
-            value = '\n'.join('> '+line for line in value.splitlines())
+            parser.feed(html.tostring(node,encoding='unicode',with_tail=False))
+            value = ''.join(parser.parts).strip()
+            if node.tag == 'blockquote':
+                value = value.removeprefix('> ').strip()
+                value = '\n'.join('> '+line for line in value.splitlines())
         token = 'OPENSTUDIOPRESERVEDBLOCK' + str(len(replacements)) + 'END'
         replacements[token] = value
-        replacement = html.Element('p')
+        replacement = html.Element('p' if node.tag in {'pre', 'blockquote', 'table'} else 'span')
         replacement.text = token
         replacement.tail = node.tail
         node.getparent().replace(node,replacement)
@@ -175,5 +259,5 @@ def extract_reader(body, base, fragment=False):
         else:
             blocks.insert(0, {'type':'image','id':'cover','url':cover,'alt':'','caption':''})
     authors = tree.xpath('//meta[@name="author"]/@content')
-    return {'version':4, 'blocks':blocks, 'author':plain(authors[0])[:300] if authors else '',
+    return {'version':READER_VERSION, 'blocks':blocks, 'author':plain(authors[0])[:300] if authors else '',
             'origin':'feed' if fragment else 'article'}

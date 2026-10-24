@@ -7,23 +7,24 @@ from eis_engine.contracts import Failure
 from test_news_digest import service
 
 
-def test_agno_adapter_validates_identity_normalizes_and_releases(monkeypatch):
-    from agno.knowledge.embedder.ollama import OllamaEmbedder
-    from ollama import Client
-    requests=[]
-    def embed(self, **kwargs):
-        requests.append(kwargs)
-        return {'embeddings':[[3.,4.]]}
-    monkeypatch.setattr(Client,'embed',embed)
-    monkeypatch.setattr(httpx.Client,'get',lambda *a,**k:httpx.Response(200,json={'models':[{'name':'embeddinggemma-2:270m','digest':'abc'}]},request=httpx.Request('GET','http://local')))
+def test_async_adapter_validates_identity_normalizes_and_retains(monkeypatch):
+    import json
+    calls=[]
+    def handler(request):
+        if request.url.path=='/api/tags':
+            return httpx.Response(200,json={'models':[{'name':'embeddinggemma-2:270m','digest':'abc'}]})
+        calls.append(json.loads(request.content))
+        return httpx.Response(200,json={'embeddings':[[3.,4.]]})
+    real=httpx.AsyncClient
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kw: real(transport=httpx.MockTransport(handler)))
     encoder=LocalNewsEmbeddings(dimensions=2,digest='abc')
     assert encoder.encode(['العربية English'],query=True)==[[.6,.8]]
-    assert requests[0]['keep_alive']==0
-    assert requests[0]['dimensions']==2
-    assert requests[0]['input']=='task: search result | query: العربية English'
+    assert calls[0]['keep_alive']=='30s'
+    assert calls[0]['dimensions']==2
+    assert calls[0]['input']==['task: search result | query: العربية English']
     encoder.digest='changed'
     with pytest.raises(RuntimeError,match='changed'): encoder.encode(['x'])
-    assert len(requests)==1
+    assert len(calls)==1
     encoder.close()
     with pytest.raises(RuntimeError,match='closed'): encoder.encode(['x'])
 
@@ -93,14 +94,24 @@ def test_installed_model_preflight_works_offline(service,monkeypatch):
     assert result['size']==300000000 and result['can_download']
 
 
-def test_multiple_chunks_share_one_short_model_residency(monkeypatch):
-    from ollama import Client
-    requests = []
-    def embed(self, **kwargs):
-        requests.append(kwargs)
-        return {'embeddings':[[3.,4.]]}
-    monkeypatch.setattr(Client,'embed',embed)
-    monkeypatch.setattr(httpx.Client,'get',lambda *a,**k:httpx.Response(200,json={'models':[{'name':'embeddinggemma-2:270m','digest':'abc'}]},request=httpx.Request('GET','http://local')))
+def test_multiple_chunks_share_one_bounded_multi_input_request(monkeypatch):
+    import json
+    calls=[]
+    def handler(request):
+        if request.url.path=='/api/tags':
+            return httpx.Response(200,json={'models':[{'name':'embeddinggemma-2:270m','digest':'abc'}]})
+        payload=json.loads(request.content);calls.append(payload)
+        return httpx.Response(200,json={'embeddings':[[3.,4.]]*len(payload['input'])})
+    real=httpx.AsyncClient
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kw: real(transport=httpx.MockTransport(handler)))
     encoder=LocalNewsEmbeddings(dimensions=2,digest='abc')
-    assert len(encoder.encode(['one','two','three','four'])) == 4
-    assert [r['keep_alive'] for r in requests] == ['5s','5s','5s',0]
+    assert len(encoder.encode(['one','two','three','four']))==4
+    assert len(calls)==1
+    assert calls[0]['input']==['one','two','three','four']
+    assert calls[0]['options']['num_ctx']==2048
+    assert calls[0]['keep_alive']=='30s'
+
+
+@pytest.mark.parametrize('vectors', [[],[[0,0]],[[float('nan'),1]],[[1]],[[True,1]],[[1,2],[3,4]]])
+def test_invalid_vector_response_is_rejected(vectors):
+    with pytest.raises(ValueError): LocalNewsEmbeddings(dimensions=2,digest='x').vectors({'embeddings':vectors},1)

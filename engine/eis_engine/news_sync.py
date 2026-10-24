@@ -95,7 +95,16 @@ class NewsSyncMixin:
                     if page_mode:
                         self.db.execute("UPDATE news_subscriptions SET kind='webpage' WHERE id=?", (row['id'],))
                     for entry in entries:
-                        article_id = self.archive.find(row['id'],entry['guid'],entry['url'])
+                        reddit_post = entry['reader'].get('origin') == 'reddit'
+                        if reddit_post:
+                            # Legacy external-link identities could conflate two
+                            # independent posts that happened to mention one site.
+                            match = self.store.one('''SELECT id FROM news_articles WHERE workspace_id=?
+                                AND (url=? OR (subscription_id=? AND guid=?)) ORDER BY url=? DESC LIMIT 1''',
+                                (self.ws,entry['url'],row['id'],entry['guid'],entry['url']))
+                            article_id = match['id'] if match else None
+                        else:
+                            article_id = self.archive.find(row['id'],entry['guid'],entry['url'])
                         existing = self.store.one("SELECT * FROM news_articles WHERE id=?", (article_id,)) if article_id else None
                         article_id = article_id or uid()
                         if existing:
@@ -105,15 +114,17 @@ class NewsSyncMixin:
                                 self.db.execute("UPDATE news_articles SET text=? WHERE id=?", (entry["summary"],existing["id"]))
                             try: previous_reader = json.loads(existing["reader_json"])
                             except (TypeError, ValueError): previous_reader = {}
-                            if (existing['body_status'] == 'full' and previous_reader.get('origin') != 'feed'
+                            if (not reddit_post and existing['body_status'] == 'full' and previous_reader.get('origin') != 'feed'
                                     and (existing['title'] != entry['title'] or existing['summary'] != entry['summary'])):
                                 changed_articles.add(article_id)
-                            if previous_reader.get("origin") == "feed":
+                            if not reddit_post and previous_reader.get("origin") == "feed":
                                 fresh_reader = entry["reader"] | {k:previous_reader[k] for k in ("checked_at", "refresh_failed", "render_retry_after") if k in previous_reader}
                                 self.db.execute("UPDATE news_articles SET reader_json=? WHERE id=?", (json.dumps(fresh_reader), existing["id"]))
                         else:
                             self.db.execute("INSERT INTO news_articles(id,workspace_id,subscription_id,guid,title,url,published_at,discovered_at,summary) VALUES(?,?,?,?,?,?,?,?,?)", (article_id,self.ws,row["id"],entry["guid"],entry["title"],entry["url"],entry["published_at"],now(),entry["summary"]))
-                        if entry.get("full_text") and (not existing or existing["body_status"] != "full" or previous_reader.get("origin") == "feed"):
+                        if reddit_post:
+                            self.save_reddit_post(article_id,entry)
+                        elif entry.get("full_text") and (not existing or existing["body_status"] != "full" or previous_reader.get("origin") == "feed"):
                             # content:encoded / Atom content is saved before any website request.
                             self.db.execute("UPDATE news_articles SET text=?,body_status='full',reader_json=? WHERE id=?",
                                             (entry["full_text"],json.dumps(entry["reader"]),article_id))

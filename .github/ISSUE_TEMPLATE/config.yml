@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: الإبلاغ الأمني الخاص / Private security report
+    url: https://github.com/MohammedSaudAlsahli/openNews/security/advisories/new
+    about: لا تنشر الثغرات في بلاغ عام / Do not disclose vulnerabilities publicly

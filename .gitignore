@@ -30,3 +30,12 @@ desktop/src-tauri/runtime/
 desktop/src-tauri/gen/
 
 desktop/*.tsbuildinfo
+
+# Local design evidence and private planning notes; never release artifacts.
+.taste-skill/
+plans/
+# FileProvider duplicate copies are not source.
+engine/**/* 2.py
+
+# Private session backlog; not product documentation.
+docs/opennews-next-session.md

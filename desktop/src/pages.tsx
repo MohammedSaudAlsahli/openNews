@@ -5,6 +5,9 @@ import type { ArticleIncident } from "./support-report";
 import { readerMarkdown, readerLayout } from "./reader-format";
 import { ArticleSite } from "./article-site";
 import { ArticleExplanation } from "./article-explanation";
+import { ArticleHistory } from "./article-history";
+import { summaryModel } from "./summary-model";
+import * as Popover from "@radix-ui/react-popover";
 import { t, getLocale } from "./locale";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -12,16 +15,21 @@ import {
   ArrowUpRight,
   Bookmark,
   Search,
+  X,
   Plus,
   RefreshCw,
   LoaderCircle,
   Rss,
   Check,
   BookOpen,
+  Type,
+  Flag,
+  ChevronRight,
 } from "lucide-react";
 import { call, articleExcerpt, type RecordData } from "./engine";
 import { Markdown } from "./components";
 import { invoke } from "@tauri-apps/api/core";
+
 export function ArticleImage({
   article,
   id,
@@ -77,15 +85,38 @@ export function ArticleImage({
           <span>{t("No cover available")}</span>
         </div>
       ) : src ? (
-        cover ? <img className="article-image" src={src} alt="" loading="lazy" onError={() => setFailed(true)} /> :
-        <button
-          className={`reader-image-toggle${expanded ? " expanded" : ""}`}
-          aria-expanded={expanded}
-          aria-label={getLocale() === "ar" ? (expanded ? "تصغير الصورة" : "تكبير الصورة") : (expanded ? "Reduce image" : "Enlarge image")}
-          onClick={() => setExpanded(!expanded)}
-        >
-          <img className="article-image" src={src} alt="" loading="lazy" onError={() => setFailed(true)} />
-        </button>
+        cover ? (
+          <img
+            className="article-image"
+            src={src}
+            alt=""
+            loading="lazy"
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <button
+            className={`reader-image-toggle${expanded ? " expanded" : ""}`}
+            aria-expanded={expanded}
+            aria-label={
+              getLocale() === "ar"
+                ? expanded
+                  ? "تصغير الصورة"
+                  : "تكبير الصورة"
+                : expanded
+                  ? "Reduce image"
+                  : "Enlarge image"
+            }
+            onClick={() => setExpanded(!expanded)}
+          >
+            <img
+              className="article-image"
+              src={src}
+              alt=""
+              loading="lazy"
+              onError={() => setFailed(true)}
+            />
+          </button>
+        )
       ) : (
         <div className="image-placeholder" aria-hidden="true" />
       )}
@@ -98,9 +129,15 @@ export function Articles({
   onError,
   snapshot,
   onDiscuss,
+  onConfigureExplanations,
+  onExploreSources,
+  libraryRequest = 0,
 }: Props & {
   snapshot: RecordData;
   onDiscuss?: (article: RecordData) => void;
+  onConfigureExplanations?: () => void;
+  onExploreSources?: () => void;
+  libraryRequest?: number;
 }) {
   const [articles, setArticles] = useState<RecordData[]>([]),
     [query, setQuery] = useState(""),
@@ -109,36 +146,57 @@ export function Articles({
     [order, setOrder] = useState("newest"),
     [days, setDays] = useState(0),
     [digestStatus, setDigestStatus] = useState<RecordData>(),
-    [fontSize, setFontSize] = useState(
-      () => Number(localStorage.getItem("reader-font-size")) || 17,
+    [fontSize, setFontSize] = useState(() =>
+      Math.min(
+        24,
+        Math.max(14, Number(localStorage.getItem("reader-font-size")) || 17),
+      ),
     ),
-    [history, setHistory] = useState<RecordData[]>([]),
-    [revision, setRevision] = useState<RecordData>(),
     [more, setMore] = useState(false),
-    [busy, setBusy] = useState(false),
+    [busy, setBusy] = useState(true),
     [selected, setSelected] = useState<RecordData>(),
     [siteMode, setSiteMode] = useState(false),
     [reading, setReading] = useState(false),
     [related, setRelated] = useState<RecordData[]>([]),
     [states, setStates] = useState<RecordData>({});
   const [clock, setClock] = useState(Date.now);
+  const [listError, setListError] = useState("");
+  const appendRequest = useRef<number | null>(null);
   const [articleReport, setArticleReport] = useState<ArticleIncident>();
+  const [bookmarking, setBookmarking] = useState<string[]>([]);
+  const bookmarkRequests = useRef(new Set<string>());
   const [openStage, setOpenStage] = useState("idle");
-  const openTiming = useRef({started:0, finished:0, stage:"idle", errorCode:""});
-  function phase(stage: string) { openTiming.current.stage=stage; setOpenStage(stage); }
+  const openTiming = useRef({
+    started: 0,
+    finished: 0,
+    stage: "idle",
+    errorCode: "",
+  });
+  function phase(stage: string) {
+    openTiming.current.stage = stage;
+    setOpenStage(stage);
+  }
   function reportArticle() {
     if (!selected) return;
-    const timing=openTiming.current;
-    setArticleReport({title:selected.title || "",url:selected.url || "",source:selected.source_title || "",articleId:selected.id,
-      stage:timing.stage,elapsedMs:(timing.finished || performance.now())-timing.started,bodyStatus:selected.body_status || "unknown",errorCode:timing.errorCode});
+    const timing = openTiming.current;
+    setArticleReport({
+      title: selected.title || "",
+      url: selected.url || "",
+      source: selected.source_title || "",
+      articleId: selected.id,
+      stage: timing.stage,
+      elapsedMs: (timing.finished || performance.now()) - timing.started,
+      bodyStatus: selected.body_status || "unknown",
+      errorCode: timing.errorCode,
+    });
   }
   const request = useRef(0),
     selection = useRef(0);
   useEffect(() => {
     let live = true,
       pending = false;
-    async function status() {
-      if (pending || document.visibilityState === "hidden") return;
+    async function status(initial = false) {
+      if (pending || (!initial && document.visibilityState === "hidden")) return;
       pending = true;
       try {
         const result = await call("news.digest.status");
@@ -149,7 +207,7 @@ export function Articles({
         pending = false;
       }
     }
-    void status();
+    void status(true);
     const timer = setInterval(() => void status(), 15000);
     return () => {
       live = false;
@@ -157,11 +215,14 @@ export function Articles({
     };
   }, []);
   async function load(append = false) {
+    if (append && appendRequest.current !== null) return;
     const token = ++request.current;
+    appendRequest.current = append ? token : null;
     setBusy(true);
+    setListError("");
     try {
       const r = await call("news.list", {
-        query,
+        query: query.slice(0, 200),
         scope,
         source_id: source,
         order,
@@ -181,14 +242,19 @@ export function Articles({
           : r.articles,
       );
       setMore(r.has_more);
-      const s = await call("news.summary.states", {
+      void call("news.summary.states", {
         ids: r.articles.map((a: RecordData) => a.id),
-      });
-      if (token === request.current)
-        setStates((old) => ({ ...old, ...s.states }));
+      })
+        .then((s) => {
+          if (token === request.current)
+            setStates((old) => ({ ...old, ...s.states }));
+        })
+        .catch(() => {});
     } catch (e) {
-      if (token === request.current) onError(String(e));
+      if (token === request.current)
+        setListError(String(e).replace(/^Error:\s*/, ""));
     } finally {
+      if (appendRequest.current === token) appendRequest.current = null;
       if (token === request.current) setBusy(false);
     }
   }
@@ -200,8 +266,28 @@ export function Articles({
       ++request.current;
     };
   }, [query, scope, source, order, days]);
+  function clearFilters() {
+    setQuery("");
+    setScope("all");
+    setSource("");
+    setOrder("newest");
+    setDays(0);
+  }
+  const previousLibraryRequest = useRef(libraryRequest);
   useEffect(() => {
-    let live = true, pending = false;
+    if (previousLibraryRequest.current === libraryRequest) return;
+    previousLibraryRequest.current = libraryRequest;
+    ++selection.current;
+    setSelected(undefined);
+    setReading(false);
+    setSiteMode(false);
+    setRelated([]);
+    setArticleReport(undefined);
+    void load();
+  }, [libraryRequest]);
+  useEffect(() => {
+    let live = true,
+      pending = false;
     async function refreshVisible() {
       if (document.visibilityState === "hidden") return;
       setClock(Date.now());
@@ -210,18 +296,41 @@ export function Articles({
       const token = request.current;
       try {
         const count = Math.max(30, articles.length);
-        const pages = await Promise.all(Array.from({length:Math.ceil(count/100)},(_,index)=>call("news.list", {
-          query, scope, source_id:source, order, days, limit:Math.min(100,count-index*100),offset:index*100,
-        })));
-        if (live && token === request.current) { setArticles(pages.flatMap(page=>page.articles));setMore(pages[pages.length-1].has_more); }
-      } catch { /* Retain the displayed cache during temporary engine unavailability. */ }
-      finally { pending = false; }
+        const pages = await Promise.all(
+          Array.from({ length: Math.ceil(count / 100) }, (_, index) =>
+            call("news.list", {
+              query,
+              scope,
+              source_id: source,
+              order,
+              days,
+              limit: Math.min(100, count - index * 100),
+              offset: index * 100,
+            }),
+          ),
+        );
+        if (live && token === request.current) {
+          setListError("");
+          setArticles(pages.flatMap((page) => page.articles));
+          setMore(pages[pages.length - 1].has_more);
+        }
+      } catch {
+        /* Retain the displayed cache during temporary engine unavailability. */
+      } finally {
+        pending = false;
+      }
     }
-    const timer = setInterval(()=>void refreshVisible(), 60000);
-    const visible = () => { if(document.visibilityState === "visible") void refreshVisible(); };
-    document.addEventListener("visibilitychange",visible);
-    return ()=>{live=false;clearInterval(timer);document.removeEventListener("visibilitychange",visible)};
-  }, [query,scope,source,order,days,selected?.id,busy,articles.length]);
+    const timer = setInterval(() => void refreshVisible(), 60000);
+    const visible = () => {
+      if (document.visibilityState === "visible") void refreshVisible();
+    };
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [query, scope, source, order, days, selected?.id, busy, articles.length]);
   useEffect(
     () => () => {
       ++selection.current;
@@ -253,73 +362,119 @@ export function Articles({
   }, [selected?.id, selected?.body_status, reading]);
   async function open(id: string, refresh = false) {
     const token = ++selection.current;
-    openTiming.current={started:performance.now(),finished:0,stage:"local_cache",errorCode:""};
+    openTiming.current = {
+      started: performance.now(),
+      finished: 0,
+      stage: "local_cache",
+      errorCode: "",
+    };
     phase("local_cache");
     // Paint the reader immediately from the card; never wait on IPC/network to navigate.
-    const card = articles.find(a=>a.id===id) || related.find(a=>a.id===id) || (selected?.id===id ? selected : undefined);
-    setSelected(card || {id,title:t("Loading…"),body_status:"loading"});
+    const card =
+      articles.find((a) => a.id === id) ||
+      related.find((a) => a.id === id) ||
+      (selected?.id === id ? selected : undefined);
+    setSelected(card || { id, title: t("Loading…"), body_status: "loading" });
     setReading(true);
     setSiteMode(false);
     setRelated([]);
-    setHistory([]);
-    setRevision(undefined);
     try {
       const article = await call("news.article", { article_id: id });
       if (token !== selection.current) return;
       setSelected(article);
-      // A complete cached article is readable now. Explicit refresh still re-fetches it.
-      if (refresh || !["full","media_summary"].includes(article.body_status)) {
+      // Paint saved content first; repair an obsolete extraction in the background.
+      if (
+        refresh ||
+        article.reader_upgrade_required ||
+        !["full", "media_summary"].includes(article.body_status)
+      ) {
         phase("fetching_text");
         let result = await call("news.reader", { article_id: id, refresh });
         if (token !== selection.current) return;
         setSelected({ ...article, ...result });
-        if (!["full","media_summary"].includes(result.body_status)) {
+        if (!["full", "media_summary"].includes(result.body_status)) {
           phase("website_recovery");
-          try { result = await invoke<RecordData>("recover_article", { articleId: id }); }
-          catch (error) { openTiming.current.errorCode=String(error).match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] || "RECOVERY_FAILED"; }
+          try {
+            result = await invoke<RecordData>("recover_article", {
+              articleId: id,
+            });
+          } catch (error) {
+            openTiming.current.errorCode =
+              String(error).match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] ||
+              "RECOVERY_FAILED";
+          }
           if (token !== selection.current) return;
           setSelected({ ...article, ...result });
         }
-        phase(["full","media_summary"].includes(result.body_status) ? "ready" : "text_unavailable");
+        phase(
+          ["full", "media_summary"].includes(result.body_status)
+            ? "ready"
+            : "text_unavailable",
+        );
       } else phase("cached_ready");
-      openTiming.current.finished=performance.now();
+      openTiming.current.finished = performance.now();
       setReading(false);
       // Related stories must not keep the primary article in a loading state.
-      void call("news.related", { article_id: id }).then(result=>{
-        if(token===selection.current) setRelated(result.articles || []);
-      }).catch(()=>{});
+      void call("news.related", { article_id: id })
+        .then((result) => {
+          if (token === selection.current) setRelated(result.articles || []);
+        })
+        .catch(() => {});
     } catch (error) {
       if (token === selection.current) {
-        openTiming.current.errorCode=String(error).match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] || "ARTICLE_OPEN_FAILED";
+        openTiming.current.errorCode =
+          String(error).match(/\b[A-Z][A-Z_]{3,50}\b/)?.[0] ||
+          "ARTICLE_OPEN_FAILED";
         phase("failed");
         onError(String(error));
       }
     } finally {
-      if (token === selection.current) { openTiming.current.finished=performance.now();setReading(false); }
+      if (token === selection.current) {
+        openTiming.current.finished = performance.now();
+        setReading(false);
+      }
     }
   }
   async function bookmark(a: RecordData) {
+    if (bookmarkRequests.current.has(a.id)) return;
+    bookmarkRequests.current.add(a.id);
+    setBookmarking((old) => [...old, a.id]);
+    const saved = !a.is_bookmarked;
     try {
       await call("news.bookmark", {
         article_id: a.id,
-        saved: !a.is_bookmarked,
+        saved,
       });
       setArticles((old) =>
-        old.map((x) =>
-          x.id === a.id ? { ...x, is_bookmarked: !x.is_bookmarked } : x,
-        ),
+        old.map((x) => (x.id === a.id ? { ...x, is_bookmarked: saved } : x)),
       );
-      if (selected?.id === a.id)
-        setSelected({ ...selected, is_bookmarked: !a.is_bookmarked });
+      setSelected((current) =>
+        current?.id === a.id ? { ...current, is_bookmarked: saved } : current,
+      );
     } catch (e) {
       onError(String(e));
+    } finally {
+      bookmarkRequests.current.delete(a.id);
+      setBookmarking((old) => old.filter((id) => id !== a.id));
     }
   }
-  const layout = selected ? readerLayout(selected.reader?.blocks || [], selected.cover_image_id) : undefined;
+  const layout = selected
+    ? readerLayout(selected.reader?.blocks || [], selected.cover_image_id)
+    : undefined;
   if (selected)
     return (
-      <div className={`reader ${siteMode ? "reader-site-mode" : ""}`} key={selected.id}>
-        {articleReport && <SupportPanel incidentCode="ARTICLE_READING_PROBLEM" article={articleReport} onClose={()=>setArticleReport(undefined)} onError={onError}/>}
+      <div
+        className={`reader ${siteMode ? "reader-site-mode" : ""}`}
+        key={selected.id}
+      >
+        {articleReport && (
+          <SupportPanel
+            incidentCode="ARTICLE_READING_PROBLEM"
+            article={articleReport}
+            onClose={() => setArticleReport(undefined)}
+            onError={onError}
+          />
+        )}
         <div className="reader-toolbar">
           <button
             onClick={() => {
@@ -329,12 +484,24 @@ export function Articles({
               void load();
             }}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft className="back-arrow" size={16} />
             {t("Articles")}
           </button>
           <div className="segments" role="group" aria-label={t("Article view")}>
-            <button aria-pressed={!siteMode} className={!siteMode ? "selected" : ""} onClick={() => setSiteMode(false)}>{t("Reading")}</button>
-            <button aria-pressed={siteMode} className={siteMode ? "selected" : ""} onClick={() => setSiteMode(true)}>{t("Original website")}</button>
+            <button
+              aria-pressed={!siteMode}
+              className={!siteMode ? "selected" : ""}
+              onClick={() => setSiteMode(false)}
+            >
+              {t("Reading")}
+            </button>
+            <button
+              aria-pressed={siteMode}
+              className={siteMode ? "selected" : ""}
+              onClick={() => setSiteMode(true)}
+            >
+              {t("Original website")}
+            </button>
           </div>
           <span />
           {onDiscuss && (
@@ -344,6 +511,8 @@ export function Articles({
           )}
           <button
             title={t("Open in browser")}
+            aria-label={t("Open in browser")}
+            className="icon-button"
             onClick={() =>
               void invoke("open_external", { address: selected.url }).catch(
                 (e) => onError(String(e)),
@@ -352,66 +521,136 @@ export function Articles({
           >
             <ArrowUpRight size={17} />
           </button>
-          <button
-            title={t("Smaller text")}
-            disabled={fontSize <= 14}
-            onClick={() => {
-              setFontSize(fontSize - 1);
-              localStorage.setItem("reader-font-size", String(fontSize - 1));
-            }}
-          >
-            A−
-          </button>
-          <button
-            title={t("Larger text")}
-            disabled={fontSize >= 24}
-            onClick={() => {
-              setFontSize(fontSize + 1);
-              localStorage.setItem("reader-font-size", String(fontSize + 1));
-            }}
-          >
-            A+
-          </button>
+          <Popover.Root>
+            <Popover.Trigger
+              className="icon-button"
+              title={t("Reading appearance")}
+              disabled={siteMode}
+              aria-label={t("Reading appearance")}
+            >
+              <Type size={18} />
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content
+                className="floating-panel reading-appearance"
+                sideOffset={8}
+                collisionPadding={16}
+              >
+                <h3>{t("Text size")}</h3>
+                <div className="reading-size-control">
+                  <button
+                    aria-label={t("Smaller text")}
+                    disabled={fontSize <= 14}
+                    onClick={() => {
+                      setFontSize(fontSize - 1);
+                      localStorage.setItem(
+                        "reader-font-size",
+                        String(fontSize - 1),
+                      );
+                    }}
+                  >
+                    A−
+                  </button>
+                  <output aria-label={t("Text size")} aria-live="polite">
+                    {fontSize} px
+                  </output>
+                  <button
+                    aria-label={t("Larger text")}
+                    disabled={fontSize >= 24}
+                    onClick={() => {
+                      setFontSize(fontSize + 1);
+                      localStorage.setItem(
+                        "reader-font-size",
+                        String(fontSize + 1),
+                      );
+                    }}
+                  >
+                    A+
+                  </button>
+                </div>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
           {reading && <LoaderCircle className="spin" size={16} />}
           <button
             title={t("Refresh article")}
+            aria-label={t("Refresh article")}
+            className="icon-button"
             disabled={reading}
             onClick={() => void open(selected.id, true)}
           >
             <RefreshCw size={17} />
           </button>
-          <button onClick={reportArticle}>{t("Report this article")}</button>
-          <button title={t("Bookmark")} onClick={() => void bookmark(selected)}>
+          <button
+            className="icon-button"
+            title={t("Report this article")}
+            aria-label={t("Report this article")}
+            onClick={reportArticle}
+          >
+            <Flag size={16} />
+          </button>
+          <button
+            title={t("Bookmark")}
+            aria-label={t("Bookmark")}
+            className="icon-button"
+            aria-pressed={!!selected.is_bookmarked}
+            disabled={bookmarking.includes(selected.id)}
+            onClick={() => void bookmark(selected)}
+          >
             <Bookmark
               size={17}
               fill={selected.is_bookmarked ? "currentColor" : "none"}
             />
           </button>
         </div>
-        {siteMode && <ArticleSite key={selected.id} address={selected.url} onError={onError} />}
+        {siteMode && (
+          <ArticleSite
+            key={selected.id}
+            address={selected.url}
+            onError={onError}
+          />
+        )}
         <div
           hidden={siteMode}
           className="reader-content"
           style={{ "--reading-size": `${fontSize}px` } as React.CSSProperties}
         >
-          <header className={`article-heading${layout?.cover ? " has-cover" : ""}`}>
+          <header
+            className={`article-heading${layout?.cover ? " has-cover" : ""}`}
+          >
             <div className="article-heading-copy">
               <div className="reader-source">
-                {layout?.logo && <div className="reader-source-logo"><ArticleImage article={selected.id} id={layout.logo.id} /></div>}
+                {layout?.logo && (
+                  <div className="reader-source-logo">
+                    <ArticleImage article={selected.id} id={layout.logo.id} />
+                  </div>
+                )}
                 <span dir="auto">{selected.source_title}</span>
-                <span className="muted">· <RelativeTime value={selected.published_at} now={clock}/></span>
+                <span className="muted">
+                  · <RelativeTime value={selected.published_at} now={clock} />
+                </span>
               </div>
               <h1 dir="auto">{selected.title}</h1>
             </div>
-            {layout?.cover && <figure className="reader-cover">
-              <ArticleImage article={selected.id} id={layout.cover.id} />
-              <figcaption>{getLocale() === "ar" ? "غلاف المقالة" : "Article cover"}</figcaption>
-            </figure>}
+            {layout?.cover && (
+              <figure className="reader-cover">
+                <ArticleImage article={selected.id} id={layout.cover.id} />
+                <figcaption>
+                  {getLocale() === "ar" ? "غلاف المقالة" : "Article cover"}
+                </figcaption>
+              </figure>
+            )}
           </header>
           {selected.body_status !== "full" && (
             <p className="notice">
               {reading
-                ? t(openStage === "local_cache" ? "Opening saved article…" : openStage === "website_recovery" ? "Retrieving text from the original website…" : "Retrieving article text…")
+                ? t(
+                    openStage === "local_cache"
+                      ? "Opening saved article…"
+                      : openStage === "website_recovery"
+                        ? "Retrieving text from the original website…"
+                        : "Retrieving article text…",
+                  )
                 : t(
                     "The full article has not been retrieved yet. You can retry or read the original.",
                   )}
@@ -426,15 +665,23 @@ export function Articles({
                 <RefreshCw size={15} />
                 {t("Retry full article")}
               </button>
-              <button
-                onClick={() => setSiteMode(true)}
-              >
+              <button onClick={() => setSiteMode(true)}>
                 {t("Read original")}
                 <ArrowUpRight size={15} />
               </button>
             </div>
           )}
-          {(selected.body_status === "full" || selected.prepared_summary?.summary) && <ArticleExplanation key={selected.id} article={selected} />}
+          {(selected.body_status === "full" ||
+            selected.prepared_summary?.summary) && (
+            <ArticleExplanation
+              key={selected.id}
+              article={selected}
+              configured={
+                !!summaryModel(snapshot, digestStatus || snapshot.news_digest)
+              }
+              onConfigure={onConfigureExplanations}
+            />
+          )}
           {selected.body_status === "full" &&
           selected.reader?.blocks?.length ? (
             layout!.body.map((b: RecordData, i: number) =>
@@ -449,47 +696,16 @@ export function Articles({
               text={
                 selected.body_status === "full"
                   ? selected.text || ""
-                  : articleExcerpt(selected.summary || "") ||
-                    ""
+                  : articleExcerpt(selected.summary || "") || ""
               }
             />
           )}
-          <details
-            className="summary-section"
-            onToggle={(e) => {
-              if (e.currentTarget.open && !history.length)
-                void call("news.history", { article_id: selected.id })
-                  .then((r) => setHistory(r.revisions))
-                  .catch((e) => onError(String(e)));
-            }}
-          >
-            <summary>{t("Article history")}</summary>
-            {history.map((r) => (
-              <button
-                key={r.id}
-                onClick={() =>
-                  void call("news.revision", {
-                    article_id: selected.id,
-                    revision_id: r.id,
-                  })
-                    .then(setRevision)
-                    .catch((e) => onError(String(e)))
-                }
-              >
-                {new Date(r.captured_at).toLocaleString()}
-              </button>
-            ))}
-            {revision && (
-              <>
-                <p>{t("Changes from the previous saved version")}</p>
-                <pre className="revision-diff">
-                  {revision.diff || "No text changes"}
-                </pre>
-              </>
-            )}
-          </details>
+          <ArticleHistory
+            key={`history:${selected.id}`}
+            articleId={selected.id}
+          />
           {related.length > 0 && (
-            <section>
+            <section className="related-reading">
               <h2>{t("Related reading")}</h2>
               {related.map((a) => (
                 <button
@@ -497,8 +713,20 @@ export function Articles({
                   key={a.id}
                   onClick={() => void open(a.id)}
                 >
-                  {a.title}
-                  <ArrowUpRight size={15} />
+                  <span className="related-copy">
+                    <span dir="auto">{a.title}</span>
+                    {(a.source_title || a.published_at) && (
+                      <small>
+                        {a.source_title && (
+                          <span dir="auto">{a.source_title}</span>
+                        )}
+                        {a.published_at && (
+                          <RelativeTime value={a.published_at} now={clock} />
+                        )}
+                      </small>
+                    )}
+                  </span>
+                  <ChevronRight className="related-arrow" size={16} />
                 </button>
               ))}
             </section>
@@ -508,11 +736,12 @@ export function Articles({
     );
   return (
     <div className="page">
-      <p className="eyebrow">{t("READ. UNDERSTAND. CONNECT.")}</p>
       <div className="page-title">
-        <h1>{t("Your reading room")}</h1>
+        <h1>{t("Articles")}</h1>
         <button
           title={t("Refresh")}
+          className="icon-button"
+          aria-label={t("Refresh articles")}
           disabled={busy}
           onClick={() => void load()}
         >
@@ -544,7 +773,17 @@ export function Articles({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("Search your articles")}
             aria-label={t("Search your articles")}
+            maxLength={200}
           />
+          {query && (
+            <button
+              className="icon-button"
+              aria-label={t("Clear search")}
+              onClick={() => setQuery("")}
+            >
+              <X size={14} />
+            </button>
+          )}
         </label>
       </div>
       <div className="article-filters">
@@ -578,19 +817,31 @@ export function Articles({
             <option value={30}>{t("Last 30 days")}</option>
           </select>
         </label>
-        {(days !== 0 || source || query || order !== "newest") && (
-          <button
-            onClick={() => {
-              setDays(0);
-              setSource("");
-              setQuery("");
-              setOrder("newest");
-            }}
-          >
-            {t("Clear filters")}
-          </button>
+        {(days !== 0 ||
+          source ||
+          query ||
+          order !== "newest" ||
+          scope !== "all") && (
+          <button onClick={clearFilters}>{t("Clear filters")}</button>
         )}
       </div>
+      {listError && (
+        <div className="settings-feedback article-list-error" role="alert">
+          <div>
+            <strong>{t("Articles could not be loaded")}</strong>
+            <p dir="auto">{listError}</p>
+          </div>
+          <button disabled={busy} onClick={() => void load()}>
+            {t("Retry")}
+          </button>
+        </div>
+      )}
+      {busy && articles.length > 0 && (
+        <p className="inline-loading" role="status">
+          <LoaderCircle size={14} className="spin" />
+          {t("Updating articles…")}
+        </p>
+      )}
       {digestStatus && !digestStatus.enabled && (
         <div className="summary-status">
           <span>
@@ -598,32 +849,56 @@ export function Articles({
               "Automatic explanations are paused. Saved explanations remain available.",
             )}
           </span>
-          <button
-            onClick={async () => {
-              try {
-                setDigestStatus(
-                  await call("news.digest.set", {
-                    enabled: true,
-                    consent: true,
-                  }),
-                );
-              } catch (e) {
-                onError(String(e));
-              }
-            }}
-          >
-            {t("Enable automatic explanations")}
-          </button>
+          {onConfigureExplanations && (
+            <button onClick={onConfigureExplanations}>
+              {t("Explanation settings")}
+            </button>
+          )}
         </div>
       )}
-      {articles.length === 0 && !busy ? (
+      {articles.length === 0 && busy ? (
+        <div
+          className="article-grid article-skeletons"
+          role="status"
+          aria-label={t("Loading articles…")}
+        >
+          {[0, 1, 2].map((i) => (
+            <div key={i}>
+              <div className="skeleton-cover" />
+              <div className="skeleton-line" />
+              <div className="skeleton-line short" />
+            </div>
+          ))}
+        </div>
+      ) : articles.length === 0 && !listError ? (
         <div className="empty">
           <BookOpen size={28} />
-          <h2>{t("A little curiosity goes a long way.")}</h2>
-          <p>{t("Add sources to start building your reading room.")}</p>
+          <h2>
+            {t(
+              query || source || days || scope !== "all"
+                ? "No articles match these filters"
+                : "Your reading starts here",
+            )}
+          </h2>
+          <p>
+            {t(
+              query || source || days || scope !== "all"
+                ? "Try a different search or clear your filters."
+                : "Follow sources to bring their stories into your library.",
+            )}
+          </p>
+          {query || source || days || scope !== "all" ? (
+            <button onClick={clearFilters}>{t("Clear filters")}</button>
+          ) : (
+            onExploreSources && (
+              <button className="primary" onClick={onExploreSources}>
+                {t("Explore sources")}
+              </button>
+            )
+          )}
         </div>
       ) : (
-        <div className="article-grid">
+        <div className="article-grid" aria-busy={busy}>
           {articles.map((a) => (
             <article className="article-card" key={a.id}>
               <ArticleImage article={a.id} id={a.cover_image_id} cover />
@@ -638,7 +913,7 @@ export function Articles({
               <p dir="auto">{articleExcerpt(a.summary)}</p>
               <footer>
                 <span>
-                  <RelativeTime value={a.published_at} now={clock}/> ·{" "}
+                  <RelativeTime value={a.published_at} now={clock} /> ·{" "}
                   {t(
                     (
                       {
@@ -651,7 +926,13 @@ export function Articles({
                     )[states[a.id]] || "Not explained",
                   )}
                 </span>
-                <button title={t("Bookmark")} onClick={() => void bookmark(a)}>
+                <button
+                  title={t("Bookmark")}
+                  aria-label={t("Bookmark") + ": " + a.title}
+                  aria-pressed={!!a.is_bookmarked}
+                  disabled={bookmarking.includes(a.id)}
+                  onClick={() => void bookmark(a)}
+                >
                   <Bookmark
                     size={16}
                     fill={a.is_bookmarked ? "currentColor" : "none"}
@@ -668,395 +949,12 @@ export function Articles({
           disabled={busy}
           onClick={() => void load(true)}
         >
-          {t("Load more stories")}
+          {busy && <LoaderCircle size={14} className="spin" />}
+          {t(busy ? "Loading…" : "Load more stories")}
         </button>
       )}
     </div>
   );
 }
-export function Sources({
-  snapshot,
-  refresh,
-  onError,
-}: Props & { snapshot: RecordData; refresh: () => Promise<void> }) {
-  const [tab, setTab] = useState("following"),
-    [query, setQuery] = useState(""),
-    [items, setItems] = useState<RecordData[]>([]),
-    [cursor, setCursor] = useState<string>(),
-    [busy, setBusy] = useState(false),
-    [url, setUrl] = useState(""),
-    [adding, setAdding] = useState(false),
-    [catalog, setCatalog] = useState<RecordData[]>([]);
-  useEffect(()=>{void call("news.curated").then(r=>setCatalog(r.feeds||[])).catch(()=>{})},[]);
-  function description(source:RecordData) {
-    const entry=catalog.find(row=>row.url===source.feed_url||row.url===source.url||row.title===source.title);
-    return (getLocale()==="ar" ? source.description_ar||entry?.description_ar : source.description_en||entry?.description_en) || source.description || t("No description from this publisher yet. Refresh the source to check.");
-  }
-  async function discover(append = false) {
-    setBusy(true);
-    try {
-      const r = await call("news.directory", {
-        query,
-        cursor: append ? cursor : undefined,
-      });
-      setItems((old) =>
-        append ? [...old, ...(r.feeds || [])] : r.feeds || [],
-      );
-      setCursor(r.next_cursor);
-    } catch (e) {
-      onError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  useEffect(() => {
-    if (tab === "discover") {
-      const timer = setTimeout(() => void discover(), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [tab, query]);
-  async function add(address: string) {
-    setBusy(true);
-    try {
-      await call("news.subscribe", { url: address });
-      setUrl("");
-      setAdding(false);
-      await refresh();
-    } catch (e) {
-      onError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  const list =
-    tab === "following"
-      ? (snapshot.subscriptions || []).filter((s: RecordData) =>
-          s.title.toLowerCase().includes(query.toLowerCase()),
-        )
-      : items;
-  return (
-    <div className="page">
-      <p className="eyebrow">{t("A BETTER SIGNAL")}</p>
-      <div className="page-title">
-        <h1>{t("Follow what matters.")}</h1>
-        <button className="primary" onClick={() => setAdding(!adding)}>
-          <Plus size={16} />
-          {t("Add a source")}
-        </button>
-      </div>
-      <p className="muted">
-        {t("Newsletters, publications and communities. All in one place.")}
-      </p>
-      {adding && (
-        <form
-          className="inline-form source-add-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void add(url);
-          }}
-        >
-          <input
-            aria-label={t("Source URL")}
-            type="url"
-            required
-            placeholder={t("Paste a website, RSS, subreddit or X RSS link")}
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <button disabled={busy} className="primary">
-            {t("Follow")}
-          </button>
-        </form>
-      )}
-      <div className="filters">
-        <div className="segments">
-          {["following", "discover"].map((tabId) => (
-            <button
-              key={tabId}
-              className={tab === tabId ? "selected" : ""}
-              onClick={() => setTab(tabId)}
-            >
-              {t(tabId === "following" ? t("Following") : t("Discover"))}
-            </button>
-          ))}
-        </div>
-        <label className="search">
-          <Search size={16} />
-          <input
-            placeholder={t("Search sources or topics")}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-      </div>
-      <div className="source-list subscriptions">
-        {list.map((s: RecordData) => (
-          <div key={s.id || s.url}>
-            <span className="source-monogram">
-              {s.title?.[0] || <Rss size={17} />}
-            </span>
-            <div>
-              <strong>{s.title}</strong>
-              <p className="source-description" dir="auto">{description(s)}</p>
-              <small className="source-address" dir="ltr">{s.url || s.feed_url}</small>
-              <span className={`source-status ${!s.enabled&&tab==="following"?"paused":s.status||""}`}><i/>{t(!s.enabled&&tab==="following"?"Paused":({ready:"Ready",error:"Needs attention",syncing:"Refreshing…",pending:"Waiting for first refresh"}[String(s.status)]||"Available"))}</span>
-              {s.error&&<p className="source-error" role="status" dir="auto">{s.error}</p>}
-              {tab === "following" && (
-                <div className="reader-actions">
-                  <button
-                    onClick={async () => {
-                      try {
-                        await call("news.update", {
-                          subscription_id: s.id,
-                          enabled: !s.enabled,
-                        });
-                        await refresh();
-                      } catch (e) {
-                        onError(String(e));
-                      }
-                    }}
-                  >
-                    {t(s.enabled ? t("Pause") : t("Resume"))}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await call("news.sync", { subscription_id: s.id });
-                        await refresh();
-                      } catch (e) {
-                        onError(String(e));
-                      }
-                    }}
-                  >
-                    {t("Refresh source")}
-                  </button>
-                  <RefreshInterval id={s.id} title={s.title} minutes={s.interval_minutes ?? 5} onSaved={refresh} onError={onError}/>
-                </div>
-              )}
-            </div>
-            {tab === "following" ? (
-              <button
-                onClick={async () => {
-                  try {
-                    await call("news.unsubscribe", { subscription_id: s.id });
-                    await refresh();
-                  } catch (e) {
-                    onError(String(e));
-                  }
-                }}
-              >
-                {t("Unfollow")}
-              </button>
-            ) : (
-              <button onClick={() => void add(s.feed_url || s.url)}>
-                <Plus size={15} />
-                {t("Follow")}
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-      {!list.length && !busy && (
-        <div className="empty">
-          <Rss size={30} />
-          <h2>{t("Your sources belong here.")}</h2>
-          <p>{t("Follow a source or explore the directory.")}</p>
-        </div>
-      )}
-      {busy && <LoaderCircle className="spin" />}
-      {cursor && tab === "discover" && (
-        <button className="load-more" onClick={() => void discover(true)}>
-          {t("Discover more")}
-        </button>
-      )}
-    </div>
-  );
-}
-export function Drafts({
-  snapshot,
-  onError,
-}: Props & { snapshot: RecordData }) {
-  const [selected, setSelected] = useState<RecordData>(),
-    [text, setText] = useState(""),
-    [preview, setPreview] = useState(false),
-    [notice, setNotice] = useState(""),
-    [topic, setTopic] = useState(""),
-    [creating, setCreating] = useState(false);
-  return (
-    <div className="page">
-      <p className="eyebrow">{t("WORK IN PROGRESS")}</p>
-      <h1>{t("Saved drafts")}</h1>
-      <p className="muted">{t("Your posts and scripts, ready to edit, copy or export. Nothing is published automatically.")}</p>
-      {notice && (
-        <p role="status" className="notice">
-          {notice}
-        </p>
-      )}
-      {!selected && (
-        <>
-          <button onClick={() => setCreating(!creating)}>
-            {t("New draft")}
-          </button>
-          {creating && (
-            <section>
-              <label className="field">
-                {t("Title")}
-                <input
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                />
-              </label>
-              <textarea
-                className="editor"
-                aria-label={t("New draft text")}
-                dir="auto"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-              />
-              <button
-                disabled={!topic.trim() || !text.trim()}
-                onClick={async () => {
-                  try {
-                    const result = await call("drafts.create", {
-                      topic,
-                      text,
-                      language: /[\u0600-\u06ff]/.test(text) ? "ar" : "en",
-                    });
-                    const detail = await call("drafts.detail", {
-                      draft_id: result.draft_id,
-                    });
-                    setSelected({ id: result.draft_id, topic, ...detail });
-                    setCreating(false);
-                    setNotice("Draft created.");
-                  } catch (e) {
-                    onError(String(e));
-                  }
-                }}
-              >
-                {t("Create draft")}
-              </button>
-            </section>
-          )}
-        </>
-      )}
-
-      {selected ? (
-        <>
-          <button onClick={() => setSelected(undefined)}>
-            <ArrowLeft size={16} />
-            {t("All drafts")}
-          </button>
-          <h2>{selected.topic || selected.title}</h2>
-          <label className="field">
-            {t("Saved versions")}
-            <select
-              defaultValue={selected.draft?.current_version_id}
-              onChange={(e) =>
-                setText(
-                  selected.versions?.find(
-                    (v: RecordData) => v.id === e.target.value,
-                  )?.text || "",
-                )
-              }
-            >
-              {(selected.versions || []).map((v: RecordData) => (
-                <option key={v.id} value={v.id}>
-                  {new Date(v.created_at).toLocaleString()}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="segments">
-            <button onClick={() => setPreview(false)}>{t("Write")}</button>
-            <button onClick={() => setPreview(true)}>{t("Preview")}</button>
-          </div>
-          {preview ? (
-            <Markdown text={text} />
-          ) : (
-            <textarea
-              className="editor"
-              value={text}
-              dir="auto"
-              onChange={(e) => setText(e.target.value)}
-            />
-          )}
-          <button
-            className="primary"
-            onClick={async () => {
-              try {
-                await call("drafts.save", { draft_id: selected.id, text });
-                setNotice("Draft saved.");
-              } catch (e) {
-                onError(String(e));
-              }
-            }}
-          >
-            {t("Save draft")}
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                await call("drafts.save", { draft_id: selected.id, text });
-                const path = await invoke<string>("export_draft", {
-                  draftId: selected.id,
-                });
-                setNotice("Exported to " + path);
-              } catch (e) {
-                onError(String(e));
-              }
-            }}
-          >
-            {t("Export Markdown")}
-          </button>
-          <button
-            onClick={() =>
-              void navigator.clipboard
-                .writeText(text)
-                .then(() => setNotice("Copied."))
-                .catch((e) => onError(String(e)))
-            }
-          >
-            {t("Copy text")}
-          </button>
-        </>
-      ) : (
-        <div className="source-list">
-          {(snapshot.drafts || []).map((d: RecordData) => (
-            <button
-              className="draft-row"
-              key={d.id}
-              onClick={async () => {
-                try {
-                  const r = await call("drafts.detail", { draft_id: d.id });
-                  setSelected({ ...d, ...r });
-                  setText(
-                    r.versions?.find(
-                      (v: RecordData) => v.id === r.draft.current_version_id,
-                    )?.text || "",
-                  );
-                } catch (e) {
-                  onError(String(e));
-                }
-              }}
-            >
-              <strong>{d.topic || d.title}</strong>
-              <small>{({x_post:"X",linkedin:"LinkedIn",youtube_long:"YouTube",shorts:t("Short video"),reels:"Reels",tiktok:"TikTok"} as Record<string,string>)[d.format] || d.format}</small>
-              <ArrowUpRight size={16} />
-            </button>
-          ))}
-          {!snapshot.drafts?.length && (
-            <div className="empty">
-              <h2>{t("Make something worth keeping.")}</h2>
-              <p>
-                {t(
-                  "Ask the assistant to write a post or script. Saved drafts appear here.",
-                )}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+export { SourcesPage as Sources } from "./sources-page";
+export { DraftsPage as Drafts } from "./drafts-page";

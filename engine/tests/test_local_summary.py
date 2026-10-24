@@ -26,7 +26,7 @@ def test_local_queue_not_limited_by_cloud_budget_and_invalidates_cache(service):
             return ArticleSummary(summary='ملخص المقالة.')
         local.run=run
         service.news_digest.configure({'enabled':True,'engine':'local','local_model':'custom:small','daily_limit':1})
-        service.news_digest.device_state({'thermal':'nominal','low_power':False})
+        service.news_digest.device_state({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False})
         service.news_digest.cache.reserve(1)
         assert await service.news_digest.prepare_next()
         assert calls==['custom:small']
@@ -193,3 +193,23 @@ def test_downloaded_models_survive_stopped_runtime(service,monkeypatch):
     assert result['installed']==[{'id':'example:small','size':5}]
     blob.write_bytes(b'incomplete')
     assert asyncio.run(local.refresh())['installed']==[]
+
+def test_shared_inventory_keeps_both_capabilities_and_unknown_models(service, monkeypatch):
+    import httpx
+    local = service.news_digest.local
+    local.installed = {'search:small': 100, 'writer:small': 200, 'offline:small': 300, 'remote:small': 400}
+    local.executable = lambda: 'managed'
+    async def start(): pass
+    local.start_runtime = start
+    async def post(self, url, **kwargs):
+        name = kwargs['json']['model']
+        if name == 'offline:small': raise httpx.ConnectError('unavailable')
+        info = {'capabilities': ['embedding'] if name == 'search:small' else ['completion']}
+        if name == 'remote:small': info['remote_host'] = 'cloud'
+        return httpx.Response(200, json=info, request=httpx.Request('POST', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'post', post)
+    rows = asyncio.run(local.available(''))['installed']
+    assert [row['id'] for row in rows] == ['search:small', 'writer:small', 'offline:small']
+    assert rows[2]['capabilities'] is None
+    assert local.capabilities['search:small'] == ['embedding']
+    assert [row['id'] for row in asyncio.run(local.available('embedding'))['installed']] == ['search:small']

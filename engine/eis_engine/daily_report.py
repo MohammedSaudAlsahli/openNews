@@ -91,7 +91,7 @@ class DailyReports:
                     if digest.budget.phase(): raise Failure('BUSY','بانتظار جاهزية الجهاز لإعداد التقرير.')
                     profile = {'id':'local-summary','model_id':assignment['model_id']}
                 else:
-                    if not digest.cache.reserve(digest.settings()['daily_limit']): raise Failure('BUSY','وصلت إلى حد طلبات اليوم.')
+                    digest.cache.record()
                     profile = self.service.profile(assignment['profile_id']) | {'model_id':assignment['model_id']}
                 digest.interrupt_for_user()
                 evidence = [{**r,'text':(r['text'] or r['summary'])[:1200],'excerpt':True} for r in rows[:20]]

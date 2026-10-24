@@ -13,6 +13,77 @@ from .feed_parser import HTMLInfo
 from .storage import now, uid
 
 class NewsReaderMixin:
+    def save_reddit_post(self, identifier, entry):
+        """Persist post content under its permalink, preserving flags and history."""
+        from .news_archive import identity
+        from .reddit_posts import post_url
+        row = self.article(identifier, mark_read=False)
+        url = post_url(entry['url'])
+        if not url or entry['reader'].get('origin') != 'reddit':
+            raise Failure('VALIDATION_ERROR', 'منشور Reddit غير صالح.')
+        self.archive.capture(identifier)
+        guid = entry.get('guid', row['guid'])
+        self.db.execute("UPDATE news_articles SET url=?,guid=?,summary=?,text=?,body_status='full',reader_json=? WHERE id=? AND workspace_id=?",
+                        (url,guid,entry['summary'],entry['full_text'],json.dumps(entry['reader']),identifier,self.ws))
+        if row['url'] != url:
+            self.db.execute('DELETE FROM news_article_identities WHERE workspace_id=? AND url=? AND article_id=?',
+                            (self.ws,identity(row['url']),identifier))
+        self.db.execute('UPDATE news_article_origins SET article_id=? WHERE subscription_id=? AND guid=?',
+                        (identifier,row['subscription_id'],guid))
+        self.archive.register(identifier,row['subscription_id'],guid,url)
+        self.archive.capture(identifier)
+
+    def repair_reddit_posts(self):
+        """Restore legacy misdirected posts from retained feed text, without network."""
+        from .article_reader import READER_VERSION
+        from .reddit_posts import saved_post_url, mark_reader
+        rows = self.store.rows("""SELECT a.* FROM news_articles a JOIN news_subscriptions s ON s.id=a.subscription_id
+            WHERE a.workspace_id=? AND s.kind IN ('reddit','reddit_rss')
+            AND coalesce(json_extract(a.reader_json,'$.origin'),'')!='reddit'""", (self.ws,))
+        for row in rows:
+            url = saved_post_url(row)
+            if not url or not row['summary'].strip(): continue
+            import re
+            post_id = re.search(r'/comments/([A-Za-z0-9]+)',url)[1]
+            guid = 't3_' + post_id if row['guid'].startswith('t3_') else row['guid']
+            collision = self.store.one('SELECT id FROM news_articles WHERE subscription_id=? AND (url=? OR guid=?) AND id!=?',
+                                       (row['subscription_id'],url,guid,row['id']))
+            if collision: continue  # Never delete or merge user records during repair.
+            reader = json.loads(row['reader_json'] or '{}')
+            if reader.get('origin') == 'feed' and row['url'] == url:
+                body = row['text'] or row['summary']
+            else:
+                body = row['summary']
+                reader = {'version':READER_VERSION,'blocks':[{'type':'text','text':body}],
+                          'reddit_needs_refresh':True}
+            mark_reader(reader,url)
+            with self.db:
+                self.save_reddit_post(row['id'],{'url':url,'guid':guid,'summary':row['summary'],'full_text':body,'reader':reader})
+
+    async def read_reddit_post(self, row, force=False):
+        from .article_reader import READER_VERSION
+        from .reddit_posts import saved_post_url
+        from .feed_parser import parse_feed
+        reader = row['reader']
+        if not force and reader.get('origin') == 'reddit' and reader.get('version',1) >= READER_VERSION and not reader.get('reddit_needs_refresh'):
+            return row
+        if not force and reader.get('reddit_retry_after',0) > time.time(): return row
+        url = saved_post_url(row)
+        try:
+            if not url: return row
+            response = await self.fetch(url.rstrip('/') + '/.rss', None)
+            _, entries = parse_feed(response['body'], response['url'], 'reddit')
+            entry = next((e for e in entries if e['guid'] == row['guid'] or e['url'].rstrip('/') == url.rstrip('/')), None)
+            if entry is None: raise NewsError('لم يتوفر نص المنشور الأصلي في الخلاصة.')
+            with self.db: self.save_reddit_post(row['id'],entry)
+        except asyncio.CancelledError: raise
+        except Exception:
+            reader.update(refresh_failed=True,reddit_retry_after=time.time()+6*3600)
+            with self.db:
+                self.db.execute('UPDATE news_articles SET reader_json=? WHERE id=? AND workspace_id=?',
+                                (json.dumps(reader),row['id'],self.ws))
+        return self.article(row['id'],mark_read=False)
+
     async def import_article(self, address):
         """Attach a public article to chat without subscribing to its entire site."""
         url = canonical_url(address)
@@ -55,14 +126,18 @@ class NewsReaderMixin:
 
     async def reader(self, identifier, force=False):
         # Upgrade older saved text on first reading, without touching model context.
+        from .article_reader import READER_VERSION
         lock = self.reader_locks.setdefault(identifier, asyncio.Lock())
         async with lock:
             row = self.article(identifier, mark_read=False)
-            if not force and row["body_status"] == "full" and row["reader"].get("origin") == "feed" and row["reader"].get("version", 1) >= 4:
+            if row['source_kind'] in {'reddit','reddit_rss'} or row['reader'].get('origin') == 'reddit':
+                return await self.read_reddit_post(row, force)
+            current_format = row["reader"].get("version", 1) >= READER_VERSION
+            if not force and row["body_status"] == "full" and row["reader"].get("origin") == "feed" and current_format:
                 return row
             checked = row["reader"].get("checked_at")
-            if not force and checked and row["reader"].get("version", 1) >= 4:
-                if row["reader"].get("origin") == "article" or row["body_status"] == "full":
+            if not force and checked and (current_format or row["reader"].get("refresh_failed")):
+                if current_format and (row["reader"].get("origin") == "article" or row["body_status"] == "full"):
                     return row
                 try:
                     if datetime.now(timezone.utc) - datetime.fromisoformat(checked) < timedelta(hours=6):
@@ -100,6 +175,7 @@ class NewsReaderMixin:
     def capture_public_reader(self, identifier, html):
         """Cache a rendered public article when ordinary HTTP extraction was incomplete."""
         row = self.article(identifier, mark_read=False)
+        if row['source_kind'] in {'reddit','reddit_rss'} or row['reader'].get('origin') == 'reddit': return row
         if row["body_status"] == "full": return row
         if row["body_status"] == "media_summary" or not isinstance(html, str) or len(html.encode("utf-8")) > 512 * 1024:
             raise Failure("VALIDATION_ERROR", "نص الصفحة غير صالح.")
