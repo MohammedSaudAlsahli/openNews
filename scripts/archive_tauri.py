@@ -15,9 +15,10 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, default=ROOT / 'build/release')
+parser.add_argument('--app', type=Path, default=ROOT / 'desktop/src-tauri/target/release/bundle/macos/openNews.app')
 args = parser.parse_args()
 version = json.loads((ROOT / 'desktop/package.json').read_text())['version']
-source = ROOT / 'desktop/src-tauri/target/release/bundle/macos/openNews.app'
+source = args.app.resolve()
 assert os.uname().machine == 'arm64', 'This distribution requires an arm64 build host'
 info = plistlib.loads((source / 'Contents/Info.plist').read_bytes())
 assert info['CFBundleShortVersionString'] == version
@@ -31,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='opennews-release-', dir='/tmp') as temp
     runtime = app / 'Contents/Resources/runtime'
     assert (runtime / 'OPENNEWS-LICENSE.txt').is_file()
     assert not list((runtime / 'engine').rglob('* 2.py')), 'Duplicate source copy in bundle'
-    subprocess.run(['lipo', '-verify_arch', 'arm64', str(app / 'Contents/MacOS' / info['CFBundleExecutable'])], check=True)
+    subprocess.run(['lipo', str(app / 'Contents/MacOS' / info['CFBundleExecutable']), '-verify_arch', 'arm64'], check=True)
     address = temp / 'engine.sock'
     environment = {'HOME': str(temp), 'PATH': '/usr/bin:/bin', 'LANG': 'en_US.UTF-8', 'AGNO_TELEMETRY': 'false'}
     process = subprocess.Popen([str(runtime / 'python/bin/python3.12'), '-I', '-B', str(runtime / 'engine/bootstrap.py'), '--workspace', str(temp / 'workspace'), '--socket', str(address)], env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
