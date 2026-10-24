@@ -7,7 +7,7 @@ dependencies = [
     "agno==3.1.2",
     "pydantic==2.14.0",
     "sqlite-vec==0.1.9",
-    "openai==3.28.0",
+    "openai==3.36.0",
     "anthropic==1.13.0",
     "httpx==0.28.1",
     "pyjwt[crypto]==2.15.1",
