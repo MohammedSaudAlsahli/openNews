@@ -11,6 +11,6 @@ The supported Tauri interface covers conversations, articles, reader/history, so
 
 ## Observed before release preparation
 
-Frontend: 389 tests passed; engine: 514 tests passed. The final isolated native run completed 31 checkpoints with `PASSED`. Native QA and these counts are observations from the October 25 local validation; current CI is authoritative for each published commit. Browser review included Arabic/English, both themes and widths of 1440, 860 and 390 pixels. The 390px fixture is a layout stress test, not a mobile application claim.
+Frontend: 389 tests passed; engine: 497 tests passed (source-only collection, excluding local FileProvider copies). The final isolated native run completed 31 checkpoints with `PASSED`. Native QA and these counts are observations from the October 25 local validation; current CI is authoritative for each published commit. Browser review included Arabic/English, both themes and widths of 1440, 860 and 390 pixels. The 390px fixture is a layout stress test, not a mobile application claim.
 
 These checks do not establish real-model answer quality, performance/heat on every Mac, clean-machine Gatekeeper acceptance, Apple notarization or a real two-version automatic upgrade. Local screenshots, personal data and session logs are deliberately excluded from Git.

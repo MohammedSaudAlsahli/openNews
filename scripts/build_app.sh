@@ -9,3 +9,8 @@ uv export --project engine --frozen --no-dev --no-emit-project --format requirem
 engine/.venv/bin/python desktop/scripts/stage-runtime.py
 npm --prefix desktop ci
 npm --prefix desktop run tauri -- build --bundles app
+# Seal the complete app after Tauri has assembled its embedded resources.
+# The arm64 executable's linker signature alone does not seal an app bundle.
+APP="$ROOT/desktop/src-tauri/target/release/bundle/macos/openNews.app"
+codesign --force --sign - "$APP"
+codesign --verify --deep --strict "$APP"

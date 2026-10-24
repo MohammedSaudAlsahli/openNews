@@ -18,7 +18,9 @@ if not args.app:
     for package in ('numpy','pandas'):
         for tests in sorted((site/package).rglob('tests'),key=lambda p:len(p.parts),reverse=True):
             if tests.is_dir(): shutil.rmtree(tests)
-shutil.copytree(root/'engine',target/'engine',dirs_exist_ok=True,ignore=shutil.ignore_patterns('.venv','__pycache__','tests','.pytest_cache','* 2.py'))
+# Replace generated sources so removed files and FileProvider copies cannot linger.
+if (target/'engine').exists(): shutil.rmtree(target/'engine')
+shutil.copytree(root/'engine',target/'engine',ignore=shutil.ignore_patterns('.venv','__pycache__','tests','.pytest_cache','* 2.py'))
 shutil.copy2(root/'LICENSE',target/'OPENNEWS-LICENSE.txt')
 shutil.copy2(root/'THIRD_PARTY_NOTICES.md',target/'THIRD_PARTY_NOTICES.md')
 print('Staged embedded CPython and current engine. No user data copied.')
