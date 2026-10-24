@@ -848,7 +848,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/f3/ff/c9baf0997266d398a
 
 [[package]]
 name = "ibm-watsonx-ai"
-version = "1.8.0"
+version = "1.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cachetools" },
@@ -862,9 +862,9 @@ dependencies = [
     { name = "tabulate" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4b/c1/49489cbb417206e35b85250c8b03d8ac65ddf9ba521710f60175ce599134/ibm_watsonx_ai-1.8.0.tar.gz", hash = "sha256:e2a11b4146b5942a58ccbdb63bc64c18889969e73f80a31216bf683fa42419e3", size = 742250, upload-time = "2026-09-29T08:54:57.715Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/64/cf42941f4314d0c2b91f9d83287ee5ffbab4ccbb416799744e52964c9199/ibm_watsonx_ai-1.8.1.tar.gz", hash = "sha256:cc656728da7d7b2e6461bdf340f5244194f6eb047b18343c38ee33c017560073", size = 742134, upload-time = "2026-10-21T20:12:39.343Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/4b/cc5a3bbd795a03e653ea2fad6d26456107e3295b787439afdccd480268a7/ibm_watsonx_ai-1.8.0-py3-none-any.whl", hash = "sha256:26885d661679ffc032a4102d60b0cb34cc3dca3e9e61ffa29a3c6cac30e6eab4", size = 1130617, upload-time = "2026-09-29T08:54:56.189Z" },
+    { url = "https://files.pythonhosted.org/packages/83/9f/443b48efba0f636a470b31645e44fe6960601b8c87e5e87b8336b0d44981/ibm_watsonx_ai-1.8.1-py3-none-any.whl", hash = "sha256:d8e1a06e58455a7515bc1c3fe585bd3f115ed15e648d1e5325aee06765e646ef", size = 1130680, upload-time = "2026-10-21T20:12:37.895Z" },
 ]
 
 [[package]]
@@ -1043,14 +1043,14 @@ wheels = [
 
 [[package]]
 name = "lomond"
-version = "0.3.4"
+version = "0.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "six" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/98/8118ebb05b6f1a3c45e8ebf0b7a745ce818919cc2c47ed9f68d01cd84b9b/lomond-0.3.4.tar.gz", hash = "sha256:250202a83ba45e3b265bf5dfef4db54d9c46b981230579dbe3b453dad320ba71", size = 50858, upload-time = "2026-09-18T12:05:28.521Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/9e/ef7813c910d4a893f2bc763ce9246269f55cc68db21dc1327e376d6a2d02/lomond-0.3.3.tar.gz", hash = "sha256:427936596b144b4ec387ead99aac1560b77c8a78107d3d49415d3abbe79acbd3", size = 28789, upload-time = "2018-09-21T15:17:43.297Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/ce/2738e533c379bff586902763e62432f37782da955f68d7bcc0f131edffe9/lomond-0.3.4-py2.py3-none-any.whl", hash = "sha256:a63de62d1887e5038f51ce79b6aedbf31d4cac6e7cb135f592ddec9fff6a53cd", size = 37207, upload-time = "2026-09-18T12:05:26.783Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/b1/02eebed49c754b01b17de7705caa8c4ceecfb4f926cdafc220c863584360/lomond-0.3.3-py2.py3-none-any.whl", hash = "sha256:df1dd4dd7b802a12b71907ab1abb08b8ce9950195311207579379eb3b1553de7", size = 35512, upload-time = "2018-09-21T15:17:38.686Z" },
 ]
 
 [[package]]
