@@ -112,3 +112,25 @@ def test_persisted_summary_and_model_are_returned_after_engine_restart(service):
             assert not await reopened.news_digest.prepare_next()
         finally: reopened.store.close()
     asyncio.run(run())
+
+
+def test_cached_preview_does_not_wait_behind_an_unrelated_slow_fetch(service):
+    async def run():
+        import json,time
+        link(service)
+        with service.db:
+            service.db.execute('INSERT INTO summary_web_cache VALUES(?,?,?,?)',(service.ws,URL,json.dumps({'status':'read','text':'Saved source text.','title':'Saved report'}),time.time()))
+        started,finish=asyncio.Event(),asyncio.Event()
+        async def fetch(url,_):
+            started.set();await finish.wait()
+            return {'url':url,'headers':{'content-type':'text/plain'},'body':b''}
+        service.news.fetch=fetch
+        pending=asyncio.create_task(service.news_digest.evidence.source('https://slow.example/report'))
+        await started.wait()
+        try:
+            preview=await asyncio.wait_for(service.dispatch('news.link.preview',{'article_id':'story','url':URL}),.1)
+            assert preview['cached'] and preview['title']=='Saved report'
+            assert not pending.done()
+        finally:
+            finish.set();await pending
+    asyncio.run(run())

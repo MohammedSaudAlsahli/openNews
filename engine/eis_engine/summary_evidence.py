@@ -110,6 +110,10 @@ class SummaryEvidence:
             if phase: raise Failure('RESOURCE_WAIT', phase)
 
     async def source(self, url):
+        # Saved previews must not wait behind an unrelated network request.
+        cached = self.service.store.one('SELECT payload,checked FROM summary_web_cache WHERE workspace_id=? AND url=?',(self.ws,url))
+        if cached and time.time()-cached['checked'] < 86400:
+            return json.loads(cached['payload'])
         # Hover previews and automatic summaries share one bounded fetch/cache.
         async with self.source_lock:
             return await self._source(url)
