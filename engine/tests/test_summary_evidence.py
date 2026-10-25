@@ -179,3 +179,22 @@ def test_short_complete_news_enters_the_queue_with_publication_context(service):
         assert seen[0]['published_at']=='2026-10-25T08:00:00Z'
         assert service.news_digest.preview('story','en')
     asyncio.run(run())
+
+
+def test_legacy_saved_summary_stays_visible_while_new_tldr_is_queued(service):
+    from eis_engine.storage import digest,encode
+    async def run():
+        await configure(service)
+        article=service.news.article('story',mark_read=False)
+        assignment=service.news_digest.assignment()
+        service.news_digest.cache.save(article,'en',assignment,'A previously saved explanation.')
+        old_hash=digest('explanation-3:'+encode({k:article.get(k) for k in ('title','url','published_at','text','body_status')}))
+        with service.db: service.db.execute("UPDATE news_digest_results SET source_hash=?,source_revision=0 WHERE article_id='story'",(old_hash,))
+        previous=service.news_digest.preview('story','en')
+        assert previous['needs_refresh'] and previous['coverage']['limited']
+        assert service.news_digest.status()['pending']==1
+        assert await service.news_digest.prepare_next()
+        assert not service.news_digest.preview('story','en').get('needs_refresh')
+        with service.db: service.db.execute("UPDATE news_articles SET text=text||' Changed text.' WHERE id='story'")
+        assert service.news_digest.preview('story','en') is None
+    asyncio.run(run())

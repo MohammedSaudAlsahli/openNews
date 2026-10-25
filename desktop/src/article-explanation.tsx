@@ -36,7 +36,7 @@ export function ArticleExplanation({
     setResult(article.prepared_summary || {});
   }, [article.prepared_summary]);
   useEffect(() => {
-    if (result.summary || busy || !configured) return;
+    if ((result.summary && !result.needs_refresh) || busy || !configured) return;
     let live = true,
       polling = false;
     const timer = setInterval(async () => {
@@ -56,7 +56,7 @@ export function ArticleExplanation({
       live = false;
       clearInterval(timer);
     };
-  }, [article.id, result.summary, busy, configured]);
+  }, [article.id, result.summary, result.needs_refresh, busy, configured]);
   async function generate() {
     setBusy(true);
     setError("");

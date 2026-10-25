@@ -35,7 +35,7 @@ async def summarize(service, params):
         raise Failure("VALIDATION_ERROR", "لغة غير صالحة.")
     article = service.news.article(params.get("article_id"), mark_read=False)
     prepared = service.news_digest.preview(article["id"], language)
-    if prepared:
+    if prepared and not prepared.get('needs_refresh'):
         return prepared
     evidence = article["text"] or article["summary"]
     if not evidence.strip():

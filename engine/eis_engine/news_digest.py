@@ -150,7 +150,17 @@ class NewsDigest:
         row = self.store.one('''SELECT a.*,r.source_hash,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id,r.evidence_json
             FROM news_articles a JOIN news_digest_results r ON r.article_id=a.id AND r.workspace_id=a.workspace_id
             WHERE a.workspace_id=? AND a.id=? AND r.summary!='' ''', (self.ws,article_id))
-        if not row or not self.cache.valid(row,language or self.settings()['language'],self.assignment()): return None
+        if not row: return None
+        selected_language, assignment = language or self.settings()['language'],self.assignment()
+        if not self.cache.valid(row,selected_language,assignment):
+            from .storage import digest, encode
+            old_hash = digest('explanation-3:'+encode({k:row.get(k) for k in ('title','url','published_at','text','body_status')}))
+            if (assignment and row['source_hash']==old_hash and row['saved_language']==selected_language
+                and row['model_id']==assignment['model_id'] and row['profile_id']==assignment['profile_id']
+                and matches_language(row['saved_summary'],selected_language)):
+                return {'summary':row['saved_summary'],'model':row['model_id'],'cached':True,
+                        'needs_refresh':True,'coverage':{'limited':True,'unvisited_links':0}}
+            return None
         import json
         return {**json.loads(row['evidence_json']),'summary':row['saved_summary'],'model':row['model_id'],'cached':True}
 
