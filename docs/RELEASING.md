@@ -4,7 +4,7 @@
 
 ## الأرقام والحدود
 
-المصدر الأساسي لإصدار التطبيق هو `desktop/package.json`. يجب تطابقه مع جذري `desktop/package-lock.json` و`desktop/src-tauri/tauri.conf.json` ونسخة حزمة التطبيق في `Cargo.toml` و`Cargo.lock`. `VERSION` و`BUILD_VERSION` و`appcast.xml` تخص سجل Swift؛ لا تستخدمها لإصدار Tauri. حزمة Python لها رقم داخلي مستقل.
+المصدر الأساسي لإصدار التطبيق هو `desktop/package.json`. يجب تطابقه مع جذري `desktop/package-lock.json` و`desktop/src-tauri/tauri.conf.json` ونسخة حزمة التطبيق في `Cargo.toml` و`Cargo.lock`. ملفات إصدار Swift وأدواته محفوظة في فرع `swift-legacy`؛ ليست جزءًا من مسار الإصدار الحالي. حزمة Python لها رقم داخلي مستقل.
 
 ## خطوات النشر
 
@@ -44,4 +44,4 @@ engine/.venv/bin/python desktop/scripts/test-update.py --prepared build/updater/
 
 قناة 0.3.0 فعّالة. يبقى اسم الملف ومعرّف البيانات والمفتاح القديم للتوافق مع التطبيقات المثبتة؛ لا يعني اسم `preview` أن الإصدار تجريبي. اختُبر الانتقال الفعلي من 0.3.0-preview.1 إلى 0.3.0 مع بقاء المقالة والمحادثة ونسخ المسودة والتعليمات وملفات اعتماد ونموذج اصطناعية. لا تضع المفتاح الخاص في GitHub أو CI أو السجلات ولا تنشئ مفتاحًا بديلًا. لا ندّعي تحديثًا تفاضليًا.
 
-توقيع Tauri يتحقق من أصالة التحديث، وهو مستقل عن توثيق Apple. قناة Swift وملف appcast التاريخي مستقلان؛ [إجراء Swift القديم](legacy/RELEASING.md) ليس مسار Tauri الحالي.
+توقيع Tauri يتحقق من أصالة التحديث، وهو مستقل عن توثيق Apple. قناة Tauri في `updates/` هي قناة الإصدار المدعومة. مراجع Swift السابقة محفوظة في فرع `swift-legacy`.

@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from .contracts import Failure
 
-# Independently written OpenStudio adapters; see docs/writing-skills.md for reviewed upstreams.
+# Independently written openNews adapters; see docs/writing-skills.md for reviewed upstreams.
 CATALOG = [
     ('linkedin', 'منشور LinkedIn', 'LinkedIn post', 'صياغة منشور مهني بأسلوبك', 'Write a professional post in your voice', 'linkedin'),
     ('x', 'منشور X', 'X post', 'فكرة واضحة في منشور قصير', 'One clear idea in a short post', 'x_posts'),

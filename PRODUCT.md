@@ -28,4 +28,4 @@ Arabic- and English-speaking readers follow news sources, read original articles
 
 ## Current redesign
 
-The 2026 Tauri redesign is the sole official, supported application. Swift is an archived implementation, with no parallel supported app releases. See docs/interface-redesign-2026.md for the complete acceptance inventory and evidence. A successful build alone does not prove all workflows or provider calls work. Browser QA fixtures are developer-only and do not ship with the production entry.
+The 2026 Tauri redesign is the sole official, supported application. Swift is an archived implementation, with no parallel supported app releases. See desktop/qa/README.md and CONTRIBUTING.md for verification workflows and boundaries. A successful build alone does not prove all workflows or provider calls work. Browser QA fixtures are developer-only and do not ship with the production entry.

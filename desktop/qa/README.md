@@ -16,7 +16,7 @@ These are fixture data, not actual downloads, provider requests or saved user re
 Build a separate QA bundle from `desktop/`:
 
 ```sh
-bun run tauri -- build --debug --config "$PWD/qa/tauri.conf.json"
+npm run tauri -- build --debug --config "$PWD/qa/tauri.conf.json"
 open --env OPENNEWS_NATIVE_QA=1 -n -a "$PWD/src-tauri/target/debug/bundle/macos/openNews.app"
 ```
 

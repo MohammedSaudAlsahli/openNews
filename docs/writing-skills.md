@@ -1,6 +1,6 @@
 # Writing skills and natural-language routing
 
-OpenStudio's composer defaults to **Auto**. Ask in Arabic or English; the conversation model chooses the relevant writing guide using the `load_editorial_skill` Agno tool. The catalog is small; full guide text is read only when selected. There is no extra classification-model call and no keyword classifier that treats every mention of a platform as a writing request.
+openNews's composer defaults to **Auto**. Ask in Arabic or English; the conversation model chooses the relevant writing guide using the `load_editorial_skill` Agno tool. The catalog is small; full guide text is read only when selected. There is no extra classification-model call and no keyword classifier that treats every mention of a platform as a writing request.
 
 Type `/` to search the menu, or use its `/` button without losing existing text. Arrow keys select, Enter/Tab insert a command, Escape closes the menu. Commands apply to one message. Explicit slash selection overrides the manual output format. A successful send returns the format control to Auto. Explicit manual formats remain available for that one request.
 
@@ -29,14 +29,14 @@ News-derived drafts must cite retrieved article IDs. Original/user-supplied cont
 
 ## Reviewed sources and implementation boundary
 
-Reviewed 2026-10-18. These are independently written, lightweight OpenStudio writing adapters informed by review of the projects below, **not installations of their complete plugins**. No upstream script, credentials, analytics connector, publishing API, or remote installer is executed. The adapters deliberately omit fixed engagement promises and mandatory intake interviews when context already answers the request.
+Reviewed 2026-10-18. These are independently written, lightweight openNews writing adapters informed by review of the projects below, **not installations of their complete plugins**. No upstream script, credentials, analytics connector, publishing API, or remote installer is executed. The adapters deliberately omit fixed engagement promises and mandatory intake interviews when context already answers the request.
 
 | Source | Reviewed revision / useful capability | Integration boundary |
 | --- | --- | --- |
 | [sergebulaev/linkedin-skills](https://github.com/sergebulaev/linkedin-skills) | `261240ac5c4da8b4465cbd364d14ce52ffed12ce`; post writing, voice, repurposing, planning | Native drafting guides; upstream Apify and Publora integration is not connected |
 | [sergebulaev/x-skills](https://github.com/sergebulaev/x-skills) | `ea61d1d0f8874dd20633d241d52a297d57099483`; posts, threads, hooks, rewriting | Local draft artifacts; no publishing or account analytics |
 | [AgriciDaniel/claude-youtube](https://github.com/AgriciDaniel/claude-youtube) | `84c3fa6805200632fadb4fe2795ef265511271c7`; scripts, hooks, thumbnail briefs, strategy | Writing guidance only; not channel analytics access or image generation |
-| [Clawdbot summarize listing](https://claudeskills.club/skills/summarize-by-clawdbot) and [steipete/summarize](https://github.com/steipete/summarize) | Source extraction and summary CLI; current upstream documents transcripts and optional media dependencies | Existing OpenStudio article reader remains in use. Universal YouTube/audio transcription and the external CLI are not installed |
+| [Clawdbot summarize listing](https://claudeskills.club/skills/summarize-by-clawdbot) and [steipete/summarize](https://github.com/steipete/summarize) | Source extraction and summary CLI; current upstream documents transcripts and optional media dependencies | Existing openNews article reader remains in use. Universal YouTube/audio transcription and the external CLI are not installed |
 
 ### Additional useful candidates found in the requested directories
 
@@ -47,7 +47,7 @@ Reviewed 2026-10-18. These are independently written, lightweight OpenStudio wri
 
 Directory security scores and popularity are discovery aids, not a compatibility audit. These additional candidates are documented recommendations, not silently installed packages. Complete external-skill import, updates and rollback remain separate from this built-in guide catalog.
 
-## Editing inside OpenStudio
+## Editing inside openNews
 
 Settings → Assistant & writing → Writing skills opens the library. Choose a skill to view its active guide and save edits. Existing local customizations are preserved; there is no need to open the instructions folder.
 

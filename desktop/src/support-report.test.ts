@@ -3,7 +3,7 @@ import { issueUrl } from './support-report';
 describe('GitHub report draft', () => {
   it('prefills the incident and diagnostics without submitting', () => {
     const url = new URL(issueUrl('openNews 0.3\noperation: feed.sync', 'UNEXPECTED_EXIT'));
-    expect(url.pathname).toBe('/MohammedSaudAlsahli/openStudio/issues/new');
+    expect(url.pathname).toBe('/MohammedSaudAlsahli/openNews/issues/new');
     expect(url.searchParams.get('body')).toContain('feed.sync');
     expect(url.searchParams.get('title')).toContain('UNEXPECTED_EXIT');
   });

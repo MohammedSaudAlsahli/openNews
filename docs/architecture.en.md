@@ -2,7 +2,7 @@
 
 [العربية](architecture.md) · [Documentation](README.en.md)
 
-Tauri is the supported app. The former architecture is preserved in [Swift history](legacy/architecture.md).
+Tauri is the supported app. The former architecture remains on [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
 
 ```text
 React / TypeScript → Tauri / Rust → Unix socket → Python / Agno → SQLite
@@ -23,3 +23,7 @@ Embedding and explanation workloads share local inference scheduling and perform
 Articles, skills and HTML are untrusted data. Fetching constrains public addresses and redirects; rendering sanitizes HTML. Skill import never executes repositories. A selected cloud provider receives the context required for its request.
 
 Verification comprises engine pytest tests, frontend Vitest tests, and Rust tests for IPC, persistence and a synthetic signed update. [Native QA](../desktop/qa/README.md) exercises real UI flows in a separate workspace. These gates do not establish performance on all hardware or a complete security audit.
+
+## Compatibility names
+
+The current app retains `com.editorialintelligence.studio.preview`, the internal `eis_engine` Python package, and historical executable/signing-key paths. These are active runtime and compatibility references, not additional former applications. Cosmetic renaming can disconnect data or updates. `engine/eis_engine/contracts.py` is the source of IPC contracts; unused generated JSON snapshots are not tracked.

@@ -217,7 +217,7 @@ class ChatGPTAuth:
         attempt["redirect_uri"]=f"http://127.0.0.1:{port}/auth/callback"
         self.attempts[attempt["id"]]=attempt
         attempt["timer"]=asyncio.get_running_loop().call_later(600,self.expire,attempt["id"])
-        params={"client_id":"dynamic_agent_client","agent_name_hint":"OpenStudio","ext_agent_host_id":host,
+        params={"client_id":"dynamic_agent_client","agent_name_hint":"openNews","ext_agent_host_id":host,
                 "response_type":"code","redirect_uri":attempt["redirect_uri"],"scope":SCOPES,"resource":RESOURCE,
                 "state":attempt["state"],"nonce":attempt["nonce"],"code_challenge_method":"S256",
                 "code_challenge":base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")}
@@ -248,7 +248,7 @@ class ChatGPTAuth:
     async def callback(self,attempt,reader,writer):
         status=400
         accepted=False
-        message="Sign-in could not be completed. Return to OpenStudio."
+        message="Sign-in could not be completed. Return to openNews."
         try:
             header=await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"),timeout=5)
             lines=header.decode("ascii").split("\r\n")
@@ -300,7 +300,7 @@ class ChatGPTAuth:
             s.connections.set(pid, "connected", reset=True)
             attempt["profile_id"]=pid
             self.finish(attempt,"complete")
-            status=200; message="Connected. Return to OpenStudio."
+            status=200; message="Connected. Return to openNews."
         except Exception:
             if accepted and attempt["status"]=="waiting": self.finish(attempt,"failed",ERROR)
         finally:

@@ -896,17 +896,12 @@ const ar: Record<string, string> = {
   "After hours": "داكن",
   "Quiet charcoal, readable text": "خلفية هادئة ونص واضح",
   "On your Mac. Under your control.": "على جهازك، وتحت تحكمك.",
-  "This preview has its own workspace. Your current app and its data remain separate.":
-    "لهذه النسخة التجريبية مساحة مستقلة عن تطبيقك الحالي وبياناته.",
   "Bring your original workspace": "استيراد مساحة التطبيق السابق",
-  "Quit the original OpenStudio first. Import copies your articles, conversations, credentials, models and cached images. Your current preview workspace is backed up; the original stays intact. Automatic explanations, indexing and reports are paused until you enable them again.":
-    "أغلق تطبيق OpenStudio السابق أولًا. ينسخ الاستيراد المقالات والمحادثات وبيانات الاتصال والنماذج والصور المخزنة. تُحفظ نسخة احتياطية من مساحة التجربة الحالية ويبقى الأصل كما هو. تتوقف الشروح والفهرسة والتقارير التلقائية حتى تعيد تفعيلها.",
   "Import original workspace": "استيراد المساحة السابقة",
   "Restore previous workspace": "استعادة المساحة السابقة",
   Storage: "التخزين",
   "Local SQLite": "قاعدة SQLite محلية",
   Engine: "المحرك",
-  "Preview updates": "تحديثات النسخة التجريبية",
   "Manual builds": "تثبيت يدوي",
   "Automatic updates and importing your existing workspace must pass a real upgrade test before this version replaces the native app.":
     "يجب التحقق من التحديثات التلقائية ونقل بياناتك في ترقية فعلية قبل أن تحل هذه النسخة محل التطبيق السابق.",

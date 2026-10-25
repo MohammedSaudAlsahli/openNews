@@ -21,6 +21,7 @@ credentials*.json
 *.key
 *.log
 .impeccable/
+.omc/
 docs/*results.txt
 
 # Tauri build products; the Python engine is staged by the packaging script.

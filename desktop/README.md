@@ -2,7 +2,7 @@
 
 React/TypeScript + Tauri 2 with the existing embedded CPython/Agno engine. The
 approved reading-room interface supports light/dark themes and Arabic/English.
-See [PARITY.md](PARITY.md) for feature coverage, evidence and release gates.
+See [architecture](../docs/architecture.en.md), [isolated QA](qa/README.md) and [release gates](../docs/RELEASING.en.md).
 
 ## Build and test
 

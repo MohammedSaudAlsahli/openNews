@@ -4,6 +4,7 @@ import base64
 from datetime import datetime
 from pathlib import Path
 import re
+import subprocess
 import tomllib
 from urllib.parse import unquote
 
@@ -32,9 +33,10 @@ if feed_path.exists():
     assert platform['url'] == expected_url, 'Unexpected signed-update destination'
     envelope = base64.b64decode(platform['signature'], validate=True).decode()
     assert 'trusted comment:' in envelope and '/Users/' not in envelope
-entries = [ROOT / name for name in ('README.md', 'README.en.md', 'CONTRIBUTING.md', 'CONTRIBUTING.en.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md', 'THIRD_PARTY_NOTICES.md')]
-entries += [ROOT / 'docs' / f'{name}{language}.md' for name in ('README', 'SETUP', 'privacy', 'architecture', 'packaging', 'RELEASING') for language in ('', '.en')]
-entries += [ROOT / 'docs/releases' / f'v{version}.md']
+entries = [ROOT / name for name in subprocess.check_output(
+    ['git', 'ls-files', '-z', '--', '*.md'], cwd=ROOT, text=True
+).split('\0') if name]
+assert (ROOT / 'docs/releases' / f'v{version}.md') in entries
 assert (ROOT / 'LICENSE').read_text().startswith('MIT License\n')
 for path in entries:
     content = path.read_text()

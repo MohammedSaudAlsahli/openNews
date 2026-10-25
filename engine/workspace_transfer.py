@@ -34,7 +34,7 @@ def transfer(source, destination):
     # Opening without truncation preserves the original lock file contents.
     with (source/'engine.lock').open('a') as lock:
         try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        except BlockingIOError: raise ValueError('Quit the original OpenStudio app before importing.') from None
+        except BlockingIOError: raise ValueError('Quit the original app before importing.') from None
         staging = Path(tempfile.mkdtemp(prefix='.import-',dir=destination.parent))
         backup = destination.parent/'backups'/('before-import-'+uuid.uuid4().hex)
         try:

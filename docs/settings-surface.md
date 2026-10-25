@@ -1,6 +1,6 @@
 # Settings surface
 
-Mode: Operate. User supplied DigUp0.6.1 screenshots and explicitly requested the same clarity and craft, with delegated implementation/design decisions. This is a code-led redesign of settings inside the existing openNews app, not a new product identity or generated image exercise.
+The settings surface uses compact, task-oriented groups within the existing openNews design system. The production components and `desktop/src/settings.css` define the current behavior.
 
 ## Direction contract
 

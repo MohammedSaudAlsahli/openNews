@@ -2,7 +2,7 @@
 
 [العربية](README.md) · [Home](../README.en.md)
 
-Tauri is the supported application. Start here. Files under `legacy/` and `swift-*-history.md` are historical, not current build instructions.
+These guides describe the supported Tauri application. The former application and its documentation remain on [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
 
 | Goal | Guide |
 |---|---|
@@ -14,6 +14,9 @@ Tauri is the supported application. Start here. Files under `legacy/` and `swift
 | Build the application | [Packaging](packaging.en.md) |
 | Publish a release | [Releasing](RELEASING.en.md) |
 | Changes | [Changelog](../CHANGELOG.md) |
+| Reading and saved articles | [Reader](article-reader.md) and [archive](news-archive.md) |
+| Models and local search | [Providers](providers.md) and [indexing](news-indexing.md) |
+| Conversations and instructions | [Conversation context](conversation-context.md) and [instructions](editorial-instructions.md) |
 | Writing skills | [Skills](writing-skills.md) and [skill interface](skills-surface.md) |
 | Settings and design | [Settings](settings-surface.md) and [design system](../DESIGN.md) |
 | Security reports | [Security policy](../SECURITY.md) |

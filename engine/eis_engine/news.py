@@ -123,7 +123,7 @@ def _fetch(url, conditional=None):
         timer = threading.Timer(remaining, expire)
         timer.daemon = True
         timer.start()
-        headers = {"User-Agent":"OpenStudio/0.1 (+public-feed-reader)", "Accept":"application/rss+xml, application/atom+xml, text/html;q=0.8, */*;q=0.1", "Accept-Encoding":"identity"}
+        headers = {"User-Agent":"openNews (+public-feed-reader)", "Accept":"application/rss+xml, application/atom+xml, text/html;q=0.8, */*;q=0.1", "Accept-Encoding":"identity"}
         if conditional and p.netloc == original_origin:
             for key in ("If-None-Match", "If-Modified-Since"):
                 value = conditional.get(key)

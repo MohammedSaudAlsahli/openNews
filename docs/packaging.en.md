@@ -8,4 +8,4 @@ Embedded native binaries are signed inside-out with ad-hoc signatures. CI verifi
 
 Output: `desktop/src-tauri/target/release/bundle/macos/openNews.app`. The current distribution builds on an Apple Silicon macOS runner. The declared minimum is 14.0; no supported Intel build is published.
 
-Ad-hoc signing is not Apple Developer ID signing or notarization. Release notes disclose that limitation without classifying the official release as a preview. Apple signing/notarization needs separate provisioning. Never use historical Swift scripts to publish Tauri. [Legacy packaging](legacy/packaging.md) is only for Swift maintenance.
+Ad-hoc signing is not Apple Developer ID signing or notarization. Release notes disclose that limitation without classifying the official release as a preview. Apple signing/notarization needs separate provisioning. The supported build and release path is Tauri-only; former application tooling remains on `swift-legacy`.

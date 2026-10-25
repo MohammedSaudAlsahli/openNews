@@ -4,7 +4,7 @@
 
 ## Version sources
 
-`desktop/package.json` is primary. Keep its version synchronized with both package roots in `desktop/package-lock.json`, `desktop/src-tauri/tauri.conf.json`, and the application package in `Cargo.toml`/`Cargo.lock`. Root `VERSION`, `BUILD_VERSION` and `appcast.xml` are historical Swift artifacts. The Python engine has an independent internal package version.
+`desktop/package.json` is primary. Keep its version synchronized with both package roots in `desktop/package-lock.json`, `desktop/src-tauri/tauri.conf.json`, and the application package in `Cargo.toml`/`Cargo.lock`. Former Swift version files and release tools remain on `swift-legacy`, outside the supported release path. The Python engine has an independent internal package version.
 
 ## Release gates
 
@@ -44,4 +44,4 @@ engine/.venv/bin/python desktop/scripts/test-update.py --prepared build/updater/
 
 The 0.3.0 channel is active. The historical filename, data identifier and key stay for installed-client compatibility; `preview` in these technical names does not classify the official release as experimental. The real 0.3.0-preview.1 to 0.3.0 upgrade is tested, including article, conversation, draft, settings and external credential/model sentinels. Never expose the private key in GitHub/CI/logs or replace it. No delta-download claim is made.
 
-Tauri update authentication is independent of Apple notarization. Leave the separate Swift appcast unchanged. The [historical Swift procedure](legacy/RELEASING.md) is not the current release path.
+Tauri update authentication is independent of Apple notarization. The feed in `updates/` is the supported release channel. Former Swift release references remain on `swift-legacy`.

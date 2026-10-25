@@ -1,6 +1,6 @@
 # Writing skill discovery and import
 
-Mode: Operate. This is an extension of the incumbent compact settings world, with no new concept/comp round. The user requested easier skill addition and specifically selected GitHub import and browsing ready-made skills on directory websites, including assistant-led discovery of useful skills.
+The skill library supports discovering guides, previewing their source and importing instructions from GitHub. It shares the compact settings design system.
 
 THESIS: Start with useful named guides, then let a user discover, inspect and add one without a terminal or model download. The assistant can help discover and assess a skill when asked; adding remains a visible user action.
 

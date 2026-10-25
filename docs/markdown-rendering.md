@@ -12,7 +12,7 @@ Explicit plain-text blocks and oversized blocks do not load the highlighting mod
 
 Footnote IDs are scoped to each renderer, so several replies can contain the same footnote labels without collisions. Footnote links scroll inside the corresponding rendered text rather than opening a browser. Normal links retain the app's external-link behavior.
 
-Verification: renderer tests cover the reported underline paragraph; literal and escaped HTML; twenty language/alias samples; streaming updates and preserved focus/scroll; unknown languages; copy success, failure and stale completions; optional-highlighter failure; nested Arabic lists and tables; safe HTML and unique footnote navigation; newsletter repair outside code. The browser-only `desktop/qa/formatting.html` fixture exercises production rendering in light/dark and Arabic/English without touching the user's workspace. Prior Swift implementation notes are retained in `swift-markdown-history.md`.
+Verification: renderer tests cover the reported underline paragraph; literal and escaped HTML; twenty language/alias samples; streaming updates and preserved focus/scroll; unknown languages; copy success, failure and stale completions; optional-highlighter failure; nested Arabic lists and tables; safe HTML and unique footnote navigation; newsletter repair outside code. The browser-only `desktop/qa/formatting.html` fixture exercises production rendering in light/dark and Arabic/English without touching the user's workspace.
 
 ## Publisher extraction regressions, 2026-10-24
 

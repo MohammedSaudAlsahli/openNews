@@ -10,5 +10,5 @@ export function articleIncidentText(incident: ArticleIncident) {
 export function issueUrl(report: string, code = "", article?: ArticleIncident) {
   const safeCode = /^[A-Z][A-Z_]{3,50}$/.test(code) ? code : "USER_REPORT";
   const body = `## What happened?\n${safeCode}\n\n${article ? articleIncidentText(article) + "\n" : ""}## Steps to reproduce (optional)\n\n## Diagnostics\n\`\`\`text\n${report.slice(-4500)}\n\`\`\`\n`;
-  return "https://github.com/MohammedSaudAlsahli/openStudio/issues/new?" + new URLSearchParams({title: `[openNews] ${safeCode}`, body}).toString();
+  return "https://github.com/MohammedSaudAlsahli/openNews/issues/new?" + new URLSearchParams({title: `[openNews] ${safeCode}`, body}).toString();
 }

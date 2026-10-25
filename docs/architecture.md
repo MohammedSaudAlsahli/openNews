@@ -2,7 +2,7 @@
 
 [English](architecture.en.md) · [التوثيق](README.md)
 
-نسخة Tauri هي المعتمدة. التصميم السابق محفوظ في [مرجع Swift](legacy/architecture.md).
+نسخة Tauri هي المعتمدة. التصميم السابق محفوظ في [فرع Swift](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
 
 ```text
 React / TypeScript → Tauri / Rust → Unix socket → Python / Agno → SQLite
@@ -23,3 +23,7 @@ React / TypeScript → Tauri / Rust → Unix socket → Python / Agno → SQLite
 المقالات والمهارات وHTML بيانات غير موثوقة. تقيد طبقة الجلب الروابط العامة والتحويلات؛ يمر العرض عبر تنقية HTML. استيراد المهارات لا ينفّذ مستودعاتها. استخدام مزوّد سحابي ينقل السياق اللازم إلى ذلك المزوّد.
 
 الفحوصات مقسمة إلى pytest للمحرك، وVitest للواجهة، واختبارات Rust للجسر والاستمرارية والتحديث الموقّع الاصطناعي. [QA الأصلي](../desktop/qa/README.md) يتحقق من استخدام الواجهة في مساحة منفصلة. مرور هذه الفحوصات ليس إثباتًا لأداء كل جهاز أو تدقيق أمني شامل.
+
+## أسماء التوافق
+
+تحتفظ النسخة الحالية بمعرّف `com.editorialintelligence.studio.preview`، وحزمة Python الداخلية `eis_engine`، وبعض أسماء التنفيذ وموقع مفتاح التحديث التاريخية. هذه مراجع تشغيل وتوافق فعلية وليست تطبيقات قديمة إضافية. تغييرها تجميليًا قد يفصل البيانات أو يقطع التحديثات. مصدر عقود IPC هو `engine/eis_engine/contracts.py`؛ لا تُحفظ نسخ JSON مولّدة غير مستخدمة منها.

@@ -37,6 +37,18 @@ Articles, conversations and drafts are stored in a local workspace. A cloud acco
 
 The data identifier remains `com.editorialintelligence.studio.preview` for compatibility. The historical word `preview` in this path does not describe the release status. Do not delete the workspace during an upgrade.
 
+## Repository layout
+
+| Directory | Contents |
+|---|---|
+| `desktop/` | Tauri UI, native bridge, current brand sources and interface QA |
+| `engine/` | News, summaries and conversations engine, tests and lockfile |
+| `scripts/` | Build, verification, DMG packaging and official release publication |
+| `docs/` | Current Arabic/English documentation and Tauri release notes |
+| `updates/` | Signed update feed for installed applications |
+
+The former app, branding and tooling remain in [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy) and Git history. They are not needed to build the supported application.
+
 ## Develop
 
 Requirements: macOS, Xcode Command Line Tools, Node.js 22, stable Rust, and uv with CPython 3.12.13.

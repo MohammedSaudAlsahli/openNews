@@ -1,20 +1,14 @@
-# OpenStudio mark
+# شعار openNews / openNews identity
 
-A single open rounded loop. The opening suggests an open workspace; its silhouette
-remains legible in the sidebar and menu bar. No lettering, sparkle or gradients.
+مصدر الشعار الحالي هو رمز الصحيفة في `app-icon.svg` و`mark.svg`. تستخدم الواجهة المسار نفسه في `desktop/src/brand.tsx`. ملفات المنصّة اللازمة للبناء موجودة فقط في `desktop/src-tauri/icons/`.
 
-- Application tile: warm white `#F4F1EB`, ink `#202321`.
-- Interface mark: `currentColor`, adapts to the existing light/dark themes.
-- Menu bar: transparent black template, tinted by macOS.
-- Keep the opening and generous clear space; do not add detail at small sizes.
+The current identity is the newspaper symbol. `app-icon.svg` supplies the application tile; `mark.svg` supplies the transparent monochrome mark. React uses the same geometry in `desktop/src/brand.tsx`. Required platform assets live in `desktop/src-tauri/icons/`.
 
-Sources: `app-icon.svg`, `mark.svg`. The React `BrandMark` uses the same path.
-Generate platform assets with the existing Tauri CLI (run from `desktop`):
+From the repository root, generate assets into a temporary directory:
 
-```
-npm run tauri -- icon brand/app-icon.svg -o /tmp/openstudio-icon-generated
-npm run tauri -- icon brand/mark.svg -p 32 -o /tmp/openstudio-mark
+```sh
+npm --prefix desktop run tauri -- icon brand/app-icon.svg -o /tmp/opennews-app-icons
+npm --prefix desktop run tauri -- icon brand/mark.svg -p 32 -o /tmp/opennews-tray-icon
 ```
 
-Copy `icon.png`, `icon.icns` into `src-tauri/icons`; copy `32x32.png` as `tray.png`.
-The native app's original assets remain separate while Tauri is a preview.
+Copy the app's `icon.png` and `icon.icns` into `desktop/src-tauri/icons/`, and the mark's `32x32.png` as `tray.png`. The tray is a template image tinted by macOS. Generated Windows, Android and iOS files are not tracked because those platforms are not currently distributed.
