@@ -65,6 +65,7 @@ class NewsDigest:
 
     def phase(self, setting, assignment, total, prepared, retry_at):
         if not setting['enabled']: return 'disabled'
+        if total == prepared: return 'ready' if total else 'waiting_articles'
         if not assignment: return 'needs_model'
         if self.current_title: return 'summarizing'
         if setting['engine']=='local' and self.budget.phase(): return self.budget.phase()
@@ -74,7 +75,6 @@ class NewsDigest:
             else: self.service.validate_model(assignment['profile_id'], assignment['model_id'])
         except Failure: return 'needs_model'
         if self.service.model_lock.locked(): return 'waiting_model'
-        if total == prepared: return 'ready' if total else 'waiting_articles'
         if retry_at > time.time(): return 'retrying'
         return 'queued'
 
@@ -173,7 +173,7 @@ class NewsDigest:
             return None
         import json
         return {**json.loads(row['evidence_json']),'summary':row['saved_summary'],'model':row['model_id'],
-                'generated_at':row['generated_at'],'cached':True}
+                'generated_at':None if evidence.get('legacy_timestamp_unknown') else row['generated_at'],'cached':True}
 
     def interrupt_for_user(self):
         knowledge = getattr(getattr(self.service,'news',None),'knowledge',None)
@@ -267,13 +267,15 @@ class NewsDigest:
         assignment, setting = self.assignment(), self.settings()
         states = {}
         for identifier in ids:
-            row = self.store.one("""SELECT a.*,r.source_hash,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id,r.retry_after
+            row = self.store.one("""SELECT a.id,a.body_status,d.revision,r.source_revision,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id,r.retry_after
                 FROM news_articles a LEFT JOIN news_digest_results r ON r.article_id=a.id AND r.workspace_id=a.workspace_id
+                JOIN news_digest_sources d ON d.article_id=a.id
                 WHERE a.workspace_id=? AND a.id=?""", (self.ws,identifier))
             if not row: continue
             valid = self.cache.valid(row,setting['language'],assignment)
             states[identifier] = ('summarizing' if identifier==self.current_id else
                 'ready' if valid and row['saved_summary'] else
+                'outdated' if row['saved_summary'] else
                 'retrying' if valid and (row['retry_after'] or 0)>time.time() else
                 'incomplete' if row['body_status']!='full' else 'pending')
         return {'states':states}

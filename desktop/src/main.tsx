@@ -46,6 +46,7 @@ import { Markdown, Trace } from "./components";
 import { call, active, duration, language, type RecordData } from "./engine";
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 const Articles = lazy(() =>
   import("./pages").then((x) => ({ default: x.Articles })),
 );
@@ -92,6 +93,7 @@ export function App() {
     [ready, setReady] = useState(false),
     [error, setError] = useState("");
   const previousSidebar = useRef(sidebar);
+  const [sidebarMotion, setSidebarMotion] = useState(false);
   useEffect(() => {
     if (previousSidebar.current === sidebar) return;
     previousSidebar.current = sidebar;
@@ -139,6 +141,14 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("theme", theme);
+    // Match native macOS chrome to the reader's explicitly chosen appearance.
+    void (async () => {
+      try {
+        await getCurrentWindow().setTheme(theme === "dark" ? "dark" : "light");
+      } catch {
+        // Browser fixtures have no native window.
+      }
+    })();
   }, [theme]);
   useEffect(() => {
     const listener = listen<string>("navigate", (event) => {
@@ -506,6 +516,7 @@ ${f.text}
         event.key.toLowerCase() === "b"
       ) {
         event.preventDefault();
+        setSidebarMotion(false);
         setSidebar((s) => !s);
         return;
       }
@@ -581,7 +592,10 @@ ${f.text}
     }
   }
   return (
-    <div className={`app ${sidebar ? "" : "collapsed"}`}>
+    <div
+      className={`app ${sidebar ? "" : "collapsed"}`}
+      data-sidebar-motion={sidebarMotion ? "pointer" : undefined}
+    >
       <header className="window-chrome" data-tauri-drag-region>
         {!ready && (
           <span className="engine-starting" role="status">
@@ -594,7 +608,10 @@ ${f.text}
           page={page}
           onNavigate={setPage}
           onNew={() => choose("")}
-          onExpand={() => setSidebar(true)}
+          onExpand={(pointer = false) => {
+            setSidebarMotion(pointer);
+            setSidebar(true);
+          }}
           onHelp={() => {
             setReportCode("");
             setSupport(true);
@@ -619,7 +636,10 @@ ${f.text}
           <button
             title={t("Hide sidebar")}
             aria-label={t("Hide sidebar")}
-            onClick={() => setSidebar(false)}
+            onClick={(event) => {
+              setSidebarMotion(event.detail > 0);
+              setSidebar(false);
+            }}
           >
             <PanelLeftClose size={17} />
           </button>

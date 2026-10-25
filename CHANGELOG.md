@@ -1,5 +1,11 @@
 # سجل التغييرات / Changelog
 
+## 0.3.5 — 2026-10-25
+
+إصلاح اعتماد الملخصات القديمة المطابقة دون إعادة توليدها، وتوحيد حالات البطاقات والعدادات مع القارئ. يبقى الملخص الجاهز متاحًا عند توقف المعالجة للذاكرة أو الحرارة، ولا يعيد تبديل النموذج تلخيص الأرشيف. فصل شريط أزرار نافذة macOS عن فاصل التنقل، وتنسيق الشريط المصغّر وتلميحاته مع حركات قصيرة تحترم تقليل الحركة ولوحة المفاتيح.
+
+Reconcile matching legacy summaries without inference, and align card/coverage states with the reader. Saved summaries remain ready during resource waits; changing the future model retains the archive. Reserve the macOS title strip above the navigation divider, refine compact targets/tooltips, and add restrained pointer feedback with immediate keyboard and reduced-motion paths.
+
 ## 0.3.4 — 2026-10-25
 
 اعتماد تحسينات نسخة التطوير للاستخدام اليومي: كرت روابط بحدود واضحة، مقارنة أسطر المقال المضافة والمحذوفة مع سياق قابل للإظهار والنص المحفوظ، وشريط تنقّل مصغّر عند طيّ القائمة مع دعم لوحة المفاتيح. تبقى البيانات والملخصات والحسابات والنماذج في مساحتها الحالية. [التفاصيل / Details](docs/releases/v0.3.4.md).

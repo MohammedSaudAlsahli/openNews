@@ -2,6 +2,7 @@
 import asyncio
 import json
 import time
+import sqlite3
 from unittest.mock import patch, Mock
 from types import SimpleNamespace
 import httpx
@@ -118,13 +119,18 @@ def test_idle_digest_poll_and_status_never_load_article_bodies(service,monkeypat
     row=digest.cache.candidate('en',assignment,time.time())
     digest.cache.save(row,'en',assignment,'A complete English summary with verified context.')
     traced=[];service.db.set_trace_callback(traced.append)
+    def metadata_only(action, table, column, *_):
+        return sqlite3.SQLITE_DENY if action==sqlite3.SQLITE_READ and table=='news_articles' and column=='text' else sqlite3.SQLITE_OK
+    service.db.set_authorizer(metadata_only)
     with patch('eis_engine.news_digest_cache.fingerprint',side_effect=AssertionError('Idle body hashing')):
         for _ in range(5):
             digest.status()
+            assert digest.article_states(['story'])['states']['story']=='ready'
             assert not digest.cache.has_pending('en',assignment,time.time())
             assert digest.cache.candidate('en',assignment,time.time()) is None
-    # Candidate SELECT has LIMIT 1; coverage itself reads metadata tables only.
-    assert all('LIMIT 1' in sql or 'news_articles' not in sql for sql in traced if sql.startswith('SELECT'))
+    # SQLite rejects body reads, including from the card-state path.
+    assert traced
+    service.db.set_authorizer(None)
     service.db.set_trace_callback(None)
 
 

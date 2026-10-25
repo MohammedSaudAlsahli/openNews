@@ -98,9 +98,13 @@ export function ArticleExplanation({
           <button
             className="tldr-regenerate"
             disabled={busy || blocked || !configured}
-            title={t(
-              "Generate again with your current summary model. Your saved summary stays until the new one is ready.",
-            )}
+            title={
+              blocked && configured
+                ? `${t("Your saved summary is ready.")} ${processingLabel(phase)}`
+                : t(
+                    "Generate again with your current summary model. Your saved summary stays until the new one is ready.",
+                  )
+            }
             onClick={() => void generate(true)}
           >
             {busy ? (
@@ -112,11 +116,6 @@ export function ArticleExplanation({
           </button>
         )}
       </header>
-      {!busy && blocked && result.summary && configured && (
-        <p className="tldr-regeneration-status" role="status">
-          {processingLabel(phase)}
-        </p>
-      )}
       {busy && result.summary && (
         <p className="tldr-regeneration-status" role="status">
           {t(

@@ -22,6 +22,12 @@ Model settings present a shared Ollama library and downloaded inventory. Capabil
 
 Assistant & writing lets you edit instructions and discover skills. Review the source and text before adding a skill. Imports use instructions only and never execute repository scripts. A skill may require unavailable tools, so import does not guarantee its complete functionality.
 
+## Saved summaries
+
+“Summary saved” means a stored summary matches the article content and summary language. Matching older summaries are reconciled once without a model request, retaining their prose, generating model and recorded timestamp. Changing the model for future articles does not regenerate the archive; use Regenerate summary inside an article when you want a replacement. A genuine source edit shows “Summary needs updating” and becomes eligible for background preparation.
+
+Memory and cooling waits apply to new work, not reading an existing summary. Regeneration may stay disabled to protect resources; its help text explains why. Requests sent today is app-observed activity, not the provider's allowance.
+
 ## Upgrade or migrate from Swift
 
 Open Privacy & updates, choose Check for updates, then Install and restart. The app verifies the archive signature and signed version before replacement; data remains outside the application bundle. For manual installation, quit openNews and replace the app in Applications using [GitHub Releases](https://github.com/MohammedSaudAlsahli/openNews/releases/latest). Keep the data directory.

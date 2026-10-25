@@ -52,6 +52,20 @@ function base(command: string, payload: any) {
   if (command === "news.summary.states") return { states: {} };
   return {};
 }
+it("refreshes saved-summary state when returning from the reader", async () => {
+  let state = "pending";
+  vi.mocked(call).mockImplementation(async (command, payload) => {
+    if (command === "news.summary.states") return { states: { one: state } };
+    if (command === "news.article") state = "ready";
+    return base(command, payload);
+  });
+  render(<Articles snapshot={{}} onError={vi.fn()} />);
+  fireEvent.click(await screen.findByRole("button", { name: "First article" }));
+  await screen.findByText("First explanation");
+  fireEvent.click(screen.getByRole("button", { name: "Articles" }));
+  await screen.findByText(/Summary saved/);
+  expect(screen.queryByText(/Not summarized yet/)).toBeNull();
+});
 it("opens explanation settings instead of enabling a missing model from the article list", async () => {
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
   vi.mocked(call).mockImplementation(async (command, payload) =>
