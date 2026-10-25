@@ -3,10 +3,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 CHANNEL="${1:---development}"
-TAURI_CONFIG=()
+TAURI_ARGS=(build --bundles app)
 case "$CHANNEL" in
   --development)
-    TAURI_CONFIG=(--config src-tauri/tauri.dev.conf.json)
+    TAURI_ARGS+=(--config src-tauri/tauri.dev.conf.json)
     APP_NAME="openNews Dev"
     ;;
   --release)
@@ -28,7 +28,7 @@ PYTHONPATH="$ROOT/engine" engine/.venv/bin/python scripts/generate_catalog.py
 uv export --project engine --frozen --no-dev --no-emit-project --format requirements-txt --output-file build/requirements.lock >/dev/null
 engine/.venv/bin/python desktop/scripts/stage-runtime.py
 npm --prefix desktop ci
-npm --prefix desktop run tauri -- build --bundles app "${TAURI_CONFIG[@]}"
+npm --prefix desktop run tauri -- "${TAURI_ARGS[@]}"
 # Seal the complete app after Tauri has assembled its embedded resources.
 # The arm64 executable's linker signature alone does not seal an app bundle.
 APP="$ROOT/desktop/src-tauri/target/release/bundle/macos/$APP_NAME.app"
