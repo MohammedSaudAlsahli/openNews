@@ -24,7 +24,7 @@ Assistant & writing lets you edit instructions and discover skills. Review the s
 
 ## Upgrade or migrate from Swift
 
-Quit openNews and replace the app in Applications with the new release. Keep the data directory. The signed automatic-update channel has not been activated; use [GitHub Releases](https://github.com/MohammedSaudAlsahli/openNews/releases/latest).
+Open Privacy & updates, choose Check for updates, then Install and restart. The app verifies the archive signature and signed version before replacement; data remains outside the application bundle. For manual installation, quit openNews and replace the app in Applications using [GitHub Releases](https://github.com/MohammedSaudAlsahli/openNews/releases/latest). Keep the data directory.
 
 For the former Swift app, quit it before importing the original workspace from privacy settings. Import copies data into Tauri and backs up the current Tauri workspace; the original stays intact. Automatic tasks in the imported copy stay paused until enabled. Verify the result before removing an older installation.
 
@@ -35,5 +35,5 @@ The compatibility path is `~/Library/Application Support/com.editorialintelligen
 - **No articles:** inspect source status, internet access and the feed URL. The site may refuse public retrieval.
 - **Missing model:** refresh Ollama inventory and inspect its service state and capabilities; retry in the same page.
 - **Indexing waits:** read the reason, such as battery, memory pressure or schedule. Keyword search stays available.
-- **Internal update check fails:** use the GitHub release. An unavailable channel does not prove you are up to date.
+- **Internal update check fails:** check connectivity and retry. If it persists, use the official GitHub download. A failed connection does not prove you are up to date.
 - **Need help:** open Help & diagnostics and review the report before sharing it. Remove keys, private content and personal paths.

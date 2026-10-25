@@ -84,3 +84,9 @@ its preview contains article context, and exports it through the actual Rust
 command. `REPORT_SAVED_<uuid>` identifies the exact generated file in Downloads:
 `openNews-diagnostics-<uuid>.txt`. Review that file and remove only this QA export
 after verification; never clean Downloads by a broad filename pattern.
+
+## Real signed update upgrade
+
+Prepare a CI-built release with `desktop/scripts/package-update.py`. After the native Cargo tests compile matching test-enabled crates, run `engine/.venv/bin/python desktop/scripts/test-update.py --prepared build/updater/vVERSION`. The standalone Rust harness reuses those crates without rebuilding the large Tauri resource tree. It clones the old app to `/tmp`, starts its packaged engine with synthetic data and a temporary HOME, rejects tampering and signed-version mismatch, installs the new bundle, and reopens its engine to verify persisted articles, conversations, drafts, instructions and external credential/model sentinels. No user workspace or live model is used.
+
+After publication, add `--public` to check the configured endpoint and download/verify the live artifact; it also verifies that the current version does not offer itself again. Validation JSON files contain shareable synthetic-check outcomes. Extracted bundles stay outside FileProvider-managed Documents so Finder metadata cannot invalidate their signatures.

@@ -1,0 +1,11 @@
+{
+  "version": "0.3.0",
+  "pub_date": "2026-10-24T22:31:53Z",
+  "notes": "تحديث openNews الرسمي مع إبقاء المقالات والحسابات والنماذج.\n\nOfficial openNews update; articles, accounts and downloaded models are retained.",
+  "platforms": {
+    "darwin-aarch64": {
+      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.0/openNews-0.3.0-macOS-arm64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MFhTWWxrbEJnZ1NjVXV5VFF2SnV0MVBZMmdhQzUvZGlVa2IvMWtOZUdqcXYwQUFscVRtSHlXTjAyN2FzdmFHdFFMWEJ2eUtzZU5uSmlOckJ3a1BFTmdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTEwMDkxCWZpbGU6b3Blbk5ld3MtMC4zLjAtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy4wCjI5cVk5SENpbHV1SldRdyszbVRzanVUQzFReWVHYittVWlJcjFQeVlKZ00vYS9NMzVZRlFUR2NDVitPNld6ck5palltVjNER3pPU1YvTmNqQlRyZUFRPT0K"
+    }
+  }
+}

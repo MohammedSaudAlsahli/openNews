@@ -25,8 +25,23 @@ gh workflow run release.yml -f tag=v0.3.0 -f run_id=CI_RUN_ID
 
 Use the green CI artifact, not the installed user app. SHA-256 checks integrity; it is not independent publisher authentication. Current CI does not access user accounts or run a live model.
 
-## Automatic updates and Swift history
+## Signed update channel
 
-GitHub publication is separate from the signed Tauri update channel. `desktop/scripts/package-update.py` creates a signed update locally using a private key outside the repository; it does not publish. Do not replace an existing channel key or expose it in CI/logs. A real two-version upgrade preserving data must pass before publishing its feed. The channel has not been activated; no delta-update claim is made. Leave the Swift appcast unchanged.
+A ZIP release alone does not update installed clients. After publishing the successful official build, prepare an updater archive from that exact release using the original owner key outside the repository:
 
-The [historical Swift procedure](legacy/RELEASING.md) is not the current release path.
+```sh
+engine/.venv/bin/python desktop/scripts/package-update.py --version 0.3.0
+engine/.venv/bin/python desktop/scripts/test-update.py --prepared build/updater/v0.3.0
+```
+
+The QA tool requires matching test-enabled Rust dependencies; run the native Cargo tests first on a new build machine. It upgrades two real bundles in temporary storage, rejects tampering and signed-version mismatch, then reopens the new packaged engine to verify synthetic persisted data.
+
+After success, append `.app.tar.gz`, `.sig`, `updater-SHA256SUMS`, build metadata and validation evidence to the same GitHub release without replacing published assets. Then copy the generated `tauri-preview.json` to `updates/tauri-preview.json` and push `main`. **Publish assets before promoting the feed.** Verify afterward:
+
+```sh
+engine/.venv/bin/python desktop/scripts/test-update.py --prepared build/updater/v0.3.0 --public
+```
+
+The 0.3.0 channel is active. The historical filename, data identifier and key stay for installed-client compatibility; `preview` in these technical names does not classify the official release as experimental. The real 0.3.0-preview.1 to 0.3.0 upgrade is tested, including article, conversation, draft, settings and external credential/model sentinels. Never expose the private key in GitHub/CI/logs or replace it. No delta-download claim is made.
+
+Tauri update authentication is independent of Apple notarization. Leave the separate Swift appcast unchanged. The [historical Swift procedure](legacy/RELEASING.md) is not the current release path.

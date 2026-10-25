@@ -55,7 +55,7 @@ Read the [contribution guide](CONTRIBUTING.en.md), [architecture](docs/architect
 
 ## Scope and limitations
 
-Review generated content yourself; a citation does not prove a claim is correct. The app does not publish content on your behalf. Some websites refuse public retrieval. Model speed, memory and heat depend on hardware and content; there is no general zero-heat or benchmark claim. Updates currently use replacement downloads from GitHub Releases; the signed automatic-update channel has not been activated.
+Review generated content yourself; a citation does not prove a claim is correct. The app does not publish content on your behalf. Some websites refuse public retrieval. Model speed, memory and heat depend on hardware and content; there is no general zero-heat or benchmark claim. Signed updates are available in app settings: check for an update, then choose Install and restart. Manual downloads from GitHub Releases remain available.
 
 ## Participate and license
 

@@ -31,13 +31,11 @@ a temporary nonpersistent WebKit helper; it cannot recover private/paywalled pag
 
 ## Signed updates
 
-Tauri is the official application. Its update channel is separate from legacy Sparkle and is not published yet.
-`python3 desktop/scripts/package-update.py` builds a signed archive locally using
+Tauri is the official application. Its signed update channel is separate from legacy Sparkle and is published at `updates/tauri-preview.json`. The historical filename and key remain for installed-client compatibility.
+`engine/.venv/bin/python desktop/scripts/package-update.py` prepares a signed archive from the verified CI-built GitHub release using
 an owner-only key outside the repository. It never publishes an update. Back up
 that release key securely; losing it prevents updates to this signed channel.
 No private key belongs in the repository, application, logs or CI artifact.
 
 A signed-fixture integration test verifies rejection of tampering and replacement
-of one bundle while preserving outside data. A real two-version upgrade and
-measured download size are still required before publishing automatic updates. No
-incremental/delta-download claim is made.
+of one bundle while preserving outside data. The real 0.3.0-preview.1 to 0.3.0 upgrade is checked with both packaged engines, synthetic persisted article/conversation/draft/instruction data and external credential/model sentinels. `desktop/scripts/test-update.py` also rejects signature tampering and signed-version mismatch. No incremental/delta-download claim is made.
