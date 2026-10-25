@@ -4,19 +4,43 @@ updates:
     directory: /desktop
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Security updates remain enabled; avoid unsolicited version-upgrade branches.
+    # The metadata-only workflow routes security PRs from main to develop.
+    open-pull-requests-limit: 0
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: cargo
     directory: /desktop/src-tauri
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Security updates remain enabled; avoid unsolicited version-upgrade branches.
+    # The metadata-only workflow routes security PRs from main to develop.
+    open-pull-requests-limit: 0
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: uv
     directory: /engine
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Security updates remain enabled; avoid unsolicited version-upgrade branches.
+    # The metadata-only workflow routes security PRs from main to develop.
+    open-pull-requests-limit: 0
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Security updates remain enabled; avoid unsolicited version-upgrade branches.
+    # The metadata-only workflow routes security PRs from main to develop.
+    open-pull-requests-limit: 0
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns: ["*"]

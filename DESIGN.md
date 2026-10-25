@@ -165,7 +165,7 @@ components:
 
 A calm conversation and reading workspace. The user explicitly requested ChatGPT-like conversation patterns and authorized replacing every interface element. Use established product controls: a labelled sidebar, neutral selection, a single conversation column, an autosizing composer, keyboard-operable popovers, and task-oriented settings. Article covers and source provenance give this product its identity.
 
-Conversation, source management, writing and settings use Operate mode. The article reader uses Read mode. Current React/Tauri code is authoritative; the former implementation is archived on the swift-legacy branch. Updated Taste app-screen guidance, Impeccable 4.7 and restrained motion principles informed this redesign.
+Conversation, source management, writing and settings use Operate mode. The article reader uses Read mode. Current React/Tauri code is authoritative; the former implementation is archived on the archive/swift-legacy tag. Updated Taste app-screen guidance, Impeccable 4.7 and restrained motion principles informed this redesign.
 
 The approved DigUp-inspired change is limited to settings: compact category navigation, tonal preference groups, restrained blue controls and truthful processing status. It retains the shared platform family, Arabic/English behavior and light/charcoal app surfaces. The implementation in desktop/src/settings.css and the settings components is authoritative for this exception; docs/settings-surface.md records the surface contract.
 

@@ -654,6 +654,10 @@ fn main() {
             export_draft
         ])
         .setup(|app| {
+            if cfg!(debug_assertions) && updates::official_channel(&app.config().identifier) {
+                return Err(std::io::Error::other("Use npm run app:dev for the isolated openNews Dev workspace").into());
+            }
+            let app_name = app.config().product_name.as_deref().unwrap_or("openNews").to_owned();
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(&directory)?;
             let marker = directory.join("session-active");
@@ -670,7 +674,7 @@ fn main() {
                     &tauri::menu::MenuItem::with_id(
                         app,
                         "open",
-                        "Open openNews",
+                        format!("Open {app_name}"),
                         true,
                         None::<&str>,
                     )?,
@@ -691,7 +695,7 @@ fn main() {
                     &tauri::menu::MenuItem::with_id(
                         app,
                         "quit",
-                        "Quit openNews",
+                        format!("Quit {app_name}"),
                         true,
                         None::<&str>,
                     )?,
@@ -700,7 +704,7 @@ fn main() {
             let tray = tauri::tray::TrayIconBuilder::new()
                 .icon(tauri::include_image!("icons/tray.png"))
                 .icon_as_template(true)
-                .tooltip("openNews")
+                .tooltip(&app_name)
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     if event.id.as_ref() == "quit" {
@@ -714,7 +718,7 @@ fn main() {
                                 "reader",
                                 tauri::WebviewUrl::App("index.html?reader=1".into()),
                             )
-                            .title("openNews · Reader")
+                            .title(format!("{} · Reader", app.config().product_name.as_deref().unwrap_or("openNews")))
                             .inner_size(500.0, 760.0)
                             .min_inner_size(400.0, 500.0)
                             .skip_taskbar(true)

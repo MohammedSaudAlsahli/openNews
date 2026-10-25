@@ -354,6 +354,8 @@ const ar: Record<string, string> = {
   "Preparing report…": "جارٍ تجهيز التقرير…",
   "Report saved": "تم حفظ التقرير",
   "Keyboard shortcuts": "اختصارات لوحة المفاتيح",
+  "Development workspace. Official app updates are disabled here; update the develop branch instead.":
+    "مساحة تطوير مستقلة. تحديثات النسخة الرسمية معطّلة هنا؛ حدّث فرع develop بدلًا منها.",
   "Updates replace openNews in place. Your articles, accounts and downloaded models stay in your workspace.":
     "تُحدّث النسخة الحالية من openNews مباشرةً. تبقى مقالاتك وحساباتك ونماذجك المحمّلة محفوظة.",
   "The update check did not return a result. Try again.":

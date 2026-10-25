@@ -12,7 +12,7 @@
 
 openNews تطبيق macOS لجمع الأخبار وقراءتها ومناقشتها وتحويل الأفكار إلى مسودات قابلة للتحرير. واجهته عربية وإنجليزية، ويدعم النماذج المحلية عبر Ollama والحسابات السحابية عند اختيارها.
 
-**نسخة Tauri هي النسخة الرسمية الوحيدة المدعومة من openNews، و`main` هو فرعها الأساسي.** واجهة React، وجسر Rust، ومحرك Python مضمّن مع SQLite. لا تحتاج إلى تثبيت Python أو Node لاستخدام النسخة الجاهزة. واجهة SwiftUI السابقة محفوظة للأرشيف فقط في [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy)، ولا تُنشر كتطبيق أساسي موازٍ.
+**نسخة Tauri هي النسخة الرسمية الوحيدة المدعومة من openNews، و`main` هو فرعها الأساسي.** واجهة React، وجسر Rust، ومحرك Python مضمّن مع SQLite. لا تحتاج إلى تثبيت Python أو Node لاستخدام النسخة الجاهزة. واجهة SwiftUI السابقة محفوظة للأرشيف فقط في [archive/swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy)، ولا تُنشر كتطبيق أساسي موازٍ.
 
 ## ما الذي يمكنك فعله؟
 
@@ -49,7 +49,19 @@ openNews تطبيق macOS لجمع الأخبار وقراءتها ومناقش�
 | `docs/` | التوثيق الحالي بالعربية والإنجليزية وملاحظات إصدارات Tauri |
 | `updates/` | قناة التحديث الموقّعة للتطبيق المثبّت |
 
-النسخة السابقة وشعاراتها وأدواتها محفوظة في [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy) وسجل Git؛ لا تحتاجها لبناء التطبيق الحالي.
+النسخة السابقة وشعاراتها وأدواتها محفوظة في [archive/swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy) وسجل Git؛ لا تحتاجها لبناء التطبيق الحالي.
+
+
+## النسخة الرسمية والتطوير
+
+| الاستخدام | الفرع | اسم التطبيق | البيانات والتحديث |
+|---|---|---|---|
+| الاستخدام اليومي | `main` | **openNews** | بياناتك الحالية وقناة التحديث الرسمية |
+| التطوير وتجربة الميزات | `develop` | **openNews Dev** | مساحة مستقلة؛ لا يستقبل تحديثات النسخة الرسمية |
+
+ابدأ التعديلات على `develop`. يبني `bash scripts/build_app.sh` نسخة التطوير افتراضيًا؛ يشغّل `npm --prefix desktop run app:dev` التطوير التفاعلي. البناء الرسمي يتطلب `bash scripts/build_app.sh --release` على `main`، والنشر من حزمة CI الناجحة فقط. لا تنسخ نسخة التطوير فوق التطبيق اليومي.
+
+تحديثات الأمان تستخدم فروعًا مؤقتة ومجمّعة نحو `develop`؛ ترقيات الإصدارات الدورية غير الأمنية لا تنشئ فروعًا تلقائيًا. تُوجّه طلبات الأمان التي ينشئها GitHub نحو `main` تلقائيًا إلى `develop`، ثم تُختبر وتُدمج عند النجاح ويُحذف فرعها. لا يُتجاوز فشل الاختبارات؛ الترقية إلى `main` والنشر الرسمي خطوتان منفصلتان. يبقى `main` و`develop` الفرعين الدائمين فقط.
 
 ## للمطورين
 
@@ -60,6 +72,7 @@ openNews تطبيق macOS لجمع الأخبار وقراءتها ومناقش�
 ```sh
 git clone https://github.com/MohammedSaudAlsahli/openNews.git
 cd openNews
+git switch develop
 bash scripts/test.sh
 bash scripts/build_app.sh
 cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
@@ -67,7 +80,7 @@ cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
 
 <div dir="rtl">
 
-ناتج البناء: `desktop/src-tauri/target/release/bundle/macos/openNews.app`. لإطلاق وضع التطوير بعد تجهيز المحرك: `npm --prefix desktop run tauri -- dev`.
+ناتج البناء: `desktop/src-tauri/target/release/bundle/macos/openNews Dev.app`. لإطلاق وضع التطوير بعد تجهيز المحرك: `npm --prefix desktop run app:dev`.
 
 راجع [دليل المساهمة](CONTRIBUTING.md)، [المعمارية](docs/architecture.md)، و[إجراءات الإصدار](docs/RELEASING.md). الاعتمادات مقفلة في npm وCargo وuv؛ تبني CI الحزمة وتختبر المحرك والواجهة والجسر الأصلي.
 

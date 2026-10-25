@@ -15,3 +15,13 @@ Security fixes target the latest published Tauri release on `main`. Swift and ol
 **Use [GitHub private vulnerability reporting](https://github.com/MohammedSaudAlsahli/openNews/security/advisories/new)** for vulnerabilities. Never disclose exploits, credentials or user data in public issues. Include version, platform, a minimal synthetic reproduction and expected impact. If private reporting is unavailable, open a public issue requesting a security contact without sensitive details. No response-time guarantee is offered.
 
 Relevant boundaries include Tauri↔Python IPC, public URL/redirect validation, credentials, skill imports, untrusted HTML/Markdown and application updates. News and skill text is untrusted data and does not authorize script execution. Share only necessary diagnostics.
+
+## تحديثات الاعتمادات / Dependency updates
+
+تُوجّه طلبات Dependabot إلى `develop` وتُدمج آليًا فقط بعد نجاح الفحوصات المطلوبة، ثم تُحذف فروعها. التحديث الذي يفشل لا يُفرض على التطبيق. `main` محمي ويتلقى الترقية من `develop`؛ النشر الرسمي يحتاج إجراء الإصدار والتحقق من الحزمة والتوقيع.
+
+تنبيه GLib `GHSA-wrw7-89jp-8q8g` في قفل Cargo يخص مسار GTK/Linux، ولا يدخل في شجرة بناء macOS المدعومة. لا ندّعي إصلاح GLib على Linux؛ يلزم معالجته قبل دعم تلك المنصة.
+
+Dependabot PRs are routed to `develop` and auto-merged only after required checks pass, then their branches are removed. Failed updates are not forced through. Protected `main` accepts promotion from `develop`; official publication still requires release/package/signature validation.
+
+The Cargo-lock GLib advisory `GHSA-wrw7-89jp-8q8g` affects the GTK/Linux dependency graph, absent from the supported macOS build graph. This is not a Linux GLib fix; address it before supporting that platform.

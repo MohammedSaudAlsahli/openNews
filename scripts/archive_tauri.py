@@ -15,19 +15,22 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, default=ROOT / 'build/release')
-parser.add_argument('--app', type=Path, default=ROOT / 'desktop/src-tauri/target/release/bundle/macos/openNews.app')
+parser.add_argument('--development', action='store_true')
+parser.add_argument('--app', type=Path)
 args = parser.parse_args()
 version = json.loads((ROOT / 'desktop/package.json').read_text())['version']
-source = args.app.resolve()
+name = 'openNews Dev' if args.development else 'openNews'
+source = (args.app or ROOT / f'desktop/src-tauri/target/release/bundle/macos/{name}.app').resolve()
 assert os.uname().machine == 'arm64', 'This distribution requires an arm64 build host'
 info = plistlib.loads((source / 'Contents/Info.plist').read_bytes())
 assert info['CFBundleShortVersionString'] == version
-assert info['CFBundleIdentifier'] == 'com.editorialintelligence.studio.preview'
+assert info['CFBundleIdentifier'] == ('com.opennews.development' if args.development else 'com.editorialintelligence.studio.preview')
+assert info['CFBundleName'] == name
 subprocess.run(['codesign', '--verify', '--deep', '--strict', str(source)], check=True)
 # Relocate and exercise the packaged runtime; never open a user's workspace.
 with tempfile.TemporaryDirectory(prefix='opennews-release-', dir='/tmp') as temporary:
     temp = Path(temporary)
-    app = temp / 'openNews.app'
+    app = temp / f'{name}.app'
     subprocess.run(['ditto', str(source), str(app)], check=True)
     runtime = app / 'Contents/Resources/runtime'
     assert (runtime / 'OPENNEWS-LICENSE.txt').is_file()
@@ -62,19 +65,20 @@ with tempfile.TemporaryDirectory(prefix='opennews-release-', dir='/tmp') as temp
 
 output = args.output.resolve()
 output.mkdir(parents=True, exist_ok=True)
-archive = output / f'openNews-{version}-macOS-arm64.zip'
+archive = output / f'{name.replace(" ", "-")}-{version}-macOS-arm64.zip'
 assert not archive.exists(), 'Refusing to overwrite a release archive'
 subprocess.run(['ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', str(source), str(archive)], check=True)
 dmg = output / f'openNews-{version}-macOS-arm64.dmg'
-subprocess.run(['uv', 'run', '--locked', '--script', str(ROOT / 'scripts/package_dmg.py'), '--app', str(source), '--output', str(dmg)], check=True)
+if not args.development:
+    subprocess.run(['uv', 'run', '--locked', '--script', str(ROOT / 'scripts/package_dmg.py'), '--app', str(source), '--output', str(dmg)], check=True)
 sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
 run_url = None
 if os.environ.get('GITHUB_RUN_ID'):
     run_url = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
 metadata = output / 'build-info.json'
-metadata.write_text(json.dumps({'version': version, 'commit': sha, 'ci_run': run_url, 'platform': 'macOS', 'architecture': 'arm64', 'declared_minimum_macos': '14.0', 'signing': 'ad-hoc', 'apple_notarized': False, 'automatic_update_feed_published': False}, indent=2) + '\n')
+metadata.write_text(json.dumps({'channel': 'development' if args.development else 'stable', 'version': version, 'commit': sha, 'ci_run': run_url, 'platform': 'macOS', 'architecture': 'arm64', 'declared_minimum_macos': '14.0', 'signing': 'ad-hoc', 'apple_notarized': False, 'automatic_update_feed_published': False}, indent=2) + '\n')
 with (output / 'SHA256SUMS').open('w') as sums:
-    for path in (archive, dmg, metadata):
+    for path in ([archive, metadata] if args.development else [archive, dmg, metadata]):
         digest = hashlib.file_digest(path.open('rb'), 'sha256').hexdigest()
         sums.write(f'{digest}  {path.name}\n')
 print(f'Relocated packaged engine, architecture and signature passed; archive: {archive.name}')

@@ -1,13 +1,16 @@
 {
   "name": "opennews-desktop",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "tauri": "tauri",
-    "test": "vitest run"
+    "test": "vitest run",
+    "app:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "dev:isolated": "VITE_OPENNEWS_CHANNEL=development vite --host 127.0.0.1",
+    "build:isolated": "VITE_OPENNEWS_CHANNEL=development tsc -b && VITE_OPENNEWS_CHANNEL=development vite build"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.3.1",

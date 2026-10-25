@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12,<3.13"
-# dependencies = ["ds-store==1.3.2", "pillow==12.3.0"]
+# dependencies = ["ds-store==1.3.2", "pillow==13.0.0"]
 # ///
 """Package an existing signed app, without rebuilding it or requiring Finder/GUI."""
 import argparse

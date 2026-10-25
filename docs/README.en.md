@@ -2,7 +2,7 @@
 
 [العربية](README.md) · [Home](../README.en.md)
 
-These guides describe the supported Tauri application. The former application and its documentation remain on [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
+These guides describe the supported Tauri application. The former application and its documentation remain on [archive/swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy).
 
 | Goal | Guide |
 |---|---|

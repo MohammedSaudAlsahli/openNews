@@ -4,7 +4,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "openNews",
+        "title": "openNews Dev QA",
         "width": 1320,
         "height": 900,
         "minWidth": 860,
@@ -14,5 +14,15 @@
         "backgroundThrottling": "disabled"
       }
     ]
+  },
+  "productName": "openNews Dev QA",
+  "build": {
+    "beforeDevCommand": "npm run dev:isolated",
+    "beforeBuildCommand": "npm run build:isolated"
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": []
+    }
   }
 }

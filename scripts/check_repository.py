@@ -18,6 +18,16 @@ assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Official app versions must be s
 lock = read_json('desktop/package-lock.json')
 assert version == lock['version'] == lock['packages']['']['version']
 assert version == read_json('desktop/src-tauri/tauri.conf.json')['version']
+stable = read_json('desktop/src-tauri/tauri.conf.json')
+dev = read_json('desktop/src-tauri/tauri.dev.conf.json')
+qa = read_json('desktop/qa/tauri.conf.json')
+assert stable['productName'] == 'openNews'
+assert stable['identifier'] == 'com.editorialintelligence.studio.preview'
+assert dev['productName'] == 'openNews Dev'
+assert len({stable['identifier'], dev['identifier'], qa['identifier']}) == 3
+assert dev['plugins']['updater']['endpoints'] == []
+assert qa['productName'] != stable['productName']
+assert 'VITE_OPENNEWS_CHANNEL=development' in read_json('desktop/package.json')['scripts']['build:isolated']
 cargo = tomllib.loads((ROOT / 'desktop/src-tauri/Cargo.toml').read_text())
 assert version == cargo['package']['version']
 packages = tomllib.loads((ROOT / 'desktop/src-tauri/Cargo.lock').read_text())['package']
