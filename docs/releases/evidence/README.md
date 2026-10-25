@@ -4,6 +4,7 @@
 
 These files preserve previously published build and synthetic QA reports, with original values and asset digests. Reports moved here to keep downloads clear. Fields describe their original validation time, rather than current update-feed state. No user data, keys or databases are included.
 
+- [0.3.5](v0.3.5.json)
 - [0.3.2](v0.3.2.json)
 - [0.3.1](v0.3.1.json)
 
