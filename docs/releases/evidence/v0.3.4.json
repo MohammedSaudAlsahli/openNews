@@ -1,0 +1,49 @@
+{
+  "version": "0.3.4",
+  "stage": "Validated before public feed promotion",
+  "source_commit": "544576b8c525e0cd18bbb88804e2a91bebaedbae",
+  "ci_run": "https://github.com/MohammedSaudAlsahli/openNews/actions/runs/40214942998",
+  "release_run": "https://github.com/MohammedSaudAlsahli/openNews/actions/runs/40216124603",
+  "ci_tests": {
+    "engine": 548,
+    "frontend": 403,
+    "native": 5
+  },
+  "signed_upgrade": {
+    "from_version": "0.3.3",
+    "to_version": "0.3.4",
+    "signed_bundle_install": "passed",
+    "tamper_rejected": true,
+    "signed_version_mismatch_rejected": true,
+    "old_and_new_packaged_engines": "passed",
+    "article_preserved": true,
+    "conversation_preserved": true,
+    "draft_versions_preserved": true,
+    "instructions_preserved": true,
+    "synthetic_credentials_and_model_preserved": true,
+    "single_app_after_update": true,
+    "public_feed_and_download_verified": false
+  },
+  "assets": [
+    {
+      "name": "openNews-0.3.4-macOS-arm64.app.tar.gz",
+      "size": 152546056,
+      "digest": "sha256:3b4bc076b2c341ca3d33162b20587301bfb68239db37a9af8d9eff6e32259687"
+    },
+    {
+      "name": "openNews-0.3.4-macOS-arm64.app.tar.gz.sig",
+      "size": 448,
+      "digest": "sha256:72fe6645d3f246934ef6bc1c479bbf27f8d165971d9035751c3bd25ca34e8956"
+    },
+    {
+      "name": "openNews-0.3.4-macOS-arm64.dmg",
+      "size": 152827169,
+      "digest": "sha256:089725a78b83fa09e08ae50ee51a5996f11596d3c7ab5b2971a9f413edf70f01"
+    },
+    {
+      "name": "openNews-0.3.4-SHA256SUMS.txt",
+      "size": 97,
+      "digest": "sha256:dec39ecbb33ad5bb5368a81415e859af389c866d7fd64c92d6c4ac5b812a90bf"
+    }
+  ]
+}
