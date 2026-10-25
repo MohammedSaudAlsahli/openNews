@@ -1,11 +1,11 @@
 {
-  "version": "0.3.2",
-  "pub_date": "2026-10-25T11:09:52Z",
-  "notes": "معاينة روابط المقالات والمصادر عند المرور بالمؤشر، وإظهار مودل الملخص ووقت حفظه، وزر إعادة التلخيص بالمودل المختار مع إبقاء السابق حتى نجاح البديل.\n\nPreview article links on hover, see the original summary model and creation time, and regenerate on demand while preserving the previous result until success.",
+  "version": "0.3.3",
+  "pub_date": "2026-10-25T15:24:34Z",
+  "notes": "تحديث openNews الرسمي مع إبقاء المقالات والحسابات والنماذج.\n\nOfficial openNews update; articles, accounts and downloaded models are retained.",
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.2/openNews-0.3.2-macOS-arm64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MFRWMnc5TGpHREZBNDhNQnhzYVhxVitadTBheHpRRFVvWWFZWmtONEtPYzZiME9WT2NmaGpBb1RkZVVFd0MrMlNqY3diT20xUVdIMTROTkUxY1dwSFFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTI2OTczCWZpbGU6b3Blbk5ld3MtMC4zLjItbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy4yCmhuNUhwS0ZMU05qZUdyNXlRT1c3SXdsZGVIc21ZWG8wdzYwTkhMTWx3czRzQVRtOXhqQklIdnoxVjRqc3RRdWZlS0VMbHVtekQ3MXg3ZGhJRlZTMEFRPT0K"
+      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.3/openNews-0.3.3-macOS-arm64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MGNJYmtvUGxaLzUrdmNYa3A4WUhsb3M0NEl6MCtHYWdoTTFVREx3bGtCT1UvczRaQTJsb29TZVBkYWZaY3hTeEhmSWRqUy9iMnRDcE9JekpJM2FqK1FNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQyMDM3CWZpbGU6b3Blbk5ld3MtMC4zLjMtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy4zCkl0TmlGL3BBUDZ3ekNWS01MSitXYUp3dityTTVMV2lnT0NlTStnOVJGTWJSSHk0M0Q0THNSVDhHbVFNY0lEZG5hWFRjSFBGSjlaWGJUbGh2ZlViOENRPT0K"
     }
   }
 }
