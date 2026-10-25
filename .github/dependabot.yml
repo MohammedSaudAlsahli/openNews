@@ -4,47 +4,43 @@ updates:
     directory: /desktop
     schedule:
       interval: weekly
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    target-branch: develop
-    open-pull-requests-limit: 1
+    # Security updates remain enabled; avoid unsolicited version-upgrade branches.
+    # The metadata-only workflow routes security PRs from main to develop.
+    open-pull-requests-limit: 0
     groups:
-      dependencies:
+      security-updates:
+        applies-to: security-updates
         patterns: ["*"]
   - package-ecosystem: cargo
     directory: /desktop/src-tauri
     schedule:
       interval: weekly
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    target-branch: develop
-    open-pull-requests-limit: 1
+    # Security updates remain enabled; avoid unsolicited version-upgrade branches.
+    # The metadata-only workflow routes security PRs from main to develop.
+    open-pull-requests-limit: 0
     groups:
-      dependencies:
+      security-updates:
+        applies-to: security-updates
         patterns: ["*"]
   - package-ecosystem: uv
     directory: /engine
     schedule:
       interval: weekly
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    target-branch: develop
-    open-pull-requests-limit: 1
+    # Security updates remain enabled; avoid unsolicited version-upgrade branches.
+    # The metadata-only workflow routes security PRs from main to develop.
+    open-pull-requests-limit: 0
     groups:
-      dependencies:
+      security-updates:
+        applies-to: security-updates
         patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    target-branch: develop
-    open-pull-requests-limit: 1
+    # Security updates remain enabled; avoid unsolicited version-upgrade branches.
+    # The metadata-only workflow routes security PRs from main to develop.
+    open-pull-requests-limit: 0
     groups:
-      dependencies:
+      security-updates:
+        applies-to: security-updates
         patterns: ["*"]

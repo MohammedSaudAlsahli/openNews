@@ -58,7 +58,7 @@ The former app, branding and tooling remain in [archive/swift-legacy](https://gi
 
 Start changes on `develop`. `bash scripts/build_app.sh` defaults to development; `npm --prefix desktop run app:dev` launches interactive development. Official builds require `bash scripts/build_app.sh --release` on `main`, and publication uses only a successful main CI artifact. Never install development over the daily app.
 
-Grouped dependency updates use temporary branches into `develop`. GitHub security PRs initially targeting `main` are automatically retargeted to `develop`, tested and merged only after required checks pass; merged branches are deleted. Failed checks must be repaired, never bypassed. Promotion into `main` and official publication remain separate. Only `main` and `develop` are permanent branches.
+Grouped security updates use temporary branches into `develop`; routine non-security version upgrades do not create automatic branches. GitHub security PRs initially targeting `main` are automatically retargeted to `develop`, tested and merged only after required checks pass; merged branches are deleted. Failed checks must be repaired, never bypassed. Promotion into `main` and official publication remain separate. Only `main` and `develop` are permanent branches.
 
 ## Develop
 
