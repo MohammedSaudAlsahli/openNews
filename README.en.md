@@ -25,8 +25,8 @@ Skill imports add text instructions only; they do not install or run skill scrip
 
 ## Install
 
-1. Download `openNews-<version>-macOS-arm64.zip` from [official releases](https://github.com/MohammedSaudAlsahli/openNews/releases/latest).
-2. Unzip it, move **openNews.app** to **Applications**, then open it.
+1. Download `openNews-<version>-macOS-arm64.dmg` from [official releases](https://github.com/MohammedSaudAlsahli/openNews/releases/latest).
+2. Open the DMG, drag **openNews** to **Applications**, then launch it from Applications.
 3. Add a source and start reading. Connecting an account or downloading a model is optional.
 
 The current distribution targets **Apple Silicon**, with a declared minimum of **macOS 14**. It is ad-hoc signed and is **not Apple-notarized**; see [installation help](docs/SETUP.en.md) if Gatekeeper blocks it. This release does not include Intel, Windows or Linux builds.

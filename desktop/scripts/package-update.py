@@ -38,22 +38,29 @@ def api(path):
 release = api(f'releases/tags/{tag}')
 assert not release['draft'] and not release['prerelease']
 output.mkdir(parents=True, exist_ok=True)
-zip_name = f'openNews-{version}-macOS-arm64.zip'
-subprocess.run(['gh', 'release', 'download', tag, '--repo', REPO, '--dir', str(output), '--skip-existing', '--pattern', zip_name, '--pattern', 'build-info.json', '--pattern', 'SHA256SUMS'], check=True)
-checksums = dict(line.split('  ', 1)[::-1] for line in (output / 'SHA256SUMS').read_text().splitlines())
-for name in (zip_name, 'build-info.json'):
-    with (output / name).open('rb') as stream:
-        assert hashlib.file_digest(stream, 'sha256').hexdigest() == checksums[name], f'Checksum mismatch: {name}'
-metadata = json.loads((output / 'build-info.json').read_text())
+source_info = re.search(r'<!-- opennews-build-info\n(.*?)\n-->', release['body'], re.S)
+assert source_info, 'Release is missing its CI build provenance'
+metadata = json.loads(source_info.group(1))
 assert metadata['version'] == version and metadata['architecture'] == 'arm64'
 run_id = metadata['ci_run'].rsplit('/', 1)[-1]
 assert run_id.isdigit()
 run = api(f'actions/runs/{run_id}')
 assert run['conclusion'] == 'success' and run['head_sha'] == metadata['commit']
+assert run['status'] == 'completed' and run['head_repository']['full_name'] == REPO
+assert metadata['ci_run'] == f'https://github.com/{REPO}/actions/runs/{run_id}'
 assert run['path'] == '.github/workflows/ci.yml' and run['event'] == 'push' and run['head_branch'] == 'main'
 ref = api(f'git/ref/tags/{tag}')['object']
 assert ref['type'] == 'tag'
 assert api(f'git/tags/{ref["sha"]}')['object']['sha'] == metadata['commit']
+dmg_name = f'openNews-{version}-macOS-arm64.dmg'
+source_asset = next(asset for asset in release['assets'] if asset['name'] == dmg_name)
+assert source_asset['state'] == 'uploaded'
+assert re.fullmatch(r'sha256:[a-f0-9]{64}', source_asset['digest'])
+subprocess.run(['gh', 'release', 'download', tag, '--repo', REPO, '--dir', str(output), '--skip-existing', '--pattern', dmg_name], check=True)
+with (output / dmg_name).open('rb') as stream:
+    source_digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+assert 'sha256:' + source_digest == source_asset['digest'], 'Published DMG checksum mismatch'
+subprocess.run(['hdiutil', 'verify', str(output / dmg_name)], check=True)
 archive = output / f'openNews-{version}-macOS-arm64.app.tar.gz'
 # Keep extracted bundles outside FileProvider-managed Documents; Finder metadata
 # there can invalidate an otherwise unchanged Apple code signature.
@@ -61,7 +68,12 @@ if (output / 'extracted').exists():
     shutil.rmtree(output / 'extracted')  # obsolete generated staging only
 with tempfile.TemporaryDirectory(prefix='opennews-update-stage-', dir='/tmp') as staging:
     stage = Path(staging)
-    subprocess.run(['ditto', '-x', '-k', str(output / zip_name), str(stage)], check=True)
+    mount = stage / 'mounted'
+    subprocess.run(['hdiutil', 'attach', str(output / dmg_name), '-mountpoint', str(mount), '-nobrowse', '-noautoopen', '-readonly'], check=True, stdout=subprocess.DEVNULL)
+    try:
+        subprocess.run(['ditto', str(mount / 'openNews.app'), str(stage / 'openNews.app')], check=True)
+    finally:
+        subprocess.run(['hdiutil', 'detach', str(mount)], check=True, stdout=subprocess.DEVNULL)
     app = stage / 'openNews.app'
     info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
     assert info['CFBundleShortVersionString'] == version
@@ -81,5 +93,5 @@ with (output / 'updater-SHA256SUMS').open('w') as checks:
     for path in (archive, signature):
         with path.open('rb') as stream:
             checks.write(f'{hashlib.file_digest(stream, "sha256").hexdigest()}  {path.name}\n')
-(output / 'update-build-info.json').write_text(json.dumps({'version': version, 'source_commit': metadata['commit'], 'source_ci_run': metadata['ci_run'], 'source_zip_sha256': checksums[zip_name], 'archive': archive.name, 'signed_version_required': True, 'prepared_at': datetime.now(timezone.utc).isoformat()}, indent=2) + '\n')
+(output / 'update-build-info.json').write_text(json.dumps({'version': version, 'source_commit': metadata['commit'], 'source_ci_run': metadata['ci_run'], 'source_dmg_sha256': source_digest, 'archive': archive.name, 'signed_version_required': True, 'prepared_at': datetime.now(timezone.utc).isoformat()}, indent=2) + '\n')
 print(f'Prepared signed {version} updater from successful CI artifact. Test before uploading or publishing the manifest.')

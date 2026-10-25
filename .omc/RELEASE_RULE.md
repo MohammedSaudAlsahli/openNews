@@ -5,13 +5,13 @@
 Primary: desktop/package.json. Match desktop/package-lock.json (root and packages[""]), desktop/src-tauri/tauri.conf.json, Cargo.toml and the application package in Cargo.lock. Stable version: 0.3.2. The Python package version is independent. VERSION, BUILD_VERSION and appcast.xml are historical Swift artifacts.
 
 ## Release Trigger
-Push main, require successful ci.yml for that exact SHA, push an annotated vVERSION tag, then manually dispatch release.yml with tag and successful CI run ID. User authorized publishing the current Tauri work as the official application, not a prerelease. Never replace published tags/assets.
+Push main, require successful ci.yml for that exact SHA, push an annotated vVERSION tag, then manually dispatch release.yml with tag and successful CI run ID. User authorized publishing the current Tauri work as the official application, not a prerelease. Never replace published tags or application bytes. Release-page cleanup may remove superseded intermediates/reports only after their evidence is archived and the identical-app DMG and signed updater are publicly verified.
 
 ## Test Gate
 bash scripts/test.sh; bash scripts/build_app.sh; cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml; relocated bundle smoke/signature validation. No bypass flags.
 
 ## Registry / Distribution
-GitHub Releases: official macOS Apple Silicon ZIP, SHA256SUMS, build-info.json. CI builds; release.yml publishes only the successful main/push artifact at the tagged SHA. Ad-hoc signed, not Apple-notarized. No registry package publishing. Prepare a signed updater locally from that exact CI artifact with the existing owner key, test with test-update.py, append assets to the release, then promote updates/tauri-preview.json. Assets must precede the feed.
+GitHub Releases: official macOS Apple Silicon DMG and openNews-VERSION-SHA256SUMS.txt; append only signed updater archive and .sig after verification. ZIP/build-info stay in CI; build provenance is also recorded in the release body. Public verification evidence belongs in docs/releases/evidence/, not Assets. CI builds; release.yml publishes only the successful main/push artifact at the tagged SHA. Ad-hoc signed, not Apple-notarized. No registry package publishing. Prepare a signed updater locally from that exact CI artifact with the existing owner key, test with test-update.py, append assets to the release, then promote updates/tauri-preview.json. Assets must precede the feed.
 
 ## Release Notes Strategy
 Arabic-first README/docs with English counterparts. CHANGELOG.md and bilingual docs/releases/vVERSION.md. Clearly disclose architecture/signing and upgrade behavior.

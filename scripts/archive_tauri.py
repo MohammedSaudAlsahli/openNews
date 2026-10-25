@@ -65,6 +65,8 @@ output.mkdir(parents=True, exist_ok=True)
 archive = output / f'openNews-{version}-macOS-arm64.zip'
 assert not archive.exists(), 'Refusing to overwrite a release archive'
 subprocess.run(['ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', str(source), str(archive)], check=True)
+dmg = output / f'openNews-{version}-macOS-arm64.dmg'
+subprocess.run(['uv', 'run', '--locked', '--script', str(ROOT / 'scripts/package_dmg.py'), '--app', str(source), '--output', str(dmg)], check=True)
 sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
 run_url = None
 if os.environ.get('GITHUB_RUN_ID'):
@@ -72,7 +74,7 @@ if os.environ.get('GITHUB_RUN_ID'):
 metadata = output / 'build-info.json'
 metadata.write_text(json.dumps({'version': version, 'commit': sha, 'ci_run': run_url, 'platform': 'macOS', 'architecture': 'arm64', 'declared_minimum_macos': '14.0', 'signing': 'ad-hoc', 'apple_notarized': False, 'automatic_update_feed_published': False}, indent=2) + '\n')
 with (output / 'SHA256SUMS').open('w') as sums:
-    for path in (archive, metadata):
+    for path in (archive, dmg, metadata):
         digest = hashlib.file_digest(path.open('rb'), 'sha256').hexdigest()
         sums.write(f'{digest}  {path.name}\n')
 print(f'Relocated packaged engine, architecture and signature passed; archive: {archive.name}')

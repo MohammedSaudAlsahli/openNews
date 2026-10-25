@@ -1,0 +1,210 @@
+{
+  "version": "0.3.1",
+  "release_url": "https://github.com/MohammedSaudAlsahli/openNews/releases/tag/v0.3.1",
+  "description": "Original public synthetic QA/build reports moved out of download assets. Original report fields are point-in-time records, not current feed state.",
+  "original_assets": [
+    {
+      "name": "build-info.json",
+      "size": 350,
+      "digest": "sha256:a908f34c73dc587f09526fd42452fa6026385ea4c8c48a21abf08ccbc4cc0010"
+    },
+    {
+      "name": "openNews-0.3.1-macOS-arm64.app.tar.gz",
+      "size": 153107248,
+      "digest": "sha256:983119c625dd164674ccef6a965ac5368b403465885f4b857ccd5bbb7c5dc16e"
+    },
+    {
+      "name": "openNews-0.3.1-macOS-arm64.app.tar.gz.sig",
+      "size": 448,
+      "digest": "sha256:c0f335983a03217280ed0d614be0a368d760427048603ec1ab15643adc0429fb"
+    },
+    {
+      "name": "openNews-0.3.1-macOS-arm64.zip",
+      "size": 167957642,
+      "digest": "sha256:d84c935d30400a9916287f19041333a46eadf38537b33f3d8129afd6bc80be92"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 179,
+      "digest": "sha256:c5cb7ac16f6c5d6348218237168520770d585afbdfcfe04865170d4009bd1989"
+    },
+    {
+      "name": "tldr-validation.json",
+      "size": 3495,
+      "digest": "sha256:c98901ad2ab1c75155468d1170b56761b05df85f1b3f3478b8cfb10207af9924"
+    },
+    {
+      "name": "update-build-info.json",
+      "size": 416,
+      "digest": "sha256:ff420e33b53f2aa9c3b74de452a72280ae2b22aac312848a35f7f3c638c644f5"
+    },
+    {
+      "name": "update-public-validation.json",
+      "size": 601,
+      "digest": "sha256:03785703bbbd373ce54bc45dea0aa1e330cbd14aa9c7a5855144639b910aac13"
+    },
+    {
+      "name": "update-validation.json",
+      "size": 602,
+      "digest": "sha256:60d6127fdf80a5d4b1e48cb08bb4c7b9fc0e86d0883f7dfc6aaed7225b7ec862"
+    },
+    {
+      "name": "updater-SHA256SUMS",
+      "size": 212,
+      "digest": "sha256:ecd5b5eff948db7bd6239709e6415e95bbc16b6c05328e9764e74a389de831e5"
+    }
+  ],
+  "reports": {
+    "build-info.json": {
+      "version": "0.3.1",
+      "commit": "80b20d05cdefcd370e7eb654013cd6b9ed17d28c",
+      "ci_run": "https://github.com/MohammedSaudAlsahli/openNews/actions/runs/40173896189",
+      "platform": "macOS",
+      "architecture": "arm64",
+      "declared_minimum_macos": "14.0",
+      "signing": "ad-hoc",
+      "apple_notarized": false,
+      "automatic_update_feed_published": false
+    },
+    "tldr-validation.json": {
+      "scope": "One synthetic Arabic article and one pre-cached synthetic linked source, real Gemma inference over packaged-engine Unix IPC; not a sustained benchmark or live publisher-fetch test.",
+      "app_version": "0.3.1",
+      "model": "gemma4:e2b-it-qat",
+      "seconds_until_background_ready": 23.075,
+      "job_metrics": {
+        "last_batch_ms": 12983,
+        "rest_ms": 8000
+      },
+      "cached_preview_roundtrip_ms": 1.008,
+      "samples": [
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        },
+        {
+          "thermal": 0,
+          "memory_pressure": 1
+        }
+      ],
+      "sources": [
+        {
+          "id": "S1",
+          "status": "read",
+          "truncated": false,
+          "url": "https://example.com/story"
+        },
+        {
+          "id": "S2",
+          "status": "read",
+          "truncated": false,
+          "url": "https://example.org/report"
+        }
+      ],
+      "quotes": [
+        {
+          "source_id": "S2",
+          "text": "التقرير المالي: الميزانية المقترحة 8 ملايين ريال، منها مليونان للتشجير وثلاثة ملايين للممرات والباقي للمرافق.",
+          "url": "https://example.org/report"
+        }
+      ],
+      "summary": "تخطط البلدية لإنشاء حديقة عامة بمساحة 20 ألف متر مربع بتكلفة 8 ملايين ريال، مع بدء التنفيذ في مارس 2027، مما يثير تباينًا بين ترحيب السكان بالمساحات الخضراء واعتراض أصحاب المحلات على إغلاق الطريق.\n\n### التفاصيل الأساسية\n\n- أعلنت البلدية عن خطة لإنشاء حديقة بمساحة 20 ألف متر مربع بتكلفة 8 ملايين ريال. [S1](https://example.com/story)\n- يبدأ تنفيذ المشروع في مارس 2027 ويستمر ستة أشهر. [S1](https://example.com/story)\n- سيضيف المشروع مسارات مشي وألعاب أطفال. [S1](https://example.com/story)\n\n### التسلسل\n\n- أعلنت البلدية عن خطة إنشاء الحديقة. [S1](https://example.com/story)\n- بدء التنفيذ المقرر في مارس 2027. [S1](https://example.com/story)\n- المشروع سيستمر ستة أشهر. [S1](https://example.com/story)\n\n### المواقف\n\n- رحب السكان بالمساحات الخضراء. [S1](https://example.com/story)\n- اعترض أصحاب المحلات على إغلاق الطريق خلال التنفيذ. [S1](https://example.com/story)\n- الميزانية المقترحة 8 ملايين ريال. [S2](https://example.org/report)\n\n### ما لم يتأكد بعد\n\n- تفاصيل الميزانية في [التقرير]. [S1](https://example.com/story)\n- الميزانية المقترحة مبالغ تقديرية ولم تعتمد بعد. [S2](https://example.org/report)",
+      "read_state_preserved": true,
+      "fresh_result_persisted": true,
+      "source_commit": "80b20d05cdefcd370e7eb654013cd6b9ed17d28c"
+    },
+    "update-build-info.json": {
+      "version": "0.3.1",
+      "source_commit": "80b20d05cdefcd370e7eb654013cd6b9ed17d28c",
+      "source_ci_run": "https://github.com/MohammedSaudAlsahli/openNews/actions/runs/40173896189",
+      "source_zip_sha256": "d84c935d30400a9916287f19041333a46eadf38537b33f3d8129afd6bc80be92",
+      "archive": "openNews-0.3.1-macOS-arm64.app.tar.gz",
+      "signed_version_required": true,
+      "prepared_at": "2026-10-25T07:58:12.419185+00:00"
+    },
+    "update-public-validation.json": {
+      "from_version": "0.3.0",
+      "to_version": "0.3.1",
+      "signed_bundle_install": "passed",
+      "tamper_rejected": true,
+      "signed_version_mismatch_rejected": true,
+      "old_and_new_packaged_engines": "passed",
+      "article_preserved": true,
+      "legacy_summary_visible_during_tldr_backfill": true,
+      "backfill_remains_queued": true,
+      "preview_does_not_mark_read": true,
+      "conversation_preserved": true,
+      "draft_versions_preserved": true,
+      "instructions_preserved": true,
+      "synthetic_credentials_and_model_preserved": true,
+      "single_app_after_update": true,
+      "public_feed_and_download_verified": true
+    },
+    "update-validation.json": {
+      "from_version": "0.3.0",
+      "to_version": "0.3.1",
+      "signed_bundle_install": "passed",
+      "tamper_rejected": true,
+      "signed_version_mismatch_rejected": true,
+      "old_and_new_packaged_engines": "passed",
+      "article_preserved": true,
+      "legacy_summary_visible_during_tldr_backfill": true,
+      "backfill_remains_queued": true,
+      "preview_does_not_mark_read": true,
+      "conversation_preserved": true,
+      "draft_versions_preserved": true,
+      "instructions_preserved": true,
+      "synthetic_credentials_and_model_preserved": true,
+      "single_app_after_update": true,
+      "public_feed_and_download_verified": false
+    }
+  },
+  "original_checksums": "d84c935d30400a9916287f19041333a46eadf38537b33f3d8129afd6bc80be92  openNews-0.3.1-macOS-arm64.zip\na908f34c73dc587f09526fd42452fa6026385ea4c8c48a21abf08ccbc4cc0010  build-info.json\n",
+  "original_updater_checksums": "983119c625dd164674ccef6a965ac5368b403465885f4b857ccd5bbb7c5dc16e  openNews-0.3.1-macOS-arm64.app.tar.gz\nc0f335983a03217280ed0d614be0a368d760427048603ec1ab15643adc0429fb  openNews-0.3.1-macOS-arm64.app.tar.gz.sig\n",
+  "installer_validation": {
+    "name": "openNews-0.3.1-macOS-arm64.dmg",
+    "sha256": "aa4c717106dd94a1211c9cfa747a5e47ea6083505905189cf5689ba0184a52d0",
+    "size": 153551732,
+    "source": "Exact original successful CI release ZIP; no application rebuild",
+    "dmg_integrity": "passed",
+    "mounted_application_signature": "passed",
+    "application_files_modes_and_symlinks_identical_to_original": true,
+    "applications_symlink": "/Applications",
+    "finder_layout_checked": true
+  }
+}

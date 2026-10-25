@@ -4,7 +4,7 @@
 
 ## التثبيت
 
-حمّل ملف ZIP لأجهزة Apple Silicon من [آخر إصدار](https://github.com/MohammedSaudAlsahli/openNews/releases/latest)، فكّه وانقل `openNews.app` إلى Applications. macOS 14 هو الحد الأدنى المعلن؛ لا تعني هذه العبارة اختبار كل إصدارات macOS. لا تحتاج إلى Python أو Node، ولا يأتي نموذج ذكاء اصطناعي ضمن الحزمة.
+حمّل ملف DMG لأجهزة Apple Silicon من [آخر إصدار](https://github.com/MohammedSaudAlsahli/openNews/releases/latest)، افتحه واسحب `openNews` إلى Applications، ثم أخرج القرص بعد النسخ وافتح التطبيق من Applications. macOS 14 هو الحد الأدنى المعلن؛ لا تعني هذه العبارة اختبار كل إصدارات macOS. لا تحتاج إلى Python أو Node، ولا يأتي نموذج ذكاء اصطناعي ضمن الحزمة.
 
 الحزمة الحالية بتوقيع ad-hoc وليست موثّقة لدى Apple. تحقق من المستودع والإصدار وبصمة SHA-256 المرفقة. إذا قررت الوثوق بالتطبيق ومنع macOS فتحه، اتبع [إرشادات Apple لفتح تطبيق من مطوّر غير محدد](https://support.apple.com/en-us/102445). لا تعطّل حماية النظام. البصمة تثبت مطابقة الملف المنشور ولا تقوم مقام توثيق Apple.
 

@@ -27,8 +27,8 @@ openNews تطبيق macOS لجمع الأخبار وقراءتها ومناقش�
 
 ## التثبيت
 
-1. حمّل `openNews-<version>-macOS-arm64.zip` من [الإصدارات الرسمية](https://github.com/MohammedSaudAlsahli/openNews/releases/latest).
-2. فك الضغط، وانقل **openNews.app** إلى **Applications**، ثم افتحه.
+1. حمّل `openNews-<version>-macOS-arm64.dmg` من [الإصدارات الرسمية](https://github.com/MohammedSaudAlsahli/openNews/releases/latest).
+2. افتح ملف DMG، واسحب **openNews** إلى **Applications**، ثم افتحه من التطبيقات.
 3. أضف مصدرًا وابدأ القراءة. ربط حساب أو تنزيل نموذج خطوة اختيارية.
 
 التوزيع الحالي لأجهزة **Apple Silicon**؛ الحد الأدنى المعلن **macOS 14**. الحزمة موقّعة محليًا بتوقيع ad-hoc، وليست موثّقة لدى Apple؛ راجع [دليل التثبيت](docs/SETUP.md) إذا منعها Gatekeeper. لا يتوفر بناء Intel أو Windows أو Linux ضمن هذا الإصدار.

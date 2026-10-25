@@ -4,7 +4,7 @@
 
 ## Install
 
-Download the Apple Silicon ZIP from the [latest release](https://github.com/MohammedSaudAlsahli/openNews/releases/latest), unzip it and move `openNews.app` to Applications. The declared minimum is macOS 14; this does not claim testing on every macOS version. Python and Node are not needed, and no AI model is bundled.
+Download the Apple Silicon DMG from the [latest release](https://github.com/MohammedSaudAlsahli/openNews/releases/latest), open it and drag `openNews` to Applications. Eject the image after copying and launch the app from Applications. The declared minimum is macOS 14; this does not claim testing on every macOS version. Python and Node are not needed, and no AI model is bundled.
 
 The current package is ad-hoc signed, not Apple-notarized. Verify the repository, release and supplied SHA-256 checksum. If you choose to trust the app and macOS blocks it, follow [Apple's instructions for apps from unidentified developers](https://support.apple.com/en-us/102445). Do not disable system protections. A checksum verifies matching published bytes; it does not replace Apple notarization.
 
