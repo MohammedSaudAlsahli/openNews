@@ -4,19 +4,35 @@ updates:
     directory: /desktop
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    target-branch: develop
+    open-pull-requests-limit: 1
+    groups:
+      dependencies:
+        patterns: ["*"]
   - package-ecosystem: cargo
     directory: /desktop/src-tauri
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    target-branch: develop
+    open-pull-requests-limit: 1
+    groups:
+      dependencies:
+        patterns: ["*"]
   - package-ecosystem: uv
     directory: /engine
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    target-branch: develop
+    open-pull-requests-limit: 1
+    groups:
+      dependencies:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    target-branch: develop
+    open-pull-requests-limit: 1
+    groups:
+      dependencies:
+        patterns: ["*"]

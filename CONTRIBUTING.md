@@ -9,10 +9,11 @@
 استخدم macOS وأدوات Xcode Command Line Tools وNode.js 22 وRust stable وuv. يجهّز `uv sync --project engine --frozen` بيئة CPython 3.12.13 حسب القفل. لا تحتاج إلى بناء SwiftUI. بعد استنساخ المستودع:
 
 ```sh
+git switch develop
 bash scripts/test.sh
 bash scripts/build_app.sh
 cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
-npm --prefix desktop run tauri -- dev
+npm --prefix desktop run app:dev
 ```
 
 الواجهة في `desktop/src`، الجسر في `desktop/src-tauri/src`، المحرك في `engine/eis_engine`، والخدمات الأصلية الصغيرة في `desktop/native`. راجع [المعمارية](docs/architecture.md).
@@ -28,3 +29,14 @@ npm --prefix desktop run tauri -- dev
 اجعل التغيير محددًا، واشرح المشكلة والسلوك بعد الإصلاح وطريقة التحقق وحدوده. حدّث التوثيق العربي الأساسي ونظيره الإنجليزي عند تغيير تجربة موثّقة. حافظ على ملفات القفل؛ لا تغيّر أرقام الإصدار في طلب ميزة عادي. تُنشر الإصدارات من [إجراء الإصدار](docs/RELEASING.md).
 
 بتقديم مساهمتك تقبل نشرها برخصة المشروع [MIT](LICENSE)، وتؤكد حقك في تقديمها. حقوق مصادر الأخبار والنماذج لا تنتقل تلقائيًا إلى المشروع.
+
+## النسخة الرسمية والتطوير
+
+| الاستخدام | الفرع | اسم التطبيق | البيانات والتحديث |
+|---|---|---|---|
+| الاستخدام اليومي | `main` | **openNews** | بياناتك الحالية وقناة التحديث الرسمية |
+| التطوير وتجربة الميزات | `develop` | **openNews Dev** | مساحة مستقلة؛ لا يستقبل تحديثات النسخة الرسمية |
+
+ابدأ التعديلات على `develop`. يبني `bash scripts/build_app.sh` نسخة التطوير افتراضيًا؛ يشغّل `npm --prefix desktop run app:dev` التطوير التفاعلي. البناء الرسمي يتطلب `bash scripts/build_app.sh --release` على `main`، والنشر من حزمة CI الناجحة فقط. لا تنسخ نسخة التطوير فوق التطبيق اليومي.
+
+تحديثات المكتبات تستخدم فروعًا مؤقتة ومجمّعة نحو `develop`. تُوجّه طلبات الأمان التي ينشئها GitHub نحو `main` تلقائيًا إلى `develop`، ثم تُختبر وتُدمج عند النجاح ويُحذف فرعها. لا يُتجاوز فشل الاختبارات؛ الترقية إلى `main` والنشر الرسمي خطوتان منفصلتان. يبقى `main` و`develop` الفرعين الدائمين فقط.

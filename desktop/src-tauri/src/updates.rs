@@ -2,6 +2,9 @@ use serde_json::{json, Value};
 use std::{sync::Mutex, time::Duration};
 use tauri::{Emitter, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
+pub fn official_channel(identifier: &str) -> bool {
+    identifier == "com.editorialintelligence.studio.preview"
+}
 #[derive(Default)]
 pub struct Pending(pub Mutex<Option<Update>>);
 #[tauri::command]
@@ -9,6 +12,9 @@ pub async fn check_update(
     app: tauri::AppHandle,
     pending: tauri::State<'_, Pending>,
 ) -> Result<Value, String> {
+    if !official_channel(&app.config().identifier) {
+        return Ok(json!({"update":null,"current_version":app.package_info().version.to_string(),"channel":"development"}));
+    }
     let update = app.updater_builder().timeout(Duration::from_secs(20)).build().map_err(|e| e.to_string())?.check().await.map_err(|_| "The Tauri update channel is not available yet. This does not mean your app is up to date.".to_string())?;
     let metadata = update
         .as_ref()
@@ -21,6 +27,9 @@ pub async fn install_update(
     app: tauri::AppHandle,
     pending: tauri::State<'_, Pending>,
 ) -> Result<(), String> {
+    if !official_channel(&app.config().identifier) {
+        return Err("Official updates are disabled in development workspaces".into());
+    }
     let update = pending
         .0
         .lock()
@@ -68,6 +77,13 @@ pub async fn install_update(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn development_cannot_check_or_install_official_updates() {
+        assert!(official_channel("com.editorialintelligence.studio.preview"));
+        assert!(!official_channel("com.opennews.development"));
+        assert!(!official_channel("com.opennews.ui-qa"));
+        assert!(!official_channel(""));
+    }
     #[test]
     fn signed_update_replaces_one_bundle_and_rejects_tampering() {
         let config: Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();

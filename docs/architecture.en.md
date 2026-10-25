@@ -2,7 +2,7 @@
 
 [العربية](architecture.md) · [Documentation](README.en.md)
 
-Tauri is the supported app. The former architecture remains on [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
+Tauri is the supported app. The former architecture remains on [archive/swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy).
 
 ```text
 React / TypeScript → Tauri / Rust → Unix socket → Python / Agno → SQLite

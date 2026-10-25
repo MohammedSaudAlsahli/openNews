@@ -2,7 +2,7 @@
 
 [English](architecture.en.md) · [التوثيق](README.md)
 
-نسخة Tauri هي المعتمدة. التصميم السابق محفوظ في [فرع Swift](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
+نسخة Tauri هي المعتمدة. التصميم السابق محفوظ في [وسم أرشيف Swift](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy).
 
 ```text
 React / TypeScript → Tauri / Rust → Unix socket → Python / Agno → SQLite

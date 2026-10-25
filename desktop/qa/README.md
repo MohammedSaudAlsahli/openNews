@@ -17,7 +17,7 @@ Build a separate QA bundle from `desktop/`:
 
 ```sh
 npm run tauri -- build --debug --config "$PWD/qa/tauri.conf.json"
-open --env OPENNEWS_NATIVE_QA=1 -n -a "$PWD/src-tauri/target/debug/bundle/macos/openNews.app"
+open --env OPENNEWS_NATIVE_QA=1 -n -a "$PWD/src-tauri/target/debug/bundle/macos/openNews Dev QA.app"
 ```
 
 Quit any existing **QA** process before rebuilding or opening another QA bundle.

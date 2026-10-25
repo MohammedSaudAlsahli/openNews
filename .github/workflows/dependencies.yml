@@ -1,0 +1,45 @@
+name: Tested dependency updates
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main, develop]
+permissions:
+  contents: read
+concurrency:
+  group: dependency-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'dependabot/')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      # Metadata only: never check out or execute a dependency PR with this token.
+      - name: Route to development and enable checked merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          state=$(gh pr view "$PR" --json state --jq .state)
+          [[ "$state" == OPEN ]] || exit 0
+          base=$(gh pr view "$PR" --json baseRefName --jq .baseRefName)
+          if [[ "$base" != develop ]]; then
+            gh pr edit "$PR" --base develop
+          fi
+          # A stale branch must include current develop before the required test.
+          comparison=$(gh api "repos/$GH_REPO/compare/$HEAD_BRANCH...develop" --jq .ahead_by)
+          if [[ "$comparison" != 0 ]]; then
+            sha=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
+            gh api --method PUT "repos/$GH_REPO/pulls/$PR/update-branch" -f expected_head_sha="$sha"
+          fi
+          # Token-generated edits do not trigger ordinary PR workflows.
+          gh workflow run ci.yml --ref "$HEAD_BRANCH"
+          gh pr merge "$PR" --auto --squash

@@ -1,5 +1,11 @@
 # سجل التغييرات / Changelog
 
+## 0.3.3 — 2026-10-25
+
+فصل النسخة اليومية عن **openNews Dev** باسم ومعرّف ومساحة بيانات مستقلة، وتعطيل قناة التحديث الرسمي في التطوير. مسار `develop` → `main`، وفروع تحديثات مؤقتة تُدمج بعد الاختبار وتُحذف تلقائيًا. تحديث Pillow وfilelock لمعالجة التنبيهات الأمنية الحالية، وتنظيف المستودع والهوية القديمة وتجهيز DMG رسمي واضح. [التفاصيل / Details](docs/releases/v0.3.3.md).
+
+Isolate development identity, data and updates; test dependency updates on develop, automatically delete merged branches and promote official releases through main. Update Pillow/filelock, remove obsolete Swift-era files and deliver a clean official DMG.
+
 ## 0.3.2 — 2026-10-25
 
 إعادة التلخيص حسب الطلب بالمودل المختار مع حفظ النتيجة السابقة حتى نجاح البديل، وإظهار المودل الذي أنشأ الملخص ووقت حفظه، ومعاينة روابط المقالات والمصادر والمنشورات عند المرور بالمؤشر أو التركيز بلوحة المفاتيح، دون تشغيل مودل. إعادة استخدام المحتوى المحفوظ مع إظهار تعذّر القراءة بوضوح. [التفاصيل / Details](docs/releases/v0.3.2.md).
@@ -20,6 +26,6 @@ Visible TL;DR, bounded linked-source preparation, verified quotation text, resum
 
 ## سجل Swift السابق / Previous Swift releases
 
-إصدارات 0.2.x وأدواتها تخص التطبيق السابق؛ راجع [الإصدارات السابقة](https://github.com/MohammedSaudAlsahli/openNews/releases) أو [فرع الأرشيف](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
+إصدارات 0.2.x وأدواتها تخص التطبيق السابق؛ راجع [الإصدارات السابقة](https://github.com/MohammedSaudAlsahli/openNews/releases) أو [وسم الأرشيف](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy).
 
-The 0.2.x releases belong to the former application. Their notes and source remain available in [GitHub Releases](https://github.com/MohammedSaudAlsahli/openNews/releases) and [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
+The 0.2.x releases belong to the former application. Their notes and source remain available in [GitHub Releases](https://github.com/MohammedSaudAlsahli/openNews/releases) and [archive/swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy).

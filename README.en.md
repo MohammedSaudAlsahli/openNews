@@ -10,7 +10,7 @@
 
 openNews is a macOS application for collecting, reading and discussing news and turning ideas into editable drafts. It supports Arabic and English, local models through Ollama, and cloud accounts you choose to connect.
 
-**Tauri is the sole official, supported openNews application; `main` is its primary branch.** React renders the interface, Rust provides the native bridge, and an embedded Python engine uses SQLite. End users do not need Python or Node installed. The former SwiftUI application is retained only as an archive on [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy), with no parallel supported app releases.
+**Tauri is the sole official, supported openNews application; `main` is its primary branch.** React renders the interface, Rust provides the native bridge, and an embedded Python engine uses SQLite. End users do not need Python or Node installed. The former SwiftUI application is retained only as an archive on [archive/swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy), with no parallel supported app releases.
 
 ## What you can do
 
@@ -47,7 +47,18 @@ The data identifier remains `com.editorialintelligence.studio.preview` for compa
 | `docs/` | Current Arabic/English documentation and Tauri release notes |
 | `updates/` | Signed update feed for installed applications |
 
-The former app, branding and tooling remain in [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy) and Git history. They are not needed to build the supported application.
+The former app, branding and tooling remain in [archive/swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy) and Git history. They are not needed to build the supported application.
+
+## Official and development applications
+
+| Use | Branch | Application | Data and updates |
+|---|---|---|---|
+| Daily use | `main` | **openNews** | Existing workspace and official updates |
+| Feature development | `develop` | **openNews Dev** | Separate workspace; official updates disabled |
+
+Start changes on `develop`. `bash scripts/build_app.sh` defaults to development; `npm --prefix desktop run app:dev` launches interactive development. Official builds require `bash scripts/build_app.sh --release` on `main`, and publication uses only a successful main CI artifact. Never install development over the daily app.
+
+Grouped dependency updates use temporary branches into `develop`. GitHub security PRs initially targeting `main` are automatically retargeted to `develop`, tested and merged only after required checks pass; merged branches are deleted. Failed checks must be repaired, never bypassed. Promotion into `main` and official publication remain separate. Only `main` and `develop` are permanent branches.
 
 ## Develop
 
@@ -56,12 +67,13 @@ Requirements: macOS, Xcode Command Line Tools, Node.js 22, stable Rust, and uv w
 ```sh
 git clone https://github.com/MohammedSaudAlsahli/openNews.git
 cd openNews
+git switch develop
 bash scripts/test.sh
 bash scripts/build_app.sh
 cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
 ```
 
-Output: `desktop/src-tauri/target/release/bundle/macos/openNews.app`. After staging the engine, launch development with `npm --prefix desktop run tauri -- dev`.
+Output: `desktop/src-tauri/target/release/bundle/macos/openNews Dev.app`. After staging the engine, launch development with `npm --prefix desktop run app:dev`.
 
 Read the [contribution guide](CONTRIBUTING.en.md), [architecture](docs/architecture.en.md) and [release process](docs/RELEASING.en.md). npm, Cargo and uv dependencies are locked. CI tests the engine, frontend and native bridge and builds the application.
 

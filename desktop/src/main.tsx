@@ -3,6 +3,7 @@ import { ChatMessage } from "./chat-message";
 import { ConversationList } from "./conversation-list";
 import { navigateSafely } from "./unsaved-changes";
 import { SupportPanel } from "./support-panel";
+import { APP_NAME } from "./app-channel";
 import { BrandMark } from "./brand";
 import { Onboarding } from "./onboarding";
 import { ActivityPage } from "./activity-page";
@@ -595,7 +596,7 @@ ${f.text}
       <aside className="sidebar">
         <div className="brand">
           <BrandMark className="brand-mark" />
-          <strong>{"openNews"}</strong>
+          <strong>{APP_NAME}</strong>
           <button
             title={t("Hide sidebar")}
             aria-label={t("Hide sidebar")}
@@ -664,7 +665,7 @@ ${f.text}
           </button>
           <div className="preview-note">
             <Circle size={7} fill="currentColor" />
-            {"openNews"}
+            {APP_NAME}
           </div>
         </div>
       </aside>

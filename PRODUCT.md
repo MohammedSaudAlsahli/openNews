@@ -2,7 +2,7 @@
 
 ## Platform
 
-web — a React interface inside Tauri on macOS. Python/Agno and SQLite run locally as an embedded engine. The paused Swift implementation is retained on the swift-legacy branch; documents about its native views are historical.
+web — a React interface inside Tauri on macOS. Python/Agno and SQLite run locally as an embedded engine. The paused Swift implementation is retained on the archive/swift-legacy tag; documents about its native views are historical.
 
 ## Users and purpose
 

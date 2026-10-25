@@ -2,7 +2,7 @@
 
 [English](README.en.md) · [الصفحة الرئيسية](../README.md)
 
-هذه الأدلة تخص نسخة Tauri المعتمدة. النسخة السابقة ووثائقها محفوظة في [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
+هذه الأدلة تخص نسخة Tauri المعتمدة. النسخة السابقة ووثائقها محفوظة في [archive/swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/archive/swift-legacy).
 
 | احتياجك | الدليل |
 |---|---|

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { DEVELOPMENT } from "./app-channel";
 import { t } from "./locale";
 import { Markdown } from "./components";
 import type { RecordData } from "./engine";
@@ -19,6 +20,17 @@ export function Updates({ onError }: { onError: (message: string) => void }) {
       void handler.then((stop) => stop()).catch(() => {});
     };
   }, []);
+  if (DEVELOPMENT)
+    return (
+      <section className="notice">
+        <h3>openNews Dev</h3>
+        <p>
+          {t(
+            "Development workspace. Official app updates are disabled here; update the develop branch instead.",
+          )}
+        </p>
+      </section>
+    );
   return (
     <section className="notice">
       <h3>{t("App updates")}</h3>
