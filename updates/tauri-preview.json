@@ -1,11 +1,11 @@
 {
-  "version": "0.3.4",
-  "pub_date": "2026-10-25T17:22:27Z",
-  "notes": "اعتماد تحسينات نسخة التطوير: بطاقات روابط بحدود أوضح، وسجل تغييرات يبيّن الإضافات والحذف والسياق، وشريط أيقونات عند طي القائمة. تبقى مقالاتك وملخصاتك وحساباتك ونماذجك محفوظة.\n\nPromote the approved development interface: clearer link-preview cards, article changes with additions, removals and context, and a compact navigation rail. Existing articles, summaries, accounts and models are retained.",
+  "version": "0.3.5",
+  "pub_date": "2026-10-25T20:06:20Z",
+  "notes": "إصلاح احتساب الملخصات القديمة والاحتفاظ بها عند تغيير المودل، وإزالة رسالة انتظار الموارد من الملخص الجاهز. ترتيب شريط نافذة الماك والتنقل المصغّر مع حركات خفيفة تراعي تقليل الحركة. تبقى مقالاتك وملخصاتك ومحادثاتك وحساباتك ونماذجك محفوظة.\n\nCorrect saved-summary coverage and retain results when choosing a future model. Ready summaries no longer show resource-wait banners. Refine macOS chrome, compact navigation and accessible micro-interactions. Existing articles, summaries, conversations, accounts and models are retained.",
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.4/openNews-0.3.4-macOS-arm64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MFlzdFk2RTRKa1hTa2c0YmczYWwyUWFBVGNoRzRoUWlZdlNzZUdMQW1TZGtnLzNuV1hzNk56eitYY3lGTnRSOWgzUWw3ZXJHZ0g2T1ZxRjZMby9YQmdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQ5MDE3CWZpbGU6b3Blbk5ld3MtMC4zLjQtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy40CmU3cUUzV3lnb2tTR1E0aUpvWTBmMGxSeWY2YzEvVFpEeER0WGliVnNrQUo5QjdDR3hlUk9ITVBoa3drdHRqZjBURG1pR0cwVDRZck9rMWdKUzRyMENnPT0K"
+      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.5/openNews-0.3.5-macOS-arm64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MFhocUZSMXRqY29rY0pkbUpVRWdrVE9FU0o0N1NSckdJejJ1Ukw3Rllici82SzZjNytsOTMwZ2Q5SUtqKzZGRXVkdEZHYlowbTRpeW9pNlpieHFKelF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTU5MDM5CWZpbGU6b3Blbk5ld3MtMC4zLjUtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy41ClErclBOd1p6bys0Myt6OE5aaldXQWZOTzVDM3hieGdCVG5zNXV5OSttdDcvVUZELzBacFFHZko0UWVkU2ZnakdabnNVazl1L093YnByM0luVDFpdkRRPT0K"
     }
   }
 }
