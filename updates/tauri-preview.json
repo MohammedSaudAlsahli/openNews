@@ -1,11 +1,11 @@
 {
-  "version": "0.3.1",
-  "pub_date": "2026-10-25T07:56:28Z",
-  "notes": "الملخص يظهر أعلى المقال مباشرة، مع تجهيز خلفي للأخبار وروابطها ومصادر واقتباسات واضحة. تبقى بياناتك ونماذجك محفوظة.\n\nTL;DR appears directly in the reader, with background linked-source preparation, citations and quotations. Existing data and models are retained.",
+  "version": "0.3.2",
+  "pub_date": "2026-10-25T11:09:52Z",
+  "notes": "معاينة روابط المقالات والمصادر عند المرور بالمؤشر، وإظهار مودل الملخص ووقت حفظه، وزر إعادة التلخيص بالمودل المختار مع إبقاء السابق حتى نجاح البديل.\n\nPreview article links on hover, see the original summary model and creation time, and regenerate on demand while preserving the previous result until success.",
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.1/openNews-0.3.1-macOS-arm64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MGFGVGgyQUp0eFU4dUZvN0UwVkJuM3c0MWxrZmZZSTBrdDlMR3BGRlZNUDI4Rzc0d0NQakY0UlBLamtKNGJWNEV3WWduWkZ4blN0cmRPc05iZ1VKclFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTE1MDkyCWZpbGU6b3Blbk5ld3MtMC4zLjEtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy4xCkFKZmpjaDRTMnRhbEpqNmVrVzM0MGc5cmIrWVVzY1FhYXVZRlBPTndLVzZnZlV0T3E4MCtvb25TWmJOWlQ0MzdBZUVzU2FBVVVuRS8rWTdsWUVQOURRPT0K"
+      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.2/openNews-0.3.2-macOS-arm64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MFRWMnc5TGpHREZBNDhNQnhzYVhxVitadTBheHpRRFVvWWFZWmtONEtPYzZiME9WT2NmaGpBb1RkZVVFd0MrMlNqY3diT20xUVdIMTROTkUxY1dwSFFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTI2OTczCWZpbGU6b3Blbk5ld3MtMC4zLjItbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy4yCmhuNUhwS0ZMU05qZUdyNXlRT1c3SXdsZGVIc21ZWG8wdzYwTkhMTWx3czRzQVRtOXhqQklIdnoxVjRqc3RRdWZlS0VMbHVtekQ3MXg3ZGhJRlZTMEFRPT0K"
     }
   }
 }
