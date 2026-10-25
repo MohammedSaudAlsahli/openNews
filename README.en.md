@@ -15,6 +15,7 @@ openNews is a macOS application for collecting, reading and discussing news and 
 ## What you can do
 
 - **Read your sources:** RSS, Atom, Reddit and public websites, with an archive, an internal reader and article revision history.
+- **Follow article changes:** compare added and removed lines, reveal unchanged context and read the saved article. A compact navigation rail stays available when the sidebar is collapsed.
 - **Discuss and write:** news-linked conversations, `@` references, `/` skill commands and drafts with saved versions.
 - **Search saved articles:** keyword search plus optional semantic search using a local embedding model.
 - **Manage local models together:** one Ollama library shows downloaded models and their capabilities; choose search and explanation models according to their roles.

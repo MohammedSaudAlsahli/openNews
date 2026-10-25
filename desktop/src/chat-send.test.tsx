@@ -85,6 +85,29 @@ async function write(text: string) {
   });
 }
 
+it("keeps writing and restores focus when the sidebar is toggled from the rail or keyboard", async () => {
+  engine(async () => ({}));
+  render(<App />);
+  await write("Keep this writing while navigating");
+  fireEvent.click(screen.getByRole("button", { name: "Show sidebar" }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Hide sidebar" }),
+    ),
+  );
+  fireEvent.keyDown(window, { key: "b", metaKey: true, shiftKey: true });
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Show sidebar" }),
+    ),
+  );
+  expect(
+    (screen.getByRole("textbox", { name: "Message" }) as HTMLTextAreaElement)
+      .value,
+  ).toBe("Keep this writing while navigating");
+  expect(screen.getAllByRole("button", { name: "Articles" })).toHaveLength(1);
+});
+
 it("keeps follow-up writing when a slow send is acknowledged", async () => {
   let finish: (result: unknown) => void = () => {};
   engine(

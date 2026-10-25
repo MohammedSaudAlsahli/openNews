@@ -1,5 +1,11 @@
 # سجل التغييرات / Changelog
 
+## 0.3.4 — 2026-10-25
+
+اعتماد تحسينات نسخة التطوير للاستخدام اليومي: كرت روابط بحدود واضحة، مقارنة أسطر المقال المضافة والمحذوفة مع سياق قابل للإظهار والنص المحفوظ، وشريط تنقّل مصغّر عند طيّ القائمة مع دعم لوحة المفاتيح. تبقى البيانات والملخصات والحسابات والنماذج في مساحتها الحالية. [التفاصيل / Details](docs/releases/v0.3.4.md).
+
+Promote the tested development interface to the official app: distinct source-preview cards, clear article revision diffs with expandable context and saved text, and compact navigation with keyboard focus restoration. Existing workspace data, summaries, accounts and models stay in place.
+
 ## 0.3.3 — 2026-10-25
 
 فصل النسخة اليومية عن **openNews Dev** باسم ومعرّف ومساحة بيانات مستقلة، وتعطيل قناة التحديث الرسمي في التطوير. مسار `develop` → `main`، وفروع تحديثات مؤقتة تُدمج بعد الاختبار وتُحذف تلقائيًا. تحديث Pillow وfilelock وLiteLLM وcertifi لمعالجة التنبيهات الأمنية الحالية، وتنظيف المستودع والهوية القديمة وتجهيز DMG رسمي واضح. [التفاصيل / Details](docs/releases/v0.3.3.md).

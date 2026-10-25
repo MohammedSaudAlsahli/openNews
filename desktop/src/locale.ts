@@ -4,6 +4,20 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  Show: "إظهار",
+  Hide: "إخفاء",
+  "Main navigation": "التنقل الرئيسي",
+  "unchanged lines": "من الأسطر دون تغيير",
+  "unchanged lines outside this excerpt · Read saved article":
+    "من الأسطر دون تغيير خارج المقتطف · قراءة المقال المحفوظ",
+  "History view": "عرض سجل المقال",
+  Changes: "التغييرات",
+  "Saved article": "المقال المحفوظ",
+  Before: "قبل",
+  After: "بعد",
+  "Unmarked lines are unchanged": "الأسطر دون علامة بقيت كما هي",
+  "Only one version is saved. Changes appear after the article is updated.":
+    "توجد نسخة محفوظة واحدة. تظهر المقارنة عند تحديث نص المقال.",
   "Regenerate summary": "إعادة التلخيص",
   "Regenerating…": "جارٍ إعادة التلخيص…",
   "Generate again with your current summary model. Your saved summary stays until the new one is ready.": "أعد التلخيص بالمودل المختار حاليًا. يبقى الملخص المحفوظ حتى يجهز الجديد.",

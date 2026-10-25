@@ -74,6 +74,112 @@ function capturedAt(value: string) {
     : date.toLocaleString(getLocale());
 }
 
+function ChangeRows({
+  lines,
+  onSaved,
+}: {
+  lines: ChangeLine[];
+  onSaved: () => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
+  const output = [];
+  let before = 0,
+    after = 0;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const omitted = Math.max(
+      line.before === undefined ? 0 : line.before - before - 1,
+      line.after === undefined ? 0 : line.after - after - 1,
+    );
+    if (omitted > 0) {
+      output.push(
+        <button
+          key={`gap-${index}`}
+          className="change-context-toggle"
+          onClick={onSaved}
+        >
+          {omitted.toLocaleString(getLocale())}{" "}
+          {t("unchanged lines outside this excerpt · Read saved article")}
+        </button>,
+      );
+      before += omitted;
+      after += omitted;
+    }
+    if (line.before !== undefined) before = line.before;
+    if (line.after !== undefined) after = line.after;
+    let end = index;
+    if (
+      line.kind === "context" &&
+      (index === 0 ||
+        lines[index - 1].kind !== "context" ||
+        lines[index - 1].before! + 1 !== line.before)
+    ) {
+      while (
+        end + 1 < lines.length &&
+        lines[end + 1].kind === "context" &&
+        lines[end + 1].before === lines[end].before! + 1
+      )
+        end++;
+      if (end - index >= 2) {
+        const start = index;
+        const isExpanded = expanded.has(start);
+        output.push(
+          <button
+            className="change-context-toggle"
+            key={`context-${start}`}
+            aria-expanded={isExpanded}
+            onClick={() =>
+              setExpanded((old) => {
+                const next = new Set(old);
+                if (next.has(start)) next.delete(start);
+                else next.add(start);
+                return next;
+              })
+            }
+          >
+            <ChevronDown size={14} aria-hidden="true" />
+            {t(isExpanded ? "Hide" : "Show")}{" "}
+            {(end - start + 1).toLocaleString(getLocale())}{" "}
+            {t("unchanged lines")}
+          </button>,
+        );
+        if (!isExpanded) {
+          before = lines[end].before!;
+          after = lines[end].after!;
+          index = end;
+          continue;
+        }
+      }
+    }
+    output.push(
+      <div className={`change-row change-${line.kind}`} key={index}>
+        <span className="change-number" aria-hidden="true">
+          {line.before ?? ""}
+        </span>
+        <span className="change-number" aria-hidden="true">
+          {line.after ?? ""}
+        </span>
+        <span
+          className="change-mark"
+          aria-label={t(
+            line.kind === "added"
+              ? "Added"
+              : line.kind === "removed"
+                ? "Removed"
+                : "Unchanged",
+          )}
+        >
+          {line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}
+        </span>
+        <span className="change-text" dir="auto">
+          {line.text || "\u00a0"}
+        </span>
+      </div>,
+    );
+  }
+  return <div className="change-rows">{output}</div>;
+}
+
 export function ArticleHistory({ articleId }: { articleId: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -103,6 +209,8 @@ function HistoryPanel({ articleId }: { articleId: string }) {
     [selected, setSelected] = useState<number | string>();
   const [reload, setReload] = useState(0),
     [limit, setLimit] = useState(400);
+  const [view, setView] = useState<"changes" | "saved">("changes");
+  const savedView = useRef<HTMLButtonElement>(null);
   const request = useRef(0),
     live = useRef(true);
   async function choose(id: number | string) {
@@ -112,6 +220,7 @@ function HistoryPanel({ articleId }: { articleId: string }) {
     setReading(true);
     setError("");
     setLimit(400);
+    setView("changes");
     try {
       const result = await call("news.revision", {
         article_id: articleId,
@@ -260,7 +369,9 @@ function HistoryPanel({ articleId }: { articleId: string }) {
                 {t(
                   revision.previous_id
                     ? "Compared with the preceding capture"
-                    : "Starting point for later comparisons.",
+                    : rows.length === 1
+                      ? "Only one version is saved. Changes appear after the article is updated."
+                      : "Starting point for later comparisons.",
                 )}
               </small>
             </div>
@@ -277,7 +388,35 @@ function HistoryPanel({ articleId }: { articleId: string }) {
               </div>
             )}
           </header>
-          {!revision.previous_id ? (
+          {revision.previous_id && (
+            <div className="history-tools">
+              <div
+                className="history-view"
+                role="group"
+                aria-label={t("History view")}
+              >
+                <button
+                  aria-pressed={view === "changes"}
+                  onClick={() => setView("changes")}
+                >
+                  {t("Changes")}
+                </button>
+                <button
+                  ref={savedView}
+                  aria-pressed={view === "saved"}
+                  onClick={() => setView("saved")}
+                >
+                  {t("Saved article")}
+                </button>
+              </div>
+              {view === "changes" && (
+                <span className="history-context-key">
+                  {t("Unmarked lines are unchanged")}
+                </span>
+              )}
+            </div>
+          )}
+          {!revision.previous_id || view === "saved" ? (
             <div className="history-snapshot">
               <strong dir="auto">{revision.content?.title}</strong>
               <Markdown
@@ -298,46 +437,38 @@ function HistoryPanel({ articleId }: { articleId: string }) {
                 if (!shown.length) return null;
                 return (
                   <section className="history-field" key={group.field}>
-                    <h4>{t(fields[group.field] || group.field)}</h4>
-                    <div
-                      className="change-rows"
-                      role="list"
-                      aria-label={t(fields[group.field] || group.field)}
-                    >
-                      {shown.map((line, index) => (
-                        <div
-                          className={`change-row change-${line.kind}`}
-                          key={index}
-                          role="listitem"
-                        >
-                          <span className="change-number" aria-hidden="true">
-                            {line.before ?? ""}
-                          </span>
-                          <span className="change-number" aria-hidden="true">
-                            {line.after ?? ""}
-                          </span>
-                          <span
-                            className="change-mark"
-                            aria-label={t(
-                              line.kind === "added"
-                                ? "Added"
-                                : line.kind === "removed"
-                                  ? "Removed"
-                                  : "Unchanged",
-                            )}
-                          >
-                            {line.kind === "added"
-                              ? "+"
-                              : line.kind === "removed"
-                                ? "−"
-                                : " "}
-                          </span>
-                          <span className="change-text" dir="auto">
-                            {line.text || "\u00a0"}
-                          </span>
-                        </div>
-                      ))}
+                    <div className="history-field-heading">
+                      <h4>{t(fields[group.field] || group.field)}</h4>
+                      <span className="history-field-counts" dir="ltr">
+                        <span className="change-added">
+                          +
+                          {
+                            group.lines.filter((line) => line.kind === "added")
+                              .length
+                          }
+                        </span>
+                        <span className="change-removed">
+                          −
+                          {
+                            group.lines.filter(
+                              (line) => line.kind === "removed",
+                            ).length
+                          }
+                        </span>
+                      </span>
                     </div>
+                    <div className="change-column-labels" aria-hidden="true">
+                      <span>{t("Before")}</span>
+                      <span>{t("After")}</span>
+                    </div>
+                    <ChangeRows
+                      key={String(revision.id)}
+                      lines={shown}
+                      onSaved={() => {
+                        setView("saved");
+                        savedView.current?.focus();
+                      }}
+                    />
                   </section>
                 );
               })}

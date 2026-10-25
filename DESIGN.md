@@ -212,7 +212,7 @@ Spacing follows 8/16/24/32px groups. Main canvas has 24–56px side gutters. Sid
 
 ### App shell
 
-A 40px drag area reserves the physical leading 96px for macOS window controls independent of text direction. Avoid a duplicate title/status banner. Sidebar holds new conversation, Articles, Sources, Saved drafts, thread search and history, then activity/settings/help. Collapse/reveal is available from the window header and keyboard shortcut.
+A 40px drag area reserves the physical leading 96px for macOS window controls independent of text direction. Avoid a duplicate title/status banner. Sidebar holds new conversation, Articles, Sources, Saved drafts, thread search and history, then activity/settings/help. Collapse/reveal is available from the sidebar and keyboard shortcut. Collapsing leaves a 64px neutral icon rail (56px at narrow widths), with named tooltips, current-page indication and the same guarded navigation. Focus transfers between the collapse and expand controls.
 
 ### Settings
 
@@ -320,6 +320,10 @@ Use the developer-only desktop/qa fixture for repeatable visual and keyboard ins
 
 ### Reader source previews and summary provenance
 
-TL;DR identifies the stored generating model and recorded creation time in a wrapping 12px metadata row; an absent historical model or timestamp is never replaced with the current selection. Reader links and summary citations share a text-only floating preview using the existing paper/text/muted/focus tokens, 13px popup radius and floating-panel elevation. Titles are 16px/600, excerpts 14px/1.7, source/status metadata 12px. The card is 360px wide, clamped to viewport space, and supports both directions and themes. It opens after 320ms of pointer intent or on keyboard focus; a 180ms exit grace allows moving into it. Down Arrow focuses Open original; Escape dismisses and returns focus. Loading/unavailable states remain explicit. No decorative media, inference or remote embeds are added to this interaction.
+TL;DR identifies the stored generating model and recorded creation time in a wrapping 12px metadata row; an absent historical model or timestamp is never replaced with the current selection. Reader links and summary citations share a text-only floating preview with an opaque popup surface, a visible popup-edge stroke, 13px popup radius and theme-specific floating elevation. The dark surface steps above the reader canvas. Source metadata and the original-link footer are separated from the excerpt by dividers. Text, muted and focus roles stay shared. Titles are 16px/600, excerpts 14px/1.7, source/status metadata 12px. The card is 360px wide, clamped to viewport space, and supports both directions and themes. It opens after 320ms of pointer intent or on keyboard focus; a 180ms exit grace allows moving into it. Down Arrow focuses Open original; Escape dismisses and returns focus. Loading/unavailable states remain explicit. No decorative media, inference or remote embeds are added to this interaction.
 
 A compact Regenerate summary action sits at the trailing edge of the TL;DR heading. Its in-place progress leaves the previous summary and provenance visible; failure retains that result with retry available. Resource-blocked states explain the disabled action in adjacent status text. Only an explicit click starts regeneration.
+
+### Article revision comparison
+
+The reader keeps immutable saved revisions separate from the current article. Comparison uses green additions, red removals, explicit plus/minus marks and LTR before/after line-number gutters; each content line keeps its own direction and whitespace. Each field has its own heading and counts. Runs of three or more unchanged context lines can be expanded in place. Omitted gaps identify their true line count and open the stored article; switching between Changes and Saved article uses the already retrieved revision, without fetching or generating text. A single saved capture is explicitly a baseline, never an invented set of additions.
