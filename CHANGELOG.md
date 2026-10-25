@@ -2,9 +2,9 @@
 
 ## 0.3.3 — 2026-10-25
 
-فصل النسخة اليومية عن **openNews Dev** باسم ومعرّف ومساحة بيانات مستقلة، وتعطيل قناة التحديث الرسمي في التطوير. مسار `develop` → `main`، وفروع تحديثات مؤقتة تُدمج بعد الاختبار وتُحذف تلقائيًا. تحديث Pillow وfilelock لمعالجة التنبيهات الأمنية الحالية، وتنظيف المستودع والهوية القديمة وتجهيز DMG رسمي واضح. [التفاصيل / Details](docs/releases/v0.3.3.md).
+فصل النسخة اليومية عن **openNews Dev** باسم ومعرّف ومساحة بيانات مستقلة، وتعطيل قناة التحديث الرسمي في التطوير. مسار `develop` → `main`، وفروع تحديثات مؤقتة تُدمج بعد الاختبار وتُحذف تلقائيًا. تحديث Pillow وfilelock وLiteLLM وcertifi لمعالجة التنبيهات الأمنية الحالية، وتنظيف المستودع والهوية القديمة وتجهيز DMG رسمي واضح. [التفاصيل / Details](docs/releases/v0.3.3.md).
 
-Isolate development identity, data and updates; test dependency updates on develop, automatically delete merged branches and promote official releases through main. Update Pillow/filelock, remove obsolete Swift-era files and deliver a clean official DMG.
+Isolate development identity, data and updates; test dependency updates on develop, automatically delete merged branches and promote official releases through main. Update Pillow/filelock/LiteLLM/certifi, remove obsolete Swift-era files and deliver a clean official DMG.
 
 ## 0.3.2 — 2026-10-25
 
