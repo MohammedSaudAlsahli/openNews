@@ -197,7 +197,8 @@ export function Articles({
     let live = true,
       pending = false;
     async function status(initial = false) {
-      if (pending || (!initial && document.visibilityState === "hidden")) return;
+      if (pending || (!initial && document.visibilityState === "hidden"))
+        return;
       pending = true;
       try {
         const result = await call("news.digest.status");
@@ -243,14 +244,6 @@ export function Articles({
           : r.articles,
       );
       setMore(r.has_more);
-      void call("news.summary.states", {
-        ids: r.articles.map((a: RecordData) => a.id),
-      })
-        .then((s) => {
-          if (token === request.current)
-            setStates((old) => ({ ...old, ...s.states }));
-        })
-        .catch(() => {});
     } catch (e) {
       if (token === request.current)
         setListError(String(e).replace(/^Error:\s*/, ""));
@@ -259,6 +252,39 @@ export function Articles({
       if (token === request.current) setBusy(false);
     }
   }
+  useEffect(() => {
+    if (!articles.length || selected) return;
+    let live = true,
+      pending = false;
+    async function refreshStates(initial = false) {
+      if (pending || (!initial && document.visibilityState === "hidden"))
+        return;
+      pending = true;
+      try {
+        const next: RecordData = {};
+        for (let offset = 0; offset < articles.length; offset += 100) {
+          const result = await call("news.summary.states", {
+            ids: articles
+              .slice(offset, offset + 100)
+              .map((article) => article.id),
+          });
+          if (!live) return;
+          Object.assign(next, result.states);
+        }
+        if (live) setStates((old) => ({ ...old, ...next }));
+      } catch {
+        // Keep the last known state; a failed check is not an absent summary.
+      } finally {
+        pending = false;
+      }
+    }
+    void refreshStates(true);
+    const timer = setInterval(() => void refreshStates(), 15000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [articles, selected?.id]);
   useEffect(() => {
     ++request.current;
     const timer = setTimeout(() => void load(), 250);
@@ -917,17 +943,24 @@ export function Articles({
               <p dir="auto">{articleExcerpt(a.summary)}</p>
               <footer>
                 <span>
-                  <RelativeTime value={a.published_at} now={clock} /> ·{" "}
-                  {t(
-                    (
-                      {
-                        ready: "Explained",
-                        summarizing: "Preparing TL;DR…",
-                        retrying: "Explanation will retry",
-                        pending: "Not explained",
-                        incomplete: "Excerpt only",
-                      } as Record<string, string>
-                    )[states[a.id]] || "Not explained",
+                  <RelativeTime value={a.published_at} now={clock} />
+                  {states[a.id] && (
+                    <>
+                      {" "}
+                      ·{" "}
+                      {t(
+                        (
+                          {
+                            ready: "Summary saved",
+                            summarizing: "Preparing TL;DR…",
+                            retrying: "Summary will retry",
+                            pending: "Not summarized yet",
+                            incomplete: "Excerpt only",
+                            outdated: "Summary needs updating",
+                          } as Record<string, string>
+                        )[states[a.id]] || "Summary status unavailable",
+                      )}
+                    </>
                   )}
                 </span>
                 <button

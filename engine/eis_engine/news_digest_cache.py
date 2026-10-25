@@ -1,5 +1,6 @@
 """Summary cache identities and durable per-day request accounting."""
 from datetime import datetime, timezone
+import json
 import re
 from .storage import digest, encode
 
@@ -39,6 +40,45 @@ class DigestCache:
             with self.db:
                 # Re-prepare old explanations once, including short complete news.
                 self.db.execute("UPDATE news_digest_sources SET revision=revision+1,eligible=(SELECT body_status='full' AND length(trim(text))>0 FROM news_articles WHERE id=article_id)")
+        self.restore_legacy_summaries()
+
+    def restore_legacy_summaries(self):
+        """Reconcile the old format once; never regenerate unchanged saved prose."""
+        self.db.execute('''CREATE TABLE IF NOT EXISTS news_digest_cache_migrations(
+            workspace_id TEXT NOT NULL, version INTEGER NOT NULL,
+            PRIMARY KEY(workspace_id,version))''')
+        if self.store.one('SELECT 1 FROM news_digest_cache_migrations WHERE workspace_id=? AND version=1', (self.ws,)):
+            return
+        # Stream only saved results needing reconciliation. Idle status/queue
+        # queries remain metadata-only, even for a large archive.
+        with self.db:
+            rows = self.db.execute('''SELECT a.id,a.title,a.url,a.published_at,a.text,a.body_status,
+                d.revision,r.source_revision,r.source_hash,r.language,r.summary,r.evidence_json
+                FROM news_digest_results r JOIN news_articles a ON a.id=r.article_id AND a.workspace_id=r.workspace_id
+                JOIN news_digest_sources d ON d.article_id=a.id
+                WHERE r.workspace_id=? AND (r.source_revision!=d.revision OR r.summary='')
+                AND (r.summary!='' OR r.evidence_json!='{}')''', (self.ws,))
+            for record in rows:
+                row = dict(record)
+                evidence = json.loads(row['evidence_json'])
+                summary = row['summary'] or evidence.get('legacy_summary', '')
+                if not summary or not matches_language(summary, row['language']):
+                    continue
+                current = fingerprint(row)
+                old = digest('explanation-3:' + encode({k: row.get(k) for k in ('title','url','published_at','text','body_status')}))
+                retained = not row['summary'] and evidence.get('legacy_hash') == current
+                if not retained and row['source_hash'] not in {current, old}:
+                    continue  # A real source edit still needs a new summary.
+                if retained or row['source_hash'] == old:
+                    evidence['coverage'] = {'limited': True, 'unvisited_links': 0}
+                    if retained:
+                        evidence['legacy_timestamp_unknown'] = True
+                    evidence.pop('legacy_summary', None)
+                    evidence.pop('legacy_hash', None)
+                self.db.execute('''UPDATE news_digest_results SET summary=?,source_hash=?,source_revision=?,evidence_json=?
+                    WHERE workspace_id=? AND article_id=?''',
+                    (summary,current,row['revision'],encode(evidence),self.ws,row['id']))
+            self.db.execute('INSERT INTO news_digest_cache_migrations VALUES(?,1)', (self.ws,))
 
     def day(self):
         return datetime.now(timezone.utc).date().isoformat()
@@ -105,18 +145,18 @@ class DigestCache:
     def coverage(self, language, assignment):
         assignment = assignment or {'profile_id':'','model_id':''}
         return self.store.one("""SELECT count(*) AS total,
-            coalesce(sum(CASE WHEN r.source_revision=d.revision AND r.language=? AND r.profile_id=? AND r.model_id=? AND r.summary!='' THEN 1 ELSE 0 END),0) AS prepared,
-            min(CASE WHEN r.source_revision=d.revision AND r.language=? AND r.profile_id=? AND r.model_id=? AND r.summary='' THEN r.retry_after WHEN r.source_revision=d.revision AND r.language=? AND r.profile_id=? AND r.model_id=? AND r.summary!='' THEN NULL ELSE 0 END) AS retry_at
+            coalesce(sum(CASE WHEN r.source_revision=d.revision AND r.language=? AND r.summary!='' THEN 1 ELSE 0 END),0) AS prepared,
+            min(CASE WHEN r.source_revision=d.revision AND r.language=? AND r.profile_id=? AND r.model_id=? AND r.summary='' THEN r.retry_after WHEN r.source_revision=d.revision AND r.language=? AND r.summary!='' THEN NULL ELSE 0 END) AS retry_at
             FROM news_digest_sources d LEFT JOIN news_digest_results r ON r.article_id=d.article_id AND r.workspace_id=d.workspace_id
             WHERE d.workspace_id=? AND d.eligible=1 AND d.article_id NOT IN (SELECT article_id FROM news_article_duplicates)""",
-            (language,assignment['profile_id'],assignment['model_id'],language,assignment['profile_id'],assignment['model_id'],language,assignment['profile_id'],assignment['model_id'],self.ws))
+            (language,language,assignment['profile_id'],assignment['model_id'],language,self.ws))
 
     def has_pending(self, language, assignment, current):
         return bool(self.store.one("""SELECT d.article_id FROM news_digest_sources d
             LEFT JOIN news_digest_results r ON r.workspace_id=d.workspace_id AND r.article_id=d.article_id
             WHERE d.workspace_id=? AND d.eligible=1 AND d.article_id NOT IN (SELECT article_id FROM news_article_duplicates)
-            AND (r.source_revision IS NULL OR r.source_revision!=d.revision OR r.language!=? OR r.profile_id!=? OR r.model_id!=?
-                OR (r.summary='' AND r.retry_after<=?)) LIMIT 1""",(self.ws,language,assignment['profile_id'],assignment['model_id'],current)))
+            AND (r.source_revision IS NULL OR r.source_revision!=d.revision OR r.language!=?
+                OR (r.summary='' AND (r.profile_id!=? OR r.model_id!=? OR r.retry_after<=?))) LIMIT 1""",(self.ws,language,assignment['profile_id'],assignment['model_id'],current)))
 
     def candidate(self, language, assignment, current):
         candidate = self.store.one("""SELECT d.article_id FROM news_digest_sources d
@@ -124,8 +164,8 @@ class DigestCache:
             LEFT JOIN news_digest_results r ON r.workspace_id=d.workspace_id AND r.article_id=d.article_id
             WHERE d.workspace_id=? AND d.eligible=1
             AND a.id NOT IN (SELECT article_id FROM news_article_duplicates)
-            AND (r.source_revision IS NULL OR r.source_revision!=d.revision OR r.language!=? OR r.profile_id!=? OR r.model_id!=?
-                OR (r.summary='' AND r.retry_after<=?)) ORDER BY a.discovered_at DESC LIMIT 1""",
+            AND (r.source_revision IS NULL OR r.source_revision!=d.revision OR r.language!=?
+                OR (r.summary='' AND (r.profile_id!=? OR r.model_id!=? OR r.retry_after<=?))) ORDER BY a.discovered_at DESC LIMIT 1""",
             (self.ws,language,assignment['profile_id'],assignment['model_id'],current))
         if not candidate: return None
         # Fetch a single body only after metadata has selected the next job.
@@ -136,10 +176,11 @@ class DigestCache:
 
     @staticmethod
     def valid(row, language, assignment):
-        return bool(matches_language(row.get('saved_summary', row.get('summary', '')), language) and assignment and
+        summary = row.get('saved_summary', row.get('summary', ''))
+        return bool(matches_language(summary, language) and
                     (row.get('source_revision')==row.get('revision') if row.get('revision') is not None else row['source_hash']==fingerprint(row)) and
-                    row['saved_language']==language and row['model_id']==assignment['model_id'] and
-                    row['profile_id']==assignment['profile_id'])
+                    row['saved_language']==language and (summary or (assignment and
+                    row['model_id']==assignment['model_id'] and row['profile_id']==assignment['profile_id'])))
 
     def save(self, row, language, assignment, summary='', attempts=0, retry_after=0, evidence=None):
         from .storage import now

@@ -13,7 +13,7 @@ def test_custom_registry_namespace():
     assert model_name('publisher/small-model:q4')=='publisher/small-model:q4'
     assert model_name('gemma3')=='gemma3:latest'
 
-def test_local_queue_not_limited_by_cloud_budget_and_invalidates_cache(service):
+def test_local_queue_keeps_saved_summaries_when_future_model_changes(service):
     async def scenario():
         local = service.news_digest.local
         local.installed={'custom:small':100,'other:small':200}
@@ -30,15 +30,19 @@ def test_local_queue_not_limited_by_cloud_budget_and_invalidates_cache(service):
         service.news_digest.cache.reserve(1)
         assert await service.news_digest.prepare_next()
         assert calls==['custom:small']
-        assert service.news_digest.status()['phase']=='resting'
+        assert service.news_digest.status()['phase']=='ready'
+        assert service.news_digest.budget.phase()=='resting'
         assert not await service.news_digest.prepare_next()
         assert service.news_digest.preview('story')['summary']=='ملخص المقالة.'
         assert service.news_digest.article_states(['story'])['states']['story']=='ready'
         service.news_digest.configure({'enabled':True,'local_model':'other:small'})
-        assert service.news_digest.preview('story') is None
-        assert service.news_digest.article_states(['story'])['states']['story']=='pending'
+        assert service.news_digest.preview('story')['model']=='custom:small'
+        assert service.news_digest.article_states(['story'])['states']['story']=='ready'
         service.news_digest.budget.next_at = 0
-        assert await service.news_digest.prepare_next()
+        assert not await service.news_digest.prepare_next()
+        from eis_engine.article_summary import summarize
+        replacement=await summarize(service,{'article_id':'story','consent':True,'regenerate':True})
+        assert replacement['model']=='other:small'
         assert calls==['custom:small','other:small']
         assert service.news_digest.cache.used()==1
         local.installed={}

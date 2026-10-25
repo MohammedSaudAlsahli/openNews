@@ -7,6 +7,12 @@ const ar: Record<string, string> = {
   Show: "إظهار",
   Hide: "إخفاء",
   "Main navigation": "التنقل الرئيسي",
+  "Summary saved": "ملخص محفوظ",
+  "Not summarized yet": "لم يُلخّص بعد",
+  "Summary will retry": "ستُعاد محاولة التلخيص",
+  "Summary needs updating": "يحتاج الملخص إلى تحديث",
+  "Summary status unavailable": "تعذّر التحقق من حالة الملخص",
+  "Your saved summary is ready.": "ملخصك المحفوظ جاهز للقراءة.",
   "unchanged lines": "من الأسطر دون تغيير",
   "unchanged lines outside this excerpt · Read saved article":
     "من الأسطر دون تغيير خارج المقتطف · قراءة المقال المحفوظ",

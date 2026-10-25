@@ -9,6 +9,8 @@ first model-list request so the local retry and retained selection can be checke
 `settings=<tab>` opens a settings section after mounting (for example,
 `settings=local-models` or `settings=daily`). `download=downloading`
 supplies an active model-download state and `reports=1` supplies a saved report.
+`summary-phase=memory_pressure` simulates other queued summaries waiting for memory while the opened article already has a saved result. It must not show that result as waiting.
+
 `links=1` also includes a synthetic revision comparison with retained context and separated hunks. Expand Article history, show/hide unchanged lines, switch to Saved article, and collapse/reopen navigation to inspect focus restoration. These are fixture data, not actual downloads, provider requests or saved user reports.
 
 ## Packaged native checks

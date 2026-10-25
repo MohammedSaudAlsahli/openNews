@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type MouseEvent, type ReactNode } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import {
   Activity,
@@ -25,7 +25,7 @@ export function NavigationRail({
   page: string;
   onNavigate: (page: string) => void;
   onNew: () => void;
-  onExpand: () => void;
+  onExpand: (pointer?: boolean) => void;
   onHelp: () => void;
   busy: number;
 }) {
@@ -33,11 +33,18 @@ export function NavigationRail({
   const action = (
     label: string,
     icon: ReactNode,
-    onClick: () => void,
+    onClick: (event: MouseEvent<HTMLButtonElement>) => void,
     current = false,
   ) => (
     <Tooltip.Root>
-      <Tooltip.Trigger asChild>
+      <Tooltip.Trigger
+        asChild
+        onFocus={(event) => {
+          // Collapse transfers focus for accessibility, without a pointer tooltip.
+          if (!event.currentTarget.matches(":focus-visible"))
+            event.preventDefault();
+        }}
+      >
         <button
           className={current ? "selected" : undefined}
           aria-label={t(label)}
@@ -53,6 +60,7 @@ export function NavigationRail({
           side={locale === "ar" ? "left" : "right"}
           sideOffset={10}
           collisionPadding={12}
+          dir={locale === "ar" ? "rtl" : "ltr"}
         >
           {t(label)}
         </Tooltip.Content>
@@ -60,15 +68,21 @@ export function NavigationRail({
     </Tooltip.Root>
   );
   return (
-    <Tooltip.Provider delayDuration={350}>
+    <Tooltip.Provider
+      delayDuration={450}
+      skipDelayDuration={200}
+      disableHoverableContent
+    >
       <nav className="navigation-rail" aria-label={t("Main navigation")}>
         <div className="rail-primary">
-          {action("Show sidebar", <PanelLeftOpen size={19} />, onExpand)}
+          {action("Show sidebar", <PanelLeftOpen size={19} />, (event) =>
+            onExpand(event.detail > 0),
+          )}
           {action("New conversation", <Plus size={20} />, onNew)}
           {action(
             "Conversations",
             <MessageSquare size={19} />,
-            onExpand,
+            (event) => onExpand(event.detail > 0),
             page === "chat",
           )}
           {action(

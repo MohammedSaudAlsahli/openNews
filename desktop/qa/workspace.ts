@@ -202,9 +202,9 @@ const digest = {
   language: "ar",
   engine: firstRun ? "provider" : "local",
   local_model: firstRun ? "" : "qwen3.5:2b",
-  phase: firstRun ? "disabled" : "ready",
+  phase: firstRun ? "disabled" : params.get("summary-phase") || "ready",
   prepared: firstRun ? 0 : 3,
-  pending: 0,
+  pending: params.has("summary-phase") ? 1 : 0,
 };
 const profiles = [
   {

@@ -92,6 +92,7 @@ export function App() {
     [ready, setReady] = useState(false),
     [error, setError] = useState("");
   const previousSidebar = useRef(sidebar);
+  const [sidebarMotion, setSidebarMotion] = useState(false);
   useEffect(() => {
     if (previousSidebar.current === sidebar) return;
     previousSidebar.current = sidebar;
@@ -506,6 +507,7 @@ ${f.text}
         event.key.toLowerCase() === "b"
       ) {
         event.preventDefault();
+        setSidebarMotion(false);
         setSidebar((s) => !s);
         return;
       }
@@ -581,7 +583,10 @@ ${f.text}
     }
   }
   return (
-    <div className={`app ${sidebar ? "" : "collapsed"}`}>
+    <div
+      className={`app ${sidebar ? "" : "collapsed"}`}
+      data-sidebar-motion={sidebarMotion ? "pointer" : undefined}
+    >
       <header className="window-chrome" data-tauri-drag-region>
         {!ready && (
           <span className="engine-starting" role="status">
@@ -594,7 +599,10 @@ ${f.text}
           page={page}
           onNavigate={setPage}
           onNew={() => choose("")}
-          onExpand={() => setSidebar(true)}
+          onExpand={(pointer = false) => {
+            setSidebarMotion(pointer);
+            setSidebar(true);
+          }}
           onHelp={() => {
             setReportCode("");
             setSupport(true);
@@ -619,7 +627,10 @@ ${f.text}
           <button
             title={t("Hide sidebar")}
             aria-label={t("Hide sidebar")}
-            onClick={() => setSidebar(false)}
+            onClick={(event) => {
+              setSidebarMotion(event.detail > 0);
+              setSidebar(false);
+            }}
           >
             <PanelLeftClose size={17} />
           </button>

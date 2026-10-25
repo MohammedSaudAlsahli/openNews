@@ -132,6 +132,27 @@ it("shows the actual waiting reason and does not offer work while resources bloc
   ).toBe(true);
   expect(call).not.toHaveBeenCalled();
 });
+it("does not present a saved summary as waiting for memory", () => {
+  render(
+    <ArticleExplanation
+      article={{
+        id: "saved",
+        prepared_summary: {
+          summary: "Ready saved summary",
+          model: "earlier-model",
+        },
+      }}
+      phase="memory_pressure"
+    />,
+  );
+  expect(screen.getByText("Ready saved summary")).toBeTruthy();
+  expect(screen.getByText("earlier-model")).toBeTruthy();
+  expect(screen.queryByRole("status")).toBeNull();
+  const regenerate = screen.getByRole("button", { name: "Regenerate summary" });
+  expect(regenerate.hasAttribute("disabled")).toBe(true);
+  expect(regenerate.title).toContain("Your saved summary is ready.");
+  expect(call).not.toHaveBeenCalled();
+});
 it("regenerates only on request, preserves the old summary while pending, and shows the new model", async () => {
   let finish!: (value: any) => void;
   vi.mocked(call).mockImplementation(
