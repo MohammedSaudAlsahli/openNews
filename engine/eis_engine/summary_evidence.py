@@ -183,10 +183,13 @@ class SummaryEvidence:
             context = [{**n,'text':n['text'][:per_note]} for n in context]
         from .article_summary import ArticleTLDR
         data = {'output_language':'Arabic.' if language=='ar' else 'English.','title':article['title'],
+             'published_at':article.get('published_at'),'url':article['url'],
+             'source':article.get('source_title'),'source_kind':article.get('source_kind'),
              'sources':context,'truncated':limited or any(s['truncated'] for s in sources),
              'unavailable_sources':[s['id'] for s in sources if s['status']!='read'],
              'unvisited_links':max(0,len(urls)-MAX_LINKS)}
         source_numbers = {s['id']:numeric_values(s['text']) for s in sources if s['status']=='read'}
+        source_numbers['S1'] |= numeric_values(article.get('published_at') or '')
         all_numbers = set().union(*source_numbers.values())
         for attempt in range(2):
             self.check_budget(profile)
@@ -206,6 +209,7 @@ class SummaryEvidence:
             text = re.sub(r'\[([^\]]+)\]\([^)]*\)',r'\1',text)
             text = re.sub(r'<[^>]*>','',text)
             text = re.sub(r'https?://[^\s<>()\]]+','',text)
+            text = re.sub(r'\s+([.,،؛:!?؟])',r'\1',text)
             return re.sub(r'\[(S\d+)\]',lambda m: f"[{m[1]}]({available[m[1]]['url']})" if m[1] in available else '',text)
         summary = cite(result.summary)
         headings = [('key_points','التفاصيل الأساسية','Key facts'),('sequence','التسلسل','Sequence'),

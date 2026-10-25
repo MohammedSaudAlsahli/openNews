@@ -34,8 +34,11 @@ class DigestCache:
         if 'evidence_json' not in columns:
             with self.db:
                 self.db.execute("ALTER TABLE news_digest_results ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '{}'")
-                # Re-prepare the old explanation format once, preserving originals.
-                self.db.execute('UPDATE news_digest_sources SET revision=revision+1')
+            self.db.executescript('DROP TRIGGER IF EXISTS news_digest_source_insert; DROP TRIGGER IF EXISTS news_digest_source_change;')
+            self.initialize_queue()
+            with self.db:
+                # Re-prepare old explanations once, including short complete news.
+                self.db.execute("UPDATE news_digest_sources SET revision=revision+1,eligible=(SELECT body_status='full' AND length(trim(text))>0 FROM news_articles WHERE id=article_id)")
 
     def day(self):
         return datetime.now(timezone.utc).date().isoformat()
@@ -67,16 +70,16 @@ class DigestCache:
             CREATE INDEX IF NOT EXISTS news_digest_eligible ON news_digest_sources(workspace_id,eligible,article_id);
             CREATE TRIGGER IF NOT EXISTS news_digest_source_insert AFTER INSERT ON news_articles BEGIN
                 INSERT OR REPLACE INTO news_digest_sources(article_id,workspace_id,eligible)
-                VALUES(new.id,new.workspace_id,new.body_status='full' AND length(new.text)>=120);
+                VALUES(new.id,new.workspace_id,new.body_status='full' AND length(trim(new.text))>0);
             END;
             CREATE TRIGGER IF NOT EXISTS news_digest_source_change AFTER UPDATE OF title,url,published_at,text,body_status ON news_articles
             WHEN new.title IS NOT old.title OR new.url IS NOT old.url OR new.published_at IS NOT old.published_at OR new.text IS NOT old.text OR new.body_status IS NOT old.body_status
             BEGIN
                 UPDATE news_digest_sources SET revision=revision+1,source_hash='',
-                    eligible=new.body_status='full' AND length(new.text)>=120 WHERE article_id=new.id;
+                    eligible=new.body_status='full' AND length(trim(new.text))>0 WHERE article_id=new.id;
             END;
             INSERT OR IGNORE INTO news_digest_sources(article_id,workspace_id,eligible)
-                SELECT id,workspace_id,body_status='full' AND length(text)>=120 FROM news_articles
+                SELECT id,workspace_id,body_status='full' AND length(trim(text))>0 FROM news_articles
                 WHERE id NOT IN (SELECT article_id FROM news_digest_sources);
         """)
         columns = {r[1] for r in self.db.execute('PRAGMA table_info(news_digest_results)')}

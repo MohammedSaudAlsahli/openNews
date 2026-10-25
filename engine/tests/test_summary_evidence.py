@@ -162,3 +162,20 @@ def test_unsupported_figures_get_one_repair_then_fail_closed(service):
         assert len(calls)==2 and 'correction_required' in calls[1]
         assert service.news_digest.preview('story','en') is None
     asyncio.run(run())
+
+
+def test_short_complete_news_enters_the_queue_with_publication_context(service):
+    async def run():
+        await configure(service)
+        with service.db:
+            service.db.execute("UPDATE news_articles SET text='The council approved the plan.',published_at='2026-10-25T08:00:00Z' WHERE id='story'")
+        assert service.news_digest.status()['pending']==1
+        seen=[]
+        async def model(profile,instructions,data,schema):
+            seen.append(data)
+            return ArticleSummary(summary='The council approved the proposed plan.')
+        service.factory.run=model
+        assert await service.news_digest.prepare_next()
+        assert seen[0]['published_at']=='2026-10-25T08:00:00Z'
+        assert service.news_digest.preview('story','en')
+    asyncio.run(run())
