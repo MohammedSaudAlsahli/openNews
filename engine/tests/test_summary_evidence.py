@@ -193,6 +193,14 @@ def test_legacy_saved_summary_stays_visible_while_new_tldr_is_queued(service):
         previous=service.news_digest.preview('story','en')
         assert previous['needs_refresh'] and previous['coverage']['limited']
         assert service.news_digest.status()['pending']==1
+        original=service.factory.run
+        async def offline(*args): raise OSError('temporary failure')
+        service.factory.run=offline
+        assert await service.news_digest.prepare_next()
+        assert service.news_digest.preview('story','en')['summary']=='A previously saved explanation.'
+        assert not await service.news_digest.prepare_next()
+        service.factory.run=original
+        with service.db: service.db.execute("UPDATE news_digest_results SET retry_after=0 WHERE article_id='story'")
         assert await service.news_digest.prepare_next()
         assert not service.news_digest.preview('story','en').get('needs_refresh')
         with service.db: service.db.execute("UPDATE news_articles SET text=text||' Changed text.' WHERE id='story'")

@@ -149,9 +149,18 @@ class NewsDigest:
     def preview(self, article_id, language=None):
         row = self.store.one('''SELECT a.*,r.source_hash,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id,r.evidence_json
             FROM news_articles a JOIN news_digest_results r ON r.article_id=a.id AND r.workspace_id=a.workspace_id
-            WHERE a.workspace_id=? AND a.id=? AND r.summary!='' ''', (self.ws,article_id))
+            WHERE a.workspace_id=? AND a.id=? ''', (self.ws,article_id))
         if not row: return None
         selected_language, assignment = language or self.settings()['language'],self.assignment()
+        import json
+        evidence = json.loads(row['evidence_json'])
+        if not row['saved_summary']:
+            if (evidence.get('legacy_summary') and evidence.get('legacy_hash')==fingerprint(row)
+                and assignment and row['saved_language']==selected_language and row['model_id']==assignment['model_id']
+                and row['profile_id']==assignment['profile_id']):
+                return {'summary':evidence['legacy_summary'],'model':row['model_id'],'cached':True,
+                        'needs_refresh':True,'coverage':{'limited':True,'unvisited_links':0}}
+            return None
         if not self.cache.valid(row,selected_language,assignment):
             from .storage import digest, encode
             old_hash = digest('explanation-3:'+encode({k:row.get(k) for k in ('title','url','published_at','text','body_status')}))
@@ -216,8 +225,10 @@ class NewsDigest:
             except Exception as error:
                 if isinstance(error,Failure) and error.code=='RESOURCE_WAIT': return False
                 attempts = (row['attempts'] or 0)+1 if valid else 1
+                previous = self.preview(row['id'],setting['language'])
+                retained = {'legacy_summary':previous['summary'],'legacy_hash':fingerprint(row)} if previous and previous.get('needs_refresh') else {}
                 self.cache.save(row,setting['language'],assignment,attempts=attempts,
-                                retry_after=current+min(86400,300*2**min(attempts,8)))
+                                retry_after=current+min(86400,300*2**min(attempts,8)),evidence=retained)
             finally:
                 self.active_request, self.current_title, self.current_id = None, '', ''
                 if setting['engine']=='local':
