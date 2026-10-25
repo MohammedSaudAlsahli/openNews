@@ -134,12 +134,20 @@ it("searches the online directory by topic and previews the chosen result", asyn
   origin.focus();
   fireEvent.click(origin);
   await screen.findByRole("heading", { name: "Review before adding" });
-  expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Review before adding" }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "Review before adding" }),
+    ),
+  );
   expect(call).toHaveBeenCalledWith("skills.preview", {
     url: "https://skills.sh/a/b/article-guide",
   });
   fireEvent.click(screen.getByRole("button", { name: "Back to discovery" }));
-  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Preview skill" }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Preview skill" }),
+    ),
+  );
 });
 it("keeps a reviewed import when the user cancels leaving it", async () => {
   mock();
@@ -228,7 +236,9 @@ it("focuses link entry, review and added details without stealing focus while ed
   expect(document.activeElement).toBe(url);
   fireEvent.change(url, { target: { value: "https://github.com/a/b" } });
   fireEvent.click(screen.getByRole("button", { name: "Preview skill" }));
-  const reviewHeading = await screen.findByRole("heading", { name: "Review before adding" });
+  const reviewHeading = await screen.findByRole("heading", {
+    name: "Review before adding",
+  });
   await waitFor(() => expect(document.activeElement).toBe(reviewHeading));
   const name = screen.getByRole("textbox", { name: "Skill name" });
   name.focus();

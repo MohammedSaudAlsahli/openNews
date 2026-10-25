@@ -85,7 +85,7 @@ export const settingsCategories = [
   {
     id: "articles",
     title: "Your articles",
-    description: "Search & automatic explanations",
+    description: "Search & automatic summaries",
     icon: Newspaper,
     pages: [
       {
@@ -95,8 +95,8 @@ export const settingsCategories = [
       },
       {
         id: "summaries",
-        title: "Article explanations",
-        keywords: ["Automatic explanations", "Language", "Explanation source"],
+        title: "TL;DR",
+        keywords: ["Automatic summaries", "Language", "Explanation source"],
       },
     ],
   },

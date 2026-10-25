@@ -385,13 +385,18 @@ class LocalSummaryModels:
             await self.release_embedding()
             if self.generation_name and self.generation_name!=name: await self.release_generation()
             background = self.service.news_digest.active_request is asyncio.current_task()
-            model = Ollama(id=name,host=HOST,api_key=None,timeout=120,keep_alive='30s' if background else 0,client_params={'trust_env':False},
-                           options={'num_ctx':8192,'num_predict':2000,'num_thread':2,'temperature':0.2},
+            from .summary_evidence import estimated_tokens
+            prompt = json.dumps({**data, "output_language": "العربية فقط؛ ترجم الملخص ولا تنسخ النص الإنجليزي." if data.get("output_language") == "Arabic." else "English only."},ensure_ascii=False)
+            output_limit = 300 if data.get('note_pass') else 1100
+            if estimated_tokens(instructions+prompt+json.dumps(schema.model_json_schema(),ensure_ascii=False))+output_limit>7900:
+                raise Failure('CONTEXT_LIMIT','تعليمات التلخيص أو الأدلة أكبر من السياق المحدد. اختصر تعليمات التلخيص ثم أعد المحاولة.')
+            model = Ollama(id=name,host=HOST,api_key=None,timeout=75,keep_alive='30s' if background else 0,client_params={'trust_env':False},
+                           options={'num_ctx':8192,'num_batch':128,'num_predict':300 if data.get('note_pass') else 1100,'num_thread':2,'temperature':0.2},
                            request_params={'think':False} if 'thinking' in self.capabilities.get(name,[]) else None)
             agent = Agent(model=model,instructions=instructions,output_schema=schema,markdown=False)
             interrupted = False
             try:
-                result = await asyncio.wait_for(agent.arun(json.dumps({**data, "output_language": "العربية فقط؛ ترجم الملخص ولا تنسخ النص الإنجليزي." if data.get("output_language") == "Arabic." else "English only."},ensure_ascii=False)),timeout=120)
+                result = await asyncio.wait_for(agent.arun(prompt),timeout=75)
             except BaseException:
                 interrupted = True
                 raise

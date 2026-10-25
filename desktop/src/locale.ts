@@ -4,6 +4,31 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Apply the selected model to a task. TL;DR can also use a local model in article settings.": "عيّن النموذج لمهمة. يمكنك اختيار نموذج محلي للملخص من إعدادات المقالات.",
+  "TL;DR": "الملخص",
+  "Source quotations": "اقتباسات من المصادر",
+  "Sources checked": "المصادر التي جرى فحصها",
+  "Excerpt read": "قُرئ مقتطف",
+  "Read": "تمت القراءة",
+  "Could not read": "تعذّرت القراءة",
+  "Coverage is limited to the text and sources shown. Some content or additional links were not included.": "يغطي الملخص النص والمصادر الموضحة فقط؛ لم تُضمّن بعض الأجزاء أو الروابط الإضافية.",
+  "Prepared in the background for new and older articles. Saved summaries appear here immediately.": "يُجهّز الملخص في الخلفية للأخبار الجديدة والقديمة، ويظهر هنا فور حفظه.",
+  "Choose a summary model to prepare TL;DR automatically.": "اختر نموذج تلخيص لتجهيز الملخصات تلقائيًا.",
+  "Preparing TL;DR…": "جارٍ تجهيز الملخص…",
+  "Prepare this summary": "تلخيص هذا المقال",
+  "Automatic summaries": "التلخيص التلقائي",
+  "Summary model": "نموذج التلخيص",
+  "Summary settings": "إعدادات الملخص",
+  "TL;DR instructions": "تعليمات الملخص",
+  "Private search and summaries, on your Mac.": "البحث والملخصات بخصوصية على جهازك.",
+  "Summarize articles and their linked sources with a language model.": "تلخيص المقالات والمصادر المرتبطة بها باستخدام نموذج لغوي.",
+  "Search coverage and summary progress": "تغطية البحث وتقدّم التلخيص",
+  "Search uses your saved articles. Indexing and summaries are separate tasks.": "يستخدم البحث مقالاتك المحفوظة. الفهرسة والتلخيص مهمتان منفصلتان.",
+  "New and older articles are summarized in the background using your selected model.": "تُلخّص الأخبار الجديدة والقديمة في الخلفية باستخدام النموذج الذي اخترته.",
+  "Choose a model before enabling automatic summaries.": "اختر نموذجًا قبل تفعيل التلخيص التلقائي.",
+  "Automatic summaries are paused. Saved summaries remain available.": "التلخيص التلقائي متوقف. تبقى الملخصات المحفوظة متاحة.",
+  "Search & automatic summaries": "البحث والتلخيص التلقائي",
+
   "This model does not support the selected task.":
     "هذا الموديل لا يدعم المهمة المحددة.",
   "Storage and memory details": "تفاصيل المساحة والذاكرة",

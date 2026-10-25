@@ -56,7 +56,7 @@ void (async () => {
       "Appearance & language": "General", "Privacy & updates": "General",
       "Local models": "AI models", "Accounts & models": "AI models",
       "Customize assistant": "Assistant & writing", "Writing skills": "Assistant & writing",
-      "Article search": "Your articles", "Article explanations": "Your articles",
+      "Article search": "Your articles", "TL;DR": "Your articles",
     };
     if (document.querySelector(".settings-layout") && settingsParents[label] && !button(label)) {
       const parent = await until(() => button(settingsParents[label]));

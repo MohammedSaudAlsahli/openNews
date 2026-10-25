@@ -75,7 +75,7 @@ export function LocalModels({
         <div>
           <h2>{t("Local models")}</h2>
           <p className="muted">
-            {t("Private search and explanations, on your Mac.")}
+            {t("Private search and summaries, on your Mac.")}
           </p>
         </div>
         <span
@@ -137,14 +137,14 @@ export function LocalModels({
                       {t(
                         role === "embedding"
                           ? "Article search"
-                          : "Article explanations",
+                          : "TL;DR",
                       )}
                     </strong>
                     <small>
                       {t(
                         role === "embedding"
                           ? "Find articles by meaning. Text search is always available."
-                          : "Generate explanations with a separate language model.",
+                          : "Summarize articles and their linked sources with a language model.",
                       )}
                     </small>
                   </span>
@@ -208,7 +208,7 @@ export function LocalModels({
         <summary>
           <span>
             <strong>{t("Your article library")}</strong>
-            <small>{t("Search coverage and explanation progress")}</small>
+            <small>{t("Search coverage and summary progress")}</small>
           </span>
           <ChevronDown size={16} className="disclosure-chevron" />
         </summary>
@@ -228,7 +228,7 @@ export function LocalModels({
           <div>
             <h4>
               <Sparkles size={15} />
-              {t("Article explanations")}
+              {t("TL;DR")}
             </h4>
             <ProcessingStatus
               data={digest}

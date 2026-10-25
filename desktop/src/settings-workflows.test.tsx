@@ -108,7 +108,7 @@ it("does not replace a changed processing preference with an older status poll",
     />,
   );
   const toggle = (await screen.findByRole("checkbox", {
-    name: "Automatic explanations",
+    name: "Automatic summaries",
   })) as HTMLInputElement;
   act(() => {
     void poll();
@@ -153,11 +153,11 @@ it("guides missing explanation models to account setup without attempting to ena
     />,
   );
   const toggle = (await screen.findByRole("checkbox", {
-    name: "Automatic explanations",
+    name: "Automatic summaries",
   })) as HTMLInputElement;
   expect(toggle.disabled).toBe(true);
   expect(
-    screen.getByText("Choose a model before enabling explanations."),
+    screen.getByText("Choose a model before enabling automatic summaries."),
   ).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Choose a model" }));
   await screen.findByRole("heading", { name: "Accounts & models" });
@@ -207,7 +207,7 @@ it.each(["provider", "local"])(
     expect(
       (
         screen.getByRole("checkbox", {
-          name: "Automatic explanations",
+          name: "Automatic summaries",
         }) as HTMLInputElement
       ).disabled,
     ).toBe(false);

@@ -79,6 +79,7 @@ def test_arabic_and_english_manual_summary_use_selected_local_model(service):
         local=service.news_digest.local
         local.installed={'custom:small':100}
         service.news_digest.configure({'enabled':False,'engine':'local','local_model':'custom:small'})
+        service.news_digest.device_state({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False})
         prompts=[]
         async def generate(name,instructions,data,schema):
             prompts.append(instructions)

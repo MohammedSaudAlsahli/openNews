@@ -6,6 +6,7 @@ Tauri is the supported application. Start here. Files under `legacy/` and `swift
 
 | Goal | Guide |
 |---|---|
+| TL;DR, linked sources and coverage limits | [TL;DR](tldr.en.md) |
 | Install, start and upgrade | [Getting started](SETUP.en.md) |
 | Data and network access | [Privacy](privacy.en.md) |
 | Develop and verify | [Contributing](../CONTRIBUTING.en.md) |

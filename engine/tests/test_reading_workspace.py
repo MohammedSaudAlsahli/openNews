@@ -87,9 +87,10 @@ def test_summary_requires_permission_uses_existing_model_and_caches(manager):
         cached = await service.dispatch('news.summarize',payload|{'consent':True})
         assert not result['cached'] and cached['cached'] and len(service.factory.calls)==1
         profile,instructions,data,schema = service.factory.calls[0]
-        assert profile['model_id']=='test-model' and schema is ArticleSummary
+        from eis_engine.article_summary import ArticleTLDR
+        assert profile['model_id']=='test-model' and schema is ArticleTLDR
         assert 'English.' in instructions and 'untrusted' in instructions
-        assert data['text']=='Deep reading 100% code_block'
+        assert data['sources']==[{'source_id':'S1','text':'Deep reading 100% code_block'}]
         assert not service.store.rows('SELECT * FROM chat_messages')
     asyncio.run(run())
 

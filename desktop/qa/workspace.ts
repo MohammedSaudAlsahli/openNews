@@ -371,7 +371,14 @@ mockIPC(
           reader: { blocks: [] },
           prepared_summary: {
             summary:
-              "شرح المقالة يظهر هنا مع سياق الأفكار والمصادر التي تساعد القارئ على فهم الموضوع.",
+              "## الخلاصة\n\nملخص تجريبي لواجهة القراءة، وليس خبرًا حقيقيًا.\n\n### تسلسل التفاصيل\n\n- يوضح المقال الفكرة الأساسية وأسبابها. [S1]\n- يضيف المصدر المرتبط سياقًا مختلفًا، مع توضيح ما لم يتأكد بعد. [S2]",
+            sources: [
+              {id:"S1",url:"https://example.com/article",status:"read"},
+              {id:"S2",url:"https://example.org/report",status:"read"},
+              {id:"S3",url:"https://x.com/example/status/1",status:"unavailable"},
+            ],
+            quotes: [{source_id:"S2",text:"هذا اقتباس اصطناعي لاختبار الواجهة فقط.",url:"https://example.org/report"}],
+            coverage: {limited:false,unvisited_links:0},
           },
         };
       case "news.summary.states":

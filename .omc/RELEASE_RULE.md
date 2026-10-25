@@ -2,7 +2,7 @@
 <!-- last-analyzed: 2026-10-25 -->
 
 ## Version Sources
-Primary: desktop/package.json. Match desktop/package-lock.json (root and packages[""]), desktop/src-tauri/tauri.conf.json, Cargo.toml and the application package in Cargo.lock. Stable version: 0.3.0. The Python package version is independent. VERSION, BUILD_VERSION and appcast.xml are historical Swift artifacts.
+Primary: desktop/package.json. Match desktop/package-lock.json (root and packages[""]), desktop/src-tauri/tauri.conf.json, Cargo.toml and the application package in Cargo.lock. Stable version: 0.3.1. The Python package version is independent. VERSION, BUILD_VERSION and appcast.xml are historical Swift artifacts.
 
 ## Release Trigger
 Push main, require successful ci.yml for that exact SHA, push an annotated vVERSION tag, then manually dispatch release.yml with tag and successful CI run ID. User authorized publishing the current Tauri work as the official application, not a prerelease. Never replace published tags/assets.

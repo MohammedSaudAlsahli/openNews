@@ -5,7 +5,7 @@ from .storage import digest, encode
 
 
 def fingerprint(row):
-    return digest('explanation-3:' + encode({k: row.get(k) for k in ('title','url','published_at','text','body_status')}))
+    return digest('tldr-4:' + encode({k: row.get(k) for k in ('title','url','published_at','text','body_status')}))
 
 
 def matches_language(text, language):
@@ -30,6 +30,12 @@ class DigestCache:
             PRIMARY KEY(workspace_id,day))''')
         self.db.commit()
         self.initialize_queue()
+        columns = {r[1] for r in self.db.execute('PRAGMA table_info(news_digest_results)')}
+        if 'evidence_json' not in columns:
+            with self.db:
+                self.db.execute("ALTER TABLE news_digest_results ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '{}'")
+                # Re-prepare the old explanation format once, preserving originals.
+                self.db.execute('UPDATE news_digest_sources SET revision=revision+1')
 
     def day(self):
         return datetime.now(timezone.utc).date().isoformat()
@@ -132,7 +138,7 @@ class DigestCache:
                     row['saved_language']==language and row['model_id']==assignment['model_id'] and
                     row['profile_id']==assignment['profile_id'])
 
-    def save(self, row, language, assignment, summary='', attempts=0, retry_after=0):
+    def save(self, row, language, assignment, summary='', attempts=0, retry_after=0, evidence=None):
         from .storage import now
         from .contracts import Failure
         if not matches_language(summary, language):
@@ -144,9 +150,9 @@ class DigestCache:
             revision = source['revision'] if source and live and fingerprint(live)==fingerprint(row) else 0
         with self.db:
             self.db.execute('''INSERT INTO news_digest_results
-                (workspace_id,article_id,source_hash,language,summary,model_id,attempts,retry_after,updated_at,profile_id,source_revision)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(workspace_id,article_id) DO UPDATE SET
+                (workspace_id,article_id,source_hash,language,summary,model_id,attempts,retry_after,updated_at,profile_id,source_revision,evidence_json)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(workspace_id,article_id) DO UPDATE SET
                 source_hash=excluded.source_hash,language=excluded.language,summary=excluded.summary,
                 model_id=excluded.model_id,attempts=excluded.attempts,retry_after=excluded.retry_after,
-                updated_at=excluded.updated_at,profile_id=excluded.profile_id,source_revision=excluded.source_revision''',
-                (self.ws,row['id'],fingerprint(row),language,summary,assignment['model_id'],attempts,retry_after,now(),assignment['profile_id'],revision))
+                updated_at=excluded.updated_at,profile_id=excluded.profile_id,source_revision=excluded.source_revision,evidence_json=excluded.evidence_json''',
+                (self.ws,row['id'],fingerprint(row),language,summary,assignment['model_id'],attempts,retry_after,now(),assignment['profile_id'],revision,encode(evidence or {})))

@@ -731,7 +731,7 @@ export default function Settings({
                   <p className="muted">
                     {t("Choose a model before scheduling reports.")}{" "}
                     <button onClick={() => setTab("summaries")}>
-                      {t("Explanation settings")}
+                      {t("Summary settings")}
                     </button>
                   </p>
                 )}
@@ -958,21 +958,21 @@ export default function Settings({
                 <h2>
                   {tab === "search"
                     ? t("Article search")
-                    : t("Article explanations")}
+                    : t("TL;DR")}
                 </h2>
                 <p className="muted">
                   {tab === "search"
                     ? t(
-                        "Search uses your saved articles. Indexing and explanations are separate tasks.",
+                        "Search uses your saved articles. Indexing and summaries are separate tasks.",
                       )
                     : t(
-                        "Explanations use the summary model selected in your workspace.",
+                        "New and older articles are summarized in the background using your selected model.",
                       )}
                 </p>
                 {tab === "summaries" && (
                   <div className="summary-model-choice">
                     <div>
-                      <strong>{t("Explanation model")}</strong>
+                      <strong>{t("Summary model")}</strong>
                       <span dir="auto">
                         {chosenSummaryModel || t("No model selected")}
                       </span>
@@ -992,7 +992,7 @@ export default function Settings({
                     </button>
                     {!chosenSummaryModel && (
                       <p className="muted">
-                        {t("Choose a model before enabling explanations.")}
+                        {t("Choose a model before enabling automatic summaries.")}
                       </p>
                     )}
                   </div>
@@ -1000,7 +1000,7 @@ export default function Settings({
                 <label className="setting-row">
                   {tab === "search"
                     ? t("Search by meaning")
-                    : t("Automatic explanations")}
+                    : t("Automatic summaries")}
                   <input
                     type="checkbox"
                     disabled={
@@ -1114,7 +1114,7 @@ export default function Settings({
                 {tab === "summaries" && (
                   <TaskInstructions
                     id="article-summary"
-                    title={t("Article explanation instructions")}
+                    title={t("TL;DR instructions")}
                     onError={setPageError}
                   />
                 )}

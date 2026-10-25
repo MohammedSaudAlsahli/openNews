@@ -846,12 +846,12 @@ export function Articles({
         <div className="summary-status">
           <span>
             {t(
-              "Automatic explanations are paused. Saved explanations remain available.",
+              "Automatic summaries are paused. Saved summaries remain available.",
             )}
           </span>
           {onConfigureExplanations && (
             <button onClick={onConfigureExplanations}>
-              {t("Explanation settings")}
+              {t("Summary settings")}
             </button>
           )}
         </div>
@@ -918,7 +918,7 @@ export function Articles({
                     (
                       {
                         ready: "Explained",
-                        summarizing: "Preparing explanation…",
+                        summarizing: "Preparing TL;DR…",
                         retrying: "Explanation will retry",
                         pending: "Not explained",
                         incomplete: "Excerpt only",

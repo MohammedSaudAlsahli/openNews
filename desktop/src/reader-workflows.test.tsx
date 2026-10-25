@@ -68,7 +68,7 @@ it("opens explanation settings instead of enabling a missing model from the arti
     />,
   );
   fireEvent.click(
-    await screen.findByRole("button", { name: "Explanation settings" }),
+    await screen.findByRole("button", { name: "Summary settings" }),
   );
   expect(configure).toHaveBeenCalledOnce();
   expect(
@@ -98,7 +98,7 @@ it("keeps exactly one explanation and history section across reader updates", as
     );
     rerender(<Articles snapshot={{ tick: i }} onError={vi.fn()} />);
   }
-  expect(container.querySelectorAll(".article-explanation")).toHaveLength(1);
+  expect(container.querySelectorAll(".article-tldr")).toHaveLength(1);
   expect(container.querySelectorAll(".article-history")).toHaveLength(1);
   expect(
     errors.mock.calls.filter((args) => args.join(" ").includes("same key")),

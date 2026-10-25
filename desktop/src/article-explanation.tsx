@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { BookOpen, ChevronDown, LoaderCircle } from "lucide-react";
+import { BookOpen, LoaderCircle } from "lucide-react";
 import { call, type RecordData } from "./engine";
 import { Markdown } from "./components";
 import { t } from "./locale";
+import { invoke } from "@tauri-apps/api/core";
 
-// Mounted by article ID: late results cannot replace another article's explanation.
+// Mounted by article ID; late responses cannot replace another article's TL;DR.
 export function ArticleExplanation({
   article,
   configured = true,
@@ -14,27 +15,27 @@ export function ArticleExplanation({
   configured?: boolean;
   onConfigure?: () => void;
 }) {
-  const [summary, setSummary] = useState(
-    article.prepared_summary?.summary || "",
+  const [result, setResult] = useState<RecordData>(
+    article.prepared_summary || {},
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    setSummary(article.prepared_summary?.summary || "");
-  }, [article.prepared_summary?.summary]);
+    setResult(article.prepared_summary || {});
+  }, [article.prepared_summary]);
   useEffect(() => {
-    if (summary || busy) return;
+    if (result.summary || busy || !configured) return;
     let live = true,
       polling = false;
     const timer = setInterval(async () => {
       if (polling || document.visibilityState === "hidden") return;
       polling = true;
       try {
-        const result = await call("news.preview", { article_id: article.id });
-        if (live && result.prepared_summary?.summary)
-          setSummary(result.prepared_summary.summary);
+        const next = await call("news.preview", { article_id: article.id });
+        if (live && next.prepared_summary?.summary)
+          setResult(next.prepared_summary);
       } catch {
-        /* Temporary failures must not interrupt reading. */
+        /* A transient refresh failure must not interrupt reading. */
       } finally {
         polling = false;
       }
@@ -43,65 +44,118 @@ export function ArticleExplanation({
       live = false;
       clearInterval(timer);
     };
-  }, [article.id, summary, busy]);
+  }, [article.id, result.summary, busy, configured]);
   async function generate() {
     setBusy(true);
     setError("");
     try {
-      const result = await call("news.summarize", {
-        article_id: article.id,
-        consent: true,
-      });
-      setSummary(result.summary);
-    } catch (e) {
-      setError(String(e));
+      setResult(
+        await call("news.summarize", { article_id: article.id, consent: true }),
+      );
+    } catch (reason) {
+      setError(String(reason));
     } finally {
       setBusy(false);
     }
   }
   return (
-    <details className="article-explanation">
-      <summary>
-        <BookOpen size={15} aria-hidden="true" />
-        <span>{t("Article explanation")}</span>
-        <ChevronDown
-          size={14}
-          className="disclosure-chevron"
-          aria-hidden="true"
-        />
-      </summary>
-      {summary ? (
-        <Markdown text={summary} />
-      ) : (
+    <section
+      className="article-tldr"
+      aria-label={t("TL;DR")}
+      aria-busy={busy}
+      onClick={(event) => {
+        if (event.defaultPrevented) return;
+        const link = (event.target as HTMLElement).closest("a");
+        if (link) {
+          event.preventDefault();
+          void invoke("open_external", { address: link.href }).catch(() => {});
+        }
+      }}
+    >
+      <header>
+        <BookOpen size={17} aria-hidden="true" />
+        <h2>{t("TL;DR")}</h2>
+      </header>
+      {result.summary ? (
         <>
+          <Markdown text={result.summary} />
+          {!!result.quotes?.length && (
+            <div className="tldr-quotes">
+              <h3>{t("Source quotations")}</h3>
+              {result.quotes.map((quote: RecordData, index: number) => (
+                <figure key={index}>
+                  <blockquote dir="auto">{quote.text}</blockquote>
+                  <figcaption>
+                    <a href={quote.url}>
+                      {quote.source_id} · {new URL(quote.url).hostname}
+                    </a>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+          {!!result.sources?.length && (
+            <div className="tldr-sources">
+              <h3>{t("Sources checked")}</h3>
+              <ul>
+                {result.sources.map((source: RecordData) => (
+                  <li key={source.id}>
+                    <a href={source.url}>
+                      <bdi>
+                        {source.id} · {new URL(source.url).hostname}
+                      </bdi>
+                    </a>
+                    <span>
+                      {t(
+                        source.status === "read"
+                          ? source.truncated
+                            ? "Excerpt read"
+                            : "Read"
+                          : "Could not read",
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(result.coverage?.limited ||
+            result.coverage?.unvisited_links > 0) && (
+            <p className="muted tldr-coverage">
+              {t(
+                "Coverage is limited to the text and sources shown. Some content or additional links were not included.",
+              )}
+            </p>
+          )}
+        </>
+      ) : (
+        <div className="tldr-empty">
           <p className="muted">
             {t(
               configured
-                ? "No explanation yet. Generate one using your selected summary model."
-                : "Choose an explanation model to explain this article.",
+                ? "Prepared in the background for new and older articles. Saved summaries appear here immediately."
+                : "Choose a summary model to prepare TL;DR automatically.",
             )}
           </p>
-          {!configured ? (
+          {configured ? (
+            <button disabled={busy} onClick={() => void generate()}>
+              {busy && (
+                <LoaderCircle size={16} className="spin" aria-hidden="true" />
+              )}
+              {t(busy ? "Preparing TL;DR…" : "Prepare this summary")}
+            </button>
+          ) : (
             onConfigure && (
               <button onClick={onConfigure}>{t("Choose a model")}</button>
             )
-          ) : (
-            <button disabled={busy} onClick={() => void generate()}>
-              {busy && <LoaderCircle size={16} className="spin" />}
-              {t(
-                busy
-                  ? "Preparing explanation…"
-                  : "Generate explanation with my model",
-              )}
-            </button>
           )}
-        </>
+        </div>
       )}
       {error && (
         <p className="notice" role="alert">
           {error}
         </p>
       )}
-    </details>
+    </section>
   );
 }

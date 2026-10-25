@@ -34,6 +34,8 @@ class NewsDigest:
         self.cache = DigestCache(self.store)
         from .local_summary import LocalSummaryModels
         self.local = LocalSummaryModels(service)
+        from .summary_evidence import SummaryEvidence
+        self.evidence = SummaryEvidence(self)
         columns = {r[1] for r in self.db.execute('PRAGMA table_info(news_digest_settings)')}
         for name, default in [('engine','provider'),('local_model','')]:
             if name not in columns:
@@ -145,11 +147,12 @@ class NewsDigest:
             self.quantum_units += units
 
     def preview(self, article_id, language=None):
-        row = self.store.one('''SELECT a.*,r.source_hash,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id
+        row = self.store.one('''SELECT a.*,r.source_hash,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id,r.evidence_json
             FROM news_articles a JOIN news_digest_results r ON r.article_id=a.id AND r.workspace_id=a.workspace_id
             WHERE a.workspace_id=? AND a.id=? AND r.summary!='' ''', (self.ws,article_id))
         if not row or not self.cache.valid(row,language or self.settings()['language'],self.assignment()): return None
-        return {'summary':row['saved_summary'],'model':row['model_id'],'cached':True}
+        import json
+        return {**json.loads(row['evidence_json']),'summary':row['saved_summary'],'model':row['model_id'],'cached':True}
 
     def interrupt_for_user(self):
         knowledge = getattr(getattr(self.service,'news',None),'knowledge',None)
@@ -180,11 +183,12 @@ class NewsDigest:
         profile['model_id'] = assignment['model_id']
         if row:
             valid = self.cache.valid(row,setting['language'],assignment)
-            cached = self.store.one("""SELECT summary FROM news_digest_results WHERE workspace_id=?
+            cached = self.store.one("""SELECT summary,evidence_json FROM news_digest_results WHERE workspace_id=?
                 AND source_hash=? AND language=? AND profile_id=? AND model_id=? AND summary!='' LIMIT 1""",
                 (self.ws,fingerprint(row),setting['language'],assignment['profile_id'],assignment['model_id']))
             if cached and matches_language(cached["summary"], setting["language"]):
-                self.cache.save(row,setting['language'],assignment,cached['summary'])
+                import json
+                self.cache.save(row,setting['language'],assignment,cached['summary'],evidence=json.loads(cached['evidence_json']))
                 return True
             # The summary represents a bounded excerpt for very long articles, not invented coverage.
             if setting['engine']!='local': self.cache.record()
@@ -192,16 +196,15 @@ class NewsDigest:
             started = time.monotonic()
             if setting['engine']=='local': self.begin_worker('summary')
             try:
-                self.active_request = asyncio.create_task(self.generate(profile,
-                    load_instructions(self.store, 'article-summary'),
-                    {'output_language':'Arabic.' if setting['language']=='ar' else 'English.', 'title':row['title'],'source':row['source_title'],'source_kind':row.get('source_kind','rss'),'url':row['url'],'published_at':row['published_at'],
-                     'text':row['text'][:24000], 'truncated':len(row['text'])>24000}, ArticleSummary))
+                self.active_request = asyncio.create_task(self.evidence.prepare(profile,row,setting['language'],
+                    load_instructions(self.store, 'article-summary'),ArticleSummary))
                 result = await self.active_request
-                self.cache.save(row,setting['language'],assignment,result.summary)
+                self.cache.save(row,setting['language'],assignment,result['summary'],evidence=result)
             except asyncio.CancelledError:
                 if asyncio.current_task().cancelling(): raise
                 return False
-            except Exception:
+            except Exception as error:
+                if isinstance(error,Failure) and error.code=='RESOURCE_WAIT': return False
                 attempts = (row['attempts'] or 0)+1 if valid else 1
                 self.cache.save(row,setting['language'],assignment,attempts=attempts,
                                 retry_after=current+min(86400,300*2**min(attempts,8)))
@@ -221,15 +224,17 @@ class NewsDigest:
                 return await self.local.run(profile['model_id'],prompt,evidence,schema)
             return await self.service.model(profile,prompt,evidence,schema)
         result = await request(instructions, data)
-        if matches_language(result.summary, language): return result
+        def prose(value):
+            return value.summary+' '+ ' '.join(point.text for field in ('key_points','sequence','viewpoints','uncertainties') for point in getattr(value,field,[]))
+        if matches_language(prose(result), language): return result
         # One bounded language repair, rather than saving the wrong language or
         # leaving an explicit user request in a perpetual retry state.
         if profile['id'] != 'local-summary': self.cache.record()
         result = await request('Translate the supplied summary faithfully into ' +
             ('Arabic.' if language == 'ar' else 'English.') +
-            ' Preserve facts, links and qualifications; add nothing. Return the required JSON schema.',
-            {'summary':result.summary, 'output_language':data.get('output_language')})
-        if not matches_language(result.summary, language):
+            ' Preserve facts, links, source_ids, original direct quotations and qualifications; add nothing. Translate every prose field in structured_content. Return the required JSON schema.',
+            {'summary':result.summary,'structured_content':result.model_dump(), 'output_language':data.get('output_language')})
+        if not matches_language(prose(result), language):
             raise Failure('SUMMARY_LANGUAGE', 'تعذّر تجهيز الشرح باللغة المطلوبة. أعد المحاولة لاحقًا أو اختر نموذجًا آخر.')
         return result
 

@@ -517,7 +517,7 @@ export function Connections({
                 <h4>{t("Use this model for")}</h4>
                 <p className="muted">
                   {t(
-                    "Apply the selected model to a task. Article explanations can also use a local model in News settings.",
+                    "Apply the selected model to a task. TL;DR can also use a local model in article settings.",
                   )}
                 </p>
                 <div className="reader-actions">
@@ -549,7 +549,7 @@ export function Connections({
                     >
                       {t(
                         role === "news"
-                          ? "Article explanations"
+                          ? "TL;DR"
                           : role === "writer"
                             ? "Writing"
                             : "Analysis",

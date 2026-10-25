@@ -1,5 +1,11 @@
 # سجل التغييرات / Changelog
 
+## 0.3.1 — 2026-10-25
+
+الملخص / TL;DR ظاهر مباشرة في القارئ، وتجهيز خلفي للمقالات والروابط المباشرة، واقتباسات مطابقة للمصدر، واستئناف للمقالات الطويلة وحماية موارد الجهاز. إصلاح تزامن اختبار التركيز في مكتبة المهارات. [التفاصيل / Details](docs/releases/v0.3.1.md).
+
+Visible TL;DR, bounded linked-source preparation, verified quotation text, resumable long-article notes and resource-aware local inference. Fix the skill-library focus test race.
+
 ## 0.3.0 — 2026-10-25
 
 **Tauri هو التطبيق المعتمد / Tauri is the official application.**

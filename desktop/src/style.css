@@ -4354,3 +4354,26 @@ small {
     scroll-behavior: auto !important;
   }
 }
+
+/* TL;DR is part of the reading surface, visible without a disclosure. */
+.reader-content .article-tldr {
+  margin-block: 8px 32px;
+  padding-block: 20px 24px;
+  border-block: 1px solid var(--line);
+  color: var(--text);
+}
+.article-tldr > header { display: flex; align-items: center; gap: 8px; margin-block-end: 14px; }
+.reader-content .article-tldr > header h2 { margin: 0; font-size: 16px; line-height: 1.5; }
+.article-tldr .prose { font-size: 15px; line-height: 1.8; }
+.article-tldr .prose > :first-child { margin-block-start: 0; }
+.article-tldr .tldr-empty { font-size: 13px; }
+.article-tldr :is(.tldr-sources, .tldr-quotes) { margin-block-start: 20px; font-size: 12px; }
+.article-tldr :is(.tldr-sources, .tldr-quotes) h3 { font-size: 12px; margin-block: 0 8px; }
+.article-tldr .tldr-sources ul { list-style: none; padding: 0; margin: 0; }
+.article-tldr .tldr-sources li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; padding-block: 5px; }
+.article-tldr .tldr-sources li span, .article-tldr figcaption { color: var(--muted); }
+.article-tldr a { text-underline-offset: 3px; overflow-wrap: anywhere; }
+.article-tldr a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+.article-tldr .tldr-quotes figure { margin: 12px 0; }
+.article-tldr .tldr-quotes blockquote { margin: 0 0 4px; padding: 0; border: 0; font-size: 14px; }
+.reader-content .article-tldr .tldr-coverage { font-size: 12px; margin-block: 12px 0; }

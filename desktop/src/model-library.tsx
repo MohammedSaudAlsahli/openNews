@@ -513,7 +513,7 @@ export function ModelLibrary({
                         !capabilities.includes("completion")
                       }
                     >
-                      {t("Article explanations")}
+                      {t("TL;DR")}
                     </option>
                   </select>
                 </label>

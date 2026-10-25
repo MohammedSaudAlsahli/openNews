@@ -57,7 +57,7 @@ def test_settings_validation_and_editable_instructions(service):
     for invalid in ({'hour':24},{'minute':-1},{'timezone':'Not/AZone'},{'language':'xx'}):
         with pytest.raises(Failure): service.daily_reports.configure(invalid)
     path=directory(service.store)/'article-summary.md'
-    assert '250–450' in path.read_text()
+    assert '150–300' in path.read_text()
     path.write_text('Explain more carefully.')
     assert load(service.store,'article-summary')=='Explain more carefully.'
 
