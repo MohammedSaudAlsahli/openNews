@@ -16,7 +16,7 @@
     "@radix-ui/react-tooltip": "^1.4.1",
     "@tauri-apps/api": "^2",
     "lowlight": "^3.3.0",
-    "lucide-react": "^0.468",
+    "lucide-react": "^1.61",
     "mdast-util-from-markdown": "2.1.0",
     "react": "^19",
     "react-dom": "^19",
