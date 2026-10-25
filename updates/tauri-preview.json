@@ -1,11 +1,11 @@
 {
-  "version": "0.3.3",
-  "pub_date": "2026-10-25T15:24:34Z",
-  "notes": "تحديث openNews الرسمي مع إبقاء المقالات والحسابات والنماذج.\n\nOfficial openNews update; articles, accounts and downloaded models are retained.",
+  "version": "0.3.4",
+  "pub_date": "2026-10-25T17:22:27Z",
+  "notes": "اعتماد تحسينات نسخة التطوير: بطاقات روابط بحدود أوضح، وسجل تغييرات يبيّن الإضافات والحذف والسياق، وشريط أيقونات عند طي القائمة. تبقى مقالاتك وملخصاتك وحساباتك ونماذجك محفوظة.\n\nPromote the approved development interface: clearer link-preview cards, article changes with additions, removals and context, and a compact navigation rail. Existing articles, summaries, accounts and models are retained.",
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.3/openNews-0.3.3-macOS-arm64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MGNJYmtvUGxaLzUrdmNYa3A4WUhsb3M0NEl6MCtHYWdoTTFVREx3bGtCT1UvczRaQTJsb29TZVBkYWZaY3hTeEhmSWRqUy9iMnRDcE9JekpJM2FqK1FNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQyMDM3CWZpbGU6b3Blbk5ld3MtMC4zLjMtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy4zCkl0TmlGL3BBUDZ3ekNWS01MSitXYUp3dityTTVMV2lnT0NlTStnOVJGTWJSSHk0M0Q0THNSVDhHbVFNY0lEZG5hWFRjSFBGSjlaWGJUbGh2ZlViOENRPT0K"
+      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.4/openNews-0.3.4-macOS-arm64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MFlzdFk2RTRKa1hTa2c0YmczYWwyUWFBVGNoRzRoUWlZdlNzZUdMQW1TZGtnLzNuV1hzNk56eitYY3lGTnRSOWgzUWw3ZXJHZ0g2T1ZxRjZMby9YQmdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQ5MDE3CWZpbGU6b3Blbk5ld3MtMC4zLjQtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy40CmU3cUUzV3lnb2tTR1E0aUpvWTBmMGxSeWY2YzEvVFpEeER0WGliVnNrQUo5QjdDR3hlUk9ITVBoa3drdHRqZjBURG1pR0cwVDRZck9rMWdKUzRyMENnPT0K"
     }
   }
 }
