@@ -5,6 +5,7 @@ import { navigateSafely } from "./unsaved-changes";
 import { SupportPanel } from "./support-panel";
 import { APP_NAME } from "./app-channel";
 import { BrandMark } from "./brand";
+import { NavigationRail } from "./navigation-rail";
 import { Onboarding } from "./onboarding";
 import { ActivityPage } from "./activity-page";
 import { ConversationOptions } from "./conversation-options";
@@ -24,7 +25,6 @@ import {
   Plus,
   Search,
   PanelLeftClose,
-  PanelLeftOpen,
   MessageSquare,
   Newspaper,
   Compass,
@@ -91,6 +91,19 @@ export function App() {
     [sidebar, setSidebar] = useState(window.innerWidth > 1050),
     [ready, setReady] = useState(false),
     [error, setError] = useState("");
+  const previousSidebar = useRef(sidebar);
+  useEffect(() => {
+    if (previousSidebar.current === sidebar) return;
+    previousSidebar.current = sidebar;
+    const frame = requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLButtonElement>(
+          sidebar ? ".brand button" : ".navigation-rail button",
+        )
+        ?.focus(),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [sidebar]);
   const [libraryRequest, setLibraryRequest] = useState(0);
   const setPage = (next: string) =>
     navigateSafely(() => {
@@ -570,22 +583,28 @@ ${f.text}
   return (
     <div className={`app ${sidebar ? "" : "collapsed"}`}>
       <header className="window-chrome" data-tauri-drag-region>
-        {!sidebar && (
-          <button
-            className="sidebar-reveal"
-            aria-label={t("Show sidebar")}
-            title={t("Show sidebar")}
-            onClick={() => setSidebar(true)}
-          >
-            <PanelLeftOpen size={18} />
-          </button>
-        )}
         {!ready && (
           <span className="engine-starting" role="status">
             {t("Starting engine…")}
           </span>
         )}
       </header>
+      {!sidebar && (
+        <NavigationRail
+          page={page}
+          onNavigate={setPage}
+          onNew={() => choose("")}
+          onExpand={() => setSidebar(true)}
+          onHelp={() => {
+            setReportCode("");
+            setSupport(true);
+          }}
+          busy={
+            (snapshot.jobs || []).filter((j: RecordData) => active(j.state))
+              .length
+          }
+        />
+      )}
       {support && (
         <SupportPanel
           incidentCode={reportCode}
@@ -593,7 +612,7 @@ ${f.text}
           onError={setError}
         />
       )}
-      <aside className="sidebar">
+      <aside className="sidebar" hidden={!sidebar}>
         <div className="brand">
           <BrandMark className="brand-mark" />
           <strong>{APP_NAME}</strong>

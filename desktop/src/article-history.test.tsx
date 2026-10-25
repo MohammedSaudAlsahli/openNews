@@ -134,3 +134,69 @@ it("limits large comparisons initially and reveals the remaining original lines 
     expect(screen.getByText("Added paragraph 449")).toBeTruthy(),
   );
 });
+
+it("folds retained context, shows a hunk gap once and opens the stored article without another request", async () => {
+  const separated =
+    "--- text (before)\n+++ text (after)\n@@ -1,4 +1,4 @@\n Context one\n Context two\n Context three\n-Old detail\n+New detail\n@@ -20 +20 @@\n-Later old\n+Later new";
+  vi.mocked(call).mockImplementation(async (command) =>
+    command === "news.history"
+      ? {
+          revisions: [
+            { id: 2, captured_at: date },
+            { id: 1, captured_at: date },
+          ],
+        }
+      : {
+          id: 2,
+          previous_id: 1,
+          diff: separated,
+          content: { text: "Complete saved article including unchanged text" },
+        },
+  );
+  render(<ArticleHistory articleId="news" />);
+  expand();
+  const toggle = await screen.findByRole("button", {
+    name: "Show 3 unchanged lines",
+  });
+  expect(screen.queryByText("Context one")).toBeNull();
+  fireEvent.click(toggle);
+  expect(screen.getByText("Context one")).toBeTruthy();
+  expect(screen.getByText("Context three")).toBeTruthy();
+  expect(
+    screen.getAllByRole("button", { name: "Hide 3 unchanged lines" }),
+  ).toHaveLength(1);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Hide 3 unchanged lines" }),
+  );
+  expect(screen.queryByText("Context two")).toBeNull();
+  const gaps = screen.getAllByRole("button", {
+    name: "15 unchanged lines outside this excerpt · Read saved article",
+  });
+  expect(gaps).toHaveLength(1);
+  const requests = vi.mocked(call).mock.calls.length;
+  fireEvent.click(gaps[0]);
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Saved article" }),
+  );
+  expect(
+    screen.getByText("Complete saved article including unchanged text"),
+  ).toBeTruthy();
+  expect(vi.mocked(call).mock.calls).toHaveLength(requests);
+  fireEvent.click(screen.getByRole("button", { name: "Changes" }));
+  expect(screen.getByText("Later new")).toBeTruthy();
+});
+
+it("explains a single saved version without inventing additions", async () => {
+  vi.mocked(call).mockImplementation(async (command) =>
+    command === "news.history"
+      ? { revisions: [{ id: 1, captured_at: date }] }
+      : { id: 1, previous_id: null, content: { text: "Only saved article" } },
+  );
+  render(<ArticleHistory articleId="news" />);
+  expand();
+  await screen.findByText(
+    "Only one version is saved. Changes appear after the article is updated.",
+  );
+  expect(screen.queryByRole("button", { name: "Changes" })).toBeNull();
+  expect(screen.queryByText(/added lines/)).toBeNull();
+});

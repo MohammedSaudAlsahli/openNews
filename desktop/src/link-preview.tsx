@@ -227,17 +227,19 @@ function PreviewContent({
           )}
         </p>
       )}
-      <a
-        className="link-preview-open"
-        href={href}
-        onClick={(event) => {
-          event.preventDefault();
-          void invoke("open_external", { address: href }).catch(() => {});
-        }}
-      >
-        {t("Open original")}
-        <ArrowUpRight size={15} aria-hidden="true" />
-      </a>
+      <footer className="link-preview-footer">
+        <a
+          className="link-preview-open"
+          href={href}
+          onClick={(event) => {
+            event.preventDefault();
+            void invoke("open_external", { address: href }).catch(() => {});
+          }}
+        >
+          {t("Open original")}
+          <ArrowUpRight size={15} aria-hidden="true" />
+        </a>
+      </footer>
     </div>
   );
 }
