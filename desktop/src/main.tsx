@@ -46,6 +46,7 @@ import { Markdown, Trace } from "./components";
 import { call, active, duration, language, type RecordData } from "./engine";
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 const Articles = lazy(() =>
   import("./pages").then((x) => ({ default: x.Articles })),
 );
@@ -140,6 +141,14 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("theme", theme);
+    // Match native macOS chrome to the reader's explicitly chosen appearance.
+    void (async () => {
+      try {
+        await getCurrentWindow().setTheme(theme === "dark" ? "dark" : "light");
+      } catch {
+        // Browser fixtures have no native window.
+      }
+    })();
   }, [theme]);
   useEffect(() => {
     const listener = listen<string>("navigate", (event) => {

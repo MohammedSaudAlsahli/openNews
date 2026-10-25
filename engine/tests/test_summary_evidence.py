@@ -221,7 +221,8 @@ def test_legacy_saved_summary_is_reconciled_once_without_regeneration(service):
     asyncio.run(run())
 
 
-def test_reconciliation_restores_retained_prose_without_inventing_its_creation_time(service):
+@pytest.mark.parametrize('matching_source', [True, False])
+def test_reconciliation_restores_only_source_matching_retained_prose(service,matching_source):
     from eis_engine.news_digest import NewsDigest
     from eis_engine.news_digest_cache import fingerprint
     from eis_engine.storage import encode
@@ -230,11 +231,15 @@ def test_reconciliation_restores_retained_prose_without_inventing_its_creation_t
         article=service.news.article('story',mark_read=False)
         service.news_digest.cache.save(article,'en',service.news_digest.assignment(),evidence={
             'legacy_summary':'A saved summary retained during an earlier failed upgrade.',
-            'legacy_hash':fingerprint(article),
+            'legacy_hash':fingerprint(article) if matching_source else 'different-source',
         })
         with service.db: service.db.execute('DROP TABLE news_digest_cache_migrations')
         service.news_digest=NewsDigest(service)
         result=service.news_digest.preview('story','en')
+        if not matching_source:
+            assert result is None and service.news_digest.status()['prepared']==0
+            assert service.factory.calls==[]
+            return
         assert result['summary'].startswith('A saved summary retained')
         assert result['generated_at'] is None and not result.get('needs_refresh')
         assert service.news_digest.status()['prepared']==1

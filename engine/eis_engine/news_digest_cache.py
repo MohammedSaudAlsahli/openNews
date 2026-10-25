@@ -67,7 +67,7 @@ class DigestCache:
                 current = fingerprint(row)
                 old = digest('explanation-3:' + encode({k: row.get(k) for k in ('title','url','published_at','text','body_status')}))
                 retained = not row['summary'] and evidence.get('legacy_hash') == current
-                if not retained and row['source_hash'] not in {current, old}:
+                if (not row['summary'] and not retained) or (row['summary'] and row['source_hash'] not in {current, old}):
                     continue  # A real source edit still needs a new summary.
                 if retained or row['source_hash'] == old:
                     evidence['coverage'] = {'limited': True, 'unvisited_links': 0}
