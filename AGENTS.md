@@ -6,3 +6,4 @@
 - Keep the official identifier `com.editorialintelligence.studio.preview`, updater public key, endpoint and workspace location unchanged for compatibility. Development and QA apps cannot install official updates.
 - Only `main` and `develop` are permanent branches. Dependency branches are temporary, target `develop`, require passing tests, and are deleted after merge. Never force an untested dependency/security update into production; repair failed checks first.
 - Keep Arabic documentation primary with an English counterpart. Run `bash scripts/test.sh` and relevant native tests. Never commit keys, user databases, model weights, app bundles or personal QA evidence.
+- Keep application backups as release archives, not extra `.app` bundles. Back up user data separately. After native QA, quit, unregister and remove temporary app bundles; retain only the canonical official installation and, when explicitly needed, one clearly named development app.
