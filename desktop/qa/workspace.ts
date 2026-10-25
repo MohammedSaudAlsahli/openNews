@@ -363,22 +363,61 @@ mockIPC(
         if (source) Object.assign(source, p);
         return {};
       }
+      case "news.summarize":
+        await new Promise((resolve) => setTimeout(resolve, 650));
+        return {
+          summary:
+            params.get("lang") === "ar"
+              ? "هذا ملخص أُعيد تجهيزه في بيانات الاختبار، وليس خبرًا حقيقيًا."
+              : "This regenerated summary is synthetic QA content, not a real news report.",
+          model: "gemma4:e2b-it-qat",
+          cached: false,
+          generated_at: new Date().toISOString(),
+        };
+      case "news.link.preview":
+        return p.url.includes("x.com")
+          ? { status: "unavailable", kind: "post" }
+          : {
+              status: "read",
+              title:
+                params.get("lang") === "ar"
+                  ? "تقرير المصدر المرتبط — بيانات اختبار"
+                  : "Linked report — test fixture",
+              excerpt:
+                params.get("lang") === "ar"
+                  ? "هذه معاينة اصطناعية لفحص الواجهة، وليست خبرًا حقيقيًا. يوضح التقرير خلفية القرار، ويعرض مواقف الأطراف المختلفة وما لا يزال قيد المراجعة. يبقى نص المصدر ظاهرًا دون مغادرة المقالة أو تشغيل نموذج لغوي."
+                  : "This synthetic preview tests the interface and is not a real news report. The report describes the decision, the participants’ positions and what remains under review. The source text stays available without leaving the article or running a language model.",
+              cached: true,
+            };
       case "news.article":
       case "news.reader":
         return {
           ...articles.find((a) => a.id === p.article_id),
-          text: "## الفكرة الأساسية\n\nهذا المحتوى مثال لاختبار واجهة القارئ، ولا يمثل نص المقالة الأصلية.\n\nنستخدم الفقرات والقوائم والروابط لفحص القراءة، مع عرض <u>التنسيق</u> كما يظهر داخل المصدر.\n\n- السياق والمصدر\n- القراءة والتحليل\n- العودة إلى المحادثة",
+          text: "## الفكرة الأساسية\n\nهذا المحتوى مثال لاختبار واجهة القارئ، ولا يمثل نص المقالة الأصلية.\n\nيمكن قراءة [التقرير المرتبط](https://example.org/report) أو معاينة [المنشور الأصلي](https://x.com/example/status/1) دون مغادرة القارئ.\n\nنستخدم الفقرات والقوائم والروابط لفحص القراءة، مع عرض <u>التنسيق</u> كما يظهر داخل المصدر.\n\n- السياق والمصدر\n- القراءة والتحليل\n- العودة إلى المحادثة",
           reader: { blocks: [] },
           prepared_summary: {
+            model: "gemma4:e2b-it-qat",
+            cached: true,
+            generated_at: "2026-10-25T09:00:00Z",
             summary:
-              "## الخلاصة\n\nملخص تجريبي لواجهة القراءة، وليس خبرًا حقيقيًا.\n\n### تسلسل التفاصيل\n\n- يوضح المقال الفكرة الأساسية وأسبابها. [S1]\n- يضيف المصدر المرتبط سياقًا مختلفًا، مع توضيح ما لم يتأكد بعد. [S2]",
+              "## الخلاصة\n\nملخص تجريبي لواجهة القراءة، وليس خبرًا حقيقيًا.\n\n### تسلسل التفاصيل\n\n- يوضح المقال الفكرة الأساسية وأسبابها. [S1](https://example.com/article)\n- يضيف المصدر المرتبط سياقًا مختلفًا، مع توضيح ما لم يتأكد بعد. [S2](https://example.org/report)",
             sources: [
-              {id:"S1",url:"https://example.com/article",status:"read"},
-              {id:"S2",url:"https://example.org/report",status:"read"},
-              {id:"S3",url:"https://x.com/example/status/1",status:"unavailable"},
+              { id: "S1", url: "https://example.com/article", status: "read" },
+              { id: "S2", url: "https://example.org/report", status: "read" },
+              {
+                id: "S3",
+                url: "https://x.com/example/status/1",
+                status: "unavailable",
+              },
             ],
-            quotes: [{source_id:"S2",text:"هذا اقتباس اصطناعي لاختبار الواجهة فقط.",url:"https://example.org/report"}],
-            coverage: {limited:false,unvisited_links:0},
+            quotes: [
+              {
+                source_id: "S2",
+                text: "هذا اقتباس اصطناعي لاختبار الواجهة فقط.",
+                url: "https://example.org/report",
+              },
+            ],
+            coverage: { limited: false, unvisited_links: 0 },
           },
         };
       case "news.summary.states":
@@ -639,4 +678,42 @@ if (params.has("settings")) {
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
+}
+// Repeatable inspection of the production reader and its floating source card.
+if (params.has("links")) {
+  let step = 0;
+  const observer = new MutationObserver(advance);
+  function advance() {
+    if (step === 0) {
+      const navigation = [
+        ...document.querySelectorAll<HTMLButtonElement>(".sidebar button"),
+      ].find((node) =>
+        ["Articles", "المقالات"].includes(node.textContent?.trim() || ""),
+      );
+      if (navigation) {
+        step = 1;
+        navigation.click();
+      }
+    }
+    if (step === 1) {
+      const article = [
+        ...document.querySelectorAll<HTMLButtonElement>("button"),
+      ].find((node) => node.textContent?.trim() === articles[0].title);
+      if (article) {
+        step = 2;
+        article.click();
+      }
+    }
+    if (step === 2) {
+      const source = document.querySelector<HTMLAnchorElement>(
+        '.tldr-sources a[href="https://example.org/report"]',
+      );
+      if (source) {
+        observer.disconnect();
+        if (params.has("preview")) source.focus();
+      }
+    }
+  }
+  observer.observe(document.body, { childList: true, subtree: true });
+  advance();
 }

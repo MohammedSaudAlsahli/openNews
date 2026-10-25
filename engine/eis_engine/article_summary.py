@@ -1,4 +1,6 @@
 """Explicit article summaries through the existing Agno model route."""
+import asyncio
+import time
 from pydantic import BaseModel, Field
 from .contracts import Failure
 from .storage import digest, encode
@@ -34,8 +36,9 @@ async def summarize(service, params):
     if language not in {"ar", "en"}:
         raise Failure("VALIDATION_ERROR", "لغة غير صالحة.")
     article = service.news.article(params.get("article_id"), mark_read=False)
+    regenerate = params.get('regenerate') is True
     prepared = service.news_digest.preview(article["id"], language)
-    if prepared and not prepared.get('needs_refresh'):
+    if prepared and not prepared.get('needs_refresh') and not regenerate:
         return prepared
     evidence = article["text"] or article["summary"]
     if not evidence.strip():
@@ -57,16 +60,39 @@ async def summarize(service, params):
     signature = digest(encode([fingerprint(article),language,assignment,instructions,'tldr-4']))
     service.db.execute('CREATE TABLE IF NOT EXISTS article_tldr_manual(workspace_id TEXT,signature TEXT,payload TEXT,PRIMARY KEY(workspace_id,signature))')
     cached = service.store.one('SELECT payload FROM article_tldr_manual WHERE workspace_id=? AND signature=?',(service.ws,signature))
-    if cached:
+    if cached and not regenerate:
         import json
         return {**json.loads(cached['payload']),'cached':True}
-    if service.model_lock.locked():
-        raise Failure("BUSY", "انتظر اكتمال الطلب الحالي ثم أعد المحاولة.")
-    if service.news_digest.active_request:
-        raise Failure("BUSY", "يجري تجهيز الملخصات في الخلفية. سيظهر الملخص تلقائيًا عند اكتماله.")
-    result = await service.news_digest.evidence.prepare(profile,article,language,
-        instructions,ArticleSummary)
-    service.news_digest.cache.save(article, language, assignment, result['summary'], evidence=result)
-    with service.db:
-        service.db.execute('INSERT OR REPLACE INTO article_tldr_manual VALUES(?,?,?)',(service.ws,signature,encode({**result,'model':profile['model_id']})))
-    return {**result,"model":profile["model_id"],"cached":False}
+    digest_service = service.news_digest
+    if digest_service.manual_pending:
+        raise Failure('BUSY', 'يجري تجهيز ملخص حسب الطلب. انتظر اكتماله ثم أعد المحاولة.')
+    if profile['id'] != 'local-summary' or digest_service.budget.phase() != 'resting':
+        digest_service.evidence.check_budget(profile)
+    digest_service.manual_pending = True
+    started = time.monotonic()
+    try:
+        pending = digest_service.active_request
+        if pending:
+            # Explicit reader work takes priority, after bounded runner cleanup.
+            # Completed long-article notes let background work resume later.
+            digest_service.interrupt_for_user()
+            try: await asyncio.shield(pending)
+            except asyncio.CancelledError:
+                if asyncio.current_task().cancelling(): raise
+            except Exception: pass
+        while profile['id']=='local-summary' and digest_service.budget.phase()=='resting':
+            await asyncio.sleep(min(.25,max(.01,digest_service.budget.next_at-time.monotonic())))
+        if service.model_lock.locked():
+            raise Failure('BUSY', 'انتظر اكتمال الطلب الحالي ثم أعد المحاولة.')
+        result = await digest_service.evidence.prepare(profile,article,language,
+            instructions,ArticleSummary,regenerate=regenerate)
+        # Preserve the prior summary until the replacement has passed validation.
+        digest_service.cache.save(article, language, assignment, result['summary'], evidence=result)
+        saved = service.store.one('SELECT updated_at FROM news_digest_results WHERE workspace_id=? AND article_id=?', (service.ws, article['id']))
+        result = {**result, 'generated_at':saved['updated_at']}
+        with service.db:
+            service.db.execute('INSERT OR REPLACE INTO article_tldr_manual VALUES(?,?,?)',(service.ws,signature,encode({**result,'model':profile['model_id']})))
+        return {**result,'model':profile['model_id'],'cached':False}
+    finally:
+        if profile['id']=='local-summary': digest_service.budget.finished(time.monotonic()-started)
+        digest_service.manual_pending = False

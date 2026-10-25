@@ -38,7 +38,11 @@ it("shows a saved TL;DR immediately without a disclosure or model request", () =
     <ArticleExplanation
       article={{
         id: "a",
-        prepared_summary: { summary: "A complete explanation" },
+        prepared_summary: {
+          summary: "A complete explanation",
+          model: "original-model:2b",
+          generated_at: "2026-10-25T09:00:00Z",
+        },
       }}
     />,
   );
@@ -46,6 +50,11 @@ it("shows a saved TL;DR immediately without a disclosure or model request", () =
   expect(container.querySelector("details")).toBeNull();
   expect(screen.getByRole("heading", { name: "TL;DR" })).toBeTruthy();
   expect(call).not.toHaveBeenCalled();
+  expect(screen.getByText("original-model:2b")).toBeTruthy();
+  expect(screen.getByText("Saved on this Mac")).toBeTruthy();
+  expect(container.querySelector("time")?.dateTime).toBe(
+    "2026-10-25T09:00:00Z",
+  );
 });
 it("updates when background preparation finishes without marking the article read again", async () => {
   vi.useFakeTimers();
@@ -122,4 +131,70 @@ it("shows the actual waiting reason and does not offer work while resources bloc
       .hasAttribute("disabled"),
   ).toBe(true);
   expect(call).not.toHaveBeenCalled();
+});
+it("regenerates only on request, preserves the old summary while pending, and shows the new model", async () => {
+  let finish!: (value: any) => void;
+  vi.mocked(call).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }) as any,
+  );
+  render(
+    <ArticleExplanation
+      article={{
+        id: "regen",
+        prepared_summary: {
+          summary: "Saved old summary",
+          model: "previous-model",
+        },
+      }}
+    />,
+  );
+  expect(call).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Regenerate summary" }));
+  expect(call).toHaveBeenCalledExactlyOnceWith("news.summarize", {
+    article_id: "regen",
+    consent: true,
+    regenerate: true,
+  });
+  expect(screen.getByText("Saved old summary")).toBeTruthy();
+  expect(
+    screen
+      .getByRole("button", { name: "Regenerating…" })
+      .hasAttribute("disabled"),
+  ).toBe(true);
+  await act(async () => {
+    finish({
+      summary: "Better current summary",
+      model: "current-model",
+      cached: false,
+    });
+  });
+  expect(screen.getByText("Better current summary")).toBeTruthy();
+  expect(screen.getByText("current-model")).toBeTruthy();
+  expect(screen.queryByText("Saved old summary")).toBeNull();
+});
+it("keeps a saved summary after regeneration fails and allows retry", async () => {
+  vi.mocked(call).mockRejectedValue(new Error("Provider unavailable"));
+  render(
+    <ArticleExplanation
+      article={{
+        id: "failed",
+        prepared_summary: { summary: "Keep this summary", model: "old" },
+      }}
+    />,
+  );
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate summary" }));
+  });
+  expect(screen.getByText("Keep this summary")).toBeTruthy();
+  expect(screen.getByRole("alert").textContent).toContain(
+    "Provider unavailable",
+  );
+  expect(
+    screen
+      .getByRole("button", { name: "Regenerate summary" })
+      .hasAttribute("disabled"),
+  ).toBe(false);
 });

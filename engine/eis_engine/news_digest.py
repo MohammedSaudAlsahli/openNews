@@ -13,6 +13,7 @@ class NewsDigest:
         self.current_title = ''
         self.current_id = ''
         self.active_request = None
+        self.manual_pending = False
         from .background_budget import BackgroundBudget
         self.budget = BackgroundBudget(self.store)
         self.last_worker = ""
@@ -147,7 +148,7 @@ class NewsDigest:
             self.quantum_units += units
 
     def preview(self, article_id, language=None):
-        row = self.store.one('''SELECT a.*,r.source_hash,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id,r.evidence_json
+        row = self.store.one('''SELECT a.*,r.source_hash,r.language AS saved_language,r.summary AS saved_summary,r.model_id,r.profile_id,r.evidence_json,r.updated_at AS generated_at
             FROM news_articles a JOIN news_digest_results r ON r.article_id=a.id AND r.workspace_id=a.workspace_id
             WHERE a.workspace_id=? AND a.id=? ''', (self.ws,article_id))
         if not row: return None
@@ -171,7 +172,8 @@ class NewsDigest:
                         'needs_refresh':True,'coverage':{'limited':True,'unvisited_links':0}}
             return None
         import json
-        return {**json.loads(row['evidence_json']),'summary':row['saved_summary'],'model':row['model_id'],'cached':True}
+        return {**json.loads(row['evidence_json']),'summary':row['saved_summary'],'model':row['model_id'],
+                'generated_at':row['generated_at'],'cached':True}
 
     def interrupt_for_user(self):
         knowledge = getattr(getattr(self.service,'news',None),'knowledge',None)
@@ -180,7 +182,7 @@ class NewsDigest:
 
     async def prepare_next(self):
         setting = self.settings()
-        if not setting['enabled'] or self.service.model_lock.locked() or self.active_request: return False
+        if not setting['enabled'] or self.service.model_lock.locked() or self.active_request or self.manual_pending: return False
         if self.store.one("SELECT id FROM jobs WHERE workspace_id=? AND type IN ('chat.send','analysis.run','draft.generate') AND state IN ('queued','running') LIMIT 1", (self.ws,)): return False
         if setting['engine']=='local' and self.budget.phase(): return False
         assignment = self.assignment()

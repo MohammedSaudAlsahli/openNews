@@ -1,5 +1,11 @@
 # سجل التغييرات / Changelog
 
+## 0.3.2 — 2026-10-25
+
+إعادة التلخيص حسب الطلب بالمودل المختار مع حفظ النتيجة السابقة حتى نجاح البديل، وإظهار المودل الذي أنشأ الملخص ووقت حفظه، ومعاينة روابط المقالات والمصادر والمنشورات عند المرور بالمؤشر أو التركيز بلوحة المفاتيح، دون تشغيل مودل. إعادة استخدام المحتوى المحفوظ مع إظهار تعذّر القراءة بوضوح. [التفاصيل / Details](docs/releases/v0.3.2.md).
+
+On-demand regeneration preserves the previous result until success. Show the original summary model and creation time, plus reader link previews on hover or keyboard focus. Previews reuse saved evidence without inference and disclose unavailable sources.
+
 ## 0.3.1 — 2026-10-25
 
 الملخص / TL;DR ظاهر مباشرة في القارئ، وتجهيز خلفي للمقالات والروابط المباشرة، واقتباسات مطابقة للمصدر، واستئناف للمقالات الطويلة وحماية موارد الجهاز. إصلاح تزامن اختبار التركيز في مكتبة المهارات. [التفاصيل / Details](docs/releases/v0.3.1.md).

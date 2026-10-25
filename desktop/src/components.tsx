@@ -19,6 +19,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { language, type RecordData } from "./engine";
 import { CodeBlock } from "./code-block";
 import { t, useLocale } from "./locale";
+import { PreviewLink } from "./link-preview";
 // Publisher HTML is untrusted. Keep semantic formatting, never scripts, styles,
 // event handlers, remote embeds or arbitrary DOM attributes.
 const proseSchema = {
@@ -55,7 +56,7 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
         </div>
       ),
       a: ({ href, children, node: _node, ...attributes }) => (
-        <a
+        <PreviewLink
           {...attributes}
           href={href}
           onClick={(e) => {
@@ -79,7 +80,7 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
           }}
         >
           {children}
-        </a>
+        </PreviewLink>
       ),
     }),
     [id],

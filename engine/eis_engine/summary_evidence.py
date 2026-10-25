@@ -94,6 +94,7 @@ class SummaryEvidence:
         self.digest = digest_service
         self.service = digest_service.service
         self.db, self.ws = self.service.db, self.service.ws
+        self.source_lock = asyncio.Lock()
         self.db.executescript('''
             CREATE TABLE IF NOT EXISTS summary_web_cache(
                 workspace_id TEXT, url TEXT, payload TEXT NOT NULL, checked REAL,
@@ -109,6 +110,11 @@ class SummaryEvidence:
             if phase: raise Failure('RESOURCE_WAIT', phase)
 
     async def source(self, url):
+        # Hover previews and automatic summaries share one bounded fetch/cache.
+        async with self.source_lock:
+            return await self._source(url)
+
+    async def _source(self, url):
         cached = self.service.store.one('SELECT payload,checked FROM summary_web_cache WHERE workspace_id=? AND url=?',(self.ws,url))
         if cached and time.time()-cached['checked'] < 86400:
             return json.loads(cached['payload'])
@@ -117,13 +123,18 @@ class SummaryEvidence:
             response = await asyncio.wait_for(self.service.news.fetch(url, None), 12)
             content_type = response['headers'].get('content-type','').lower()
             if content_type and not any(kind in content_type for kind in ('html','xhtml','text/plain')):
-                return {**result,'status':'unsupported'}
-            if 'text/plain' in content_type:
+                result['status'] = 'unsupported'
+                text = ''
+            elif 'text/plain' in content_type:
                 text = response['body'].decode('utf-8',errors='replace')
             else:
                 from .article_reader import extract_reader
                 reader = await asyncio.to_thread(extract_reader,response['body'],response['url'])
                 text = '\n\n'.join(b['text'] for b in reader['blocks'] if b.get('type')=='text')
+                from lxml import html
+                tree = html.fromstring(response['body'])
+                titles = tree.xpath('//meta[@property="og:title"]/@content | //title/text()')
+                result['title'] = re.sub(r'\s+', ' ', titles[0]).strip()[:300] if titles else ''
             # Login/challenge pages are not evidence about the linked story.
             blocked = re.search(r'(?i)^(?:javascript is not available|just a moment|access denied|sign in to x|log in to x)',text.strip())
             if len(text.strip())>=80 and not blocked:
@@ -135,7 +146,7 @@ class SummaryEvidence:
             self.db.execute('DELETE FROM summary_web_cache WHERE workspace_id=? AND url NOT IN (SELECT url FROM summary_web_cache WHERE workspace_id=? ORDER BY checked DESC LIMIT 500)',(self.ws,self.ws))
         return result
 
-    async def prepare(self, profile, row, language, instructions, schema):
+    async def prepare(self, profile, row, language, instructions, schema, regenerate=False):
         self.check_budget(profile)
         article = self.service.news.article(row['id'],mark_read=False)
         text = article['text'] or article['summary']
@@ -157,7 +168,7 @@ class SummaryEvidence:
                     self.check_budget(profile)
                     chunk = source['text'][offset:offset+CHUNK_CHARS]
                     signature = digest(json.dumps([profile,language,instructions,source['id'],chunk],sort_keys=True))
-                    cached = self.service.store.one('SELECT note FROM summary_note_cache WHERE workspace_id=? AND signature=?',(self.ws,signature))
+                    cached = None if regenerate else self.service.store.one('SELECT note FROM summary_note_cache WHERE workspace_id=? AND signature=?',(self.ws,signature))
                     if cached: note = cached['note']
                     else:
                         started = time.monotonic()

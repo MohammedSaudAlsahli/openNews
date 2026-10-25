@@ -131,7 +131,7 @@ class NewsKnowledge:
         setting = self.store.one('SELECT enabled FROM news_search_settings WHERE workspace_id=?', (self.ws,))
         if not setting or not setting['enabled'] or self.lock.locked() or time.monotonic() < self.retry_at: return False
         digest = getattr(self.news, 'digest', None)
-        if digest and (digest.budget.phase() or digest.service.model_lock.locked()): return False
+        if digest and (digest.manual_pending or digest.budget.phase() or digest.service.model_lock.locked()): return False
         if digest and not digest.worker_allowed('embedding',digest.has_pending()): return False
         rows = self.store.rows("""SELECT c.id,c.text,a.title FROM news_search_chunks c JOIN news_articles a ON a.id=c.article_id
             WHERE a.workspace_id=? AND c.vector IS NULL ORDER BY a.discovered_at DESC,c.ordinal LIMIT ?""", (self.ws,digest.budget.batch_size if digest else 12))

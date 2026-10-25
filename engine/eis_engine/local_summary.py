@@ -384,7 +384,7 @@ class LocalSummaryModels:
         async with self.service.model_lock:
             await self.release_embedding()
             if self.generation_name and self.generation_name!=name: await self.release_generation()
-            background = self.service.news_digest.active_request is asyncio.current_task()
+            background = self.service.news_digest.active_request is asyncio.current_task() or self.service.news_digest.manual_pending
             from .summary_evidence import estimated_tokens
             prompt = json.dumps({**data, "output_language": "العربية فقط؛ ترجم الملخص ولا تنسخ النص الإنجليزي." if data.get("output_language") == "Arabic." else "English only."},ensure_ascii=False)
             output_limit = 300 if data.get('note_pass') else 1100

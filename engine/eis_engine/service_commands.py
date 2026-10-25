@@ -67,6 +67,9 @@ class ServiceCommandsMixin:
         if command == "news.summarize":
             from .article_summary import summarize
             return await summarize(self, p)
+        if command == "news.link.preview":
+            from .link_preview import preview
+            return await preview(self, p)
         if command == "news.related":
             return self.news.knowledge.related(p.get("article_id"))
         if command == "news.search.inspect":

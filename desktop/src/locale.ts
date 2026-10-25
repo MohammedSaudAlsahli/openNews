@@ -4,6 +4,20 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Regenerate summary": "إعادة التلخيص",
+  "Regenerating…": "جارٍ إعادة التلخيص…",
+  "Generate again with your current summary model. Your saved summary stays until the new one is ready.": "أعد التلخيص بالمودل المختار حاليًا. يبقى الملخص المحفوظ حتى يجهز الجديد.",
+  "Preparing a new summary with your current model. Your saved summary remains available.": "جارٍ تجهيز ملخص جديد بالمودل المختار حاليًا. يبقى ملخصك المحفوظ متاحًا.",
+  "Summarized by": "لخّصه",
+  "Model not recorded": "المودل غير مسجّل",
+  "Link preview": "معاينة الرابط",
+  "Open original": "فتح الأصل",
+  "Linked source": "مصدر مرتبط",
+  "Post": "منشور",
+  "Loading preview…": "جارٍ تحميل المعاينة…",
+  "Saved excerpt · No model used": "مقتطف محفوظ · دون تشغيل مودل",
+  "Source excerpt · No model used": "مقتطف من المصدر · دون تشغيل مودل",
+  "Preview unavailable. The source may require sign-in or block reading. You can open the original.": "تعذّرت المعاينة. قد يتطلب المصدر تسجيل الدخول أو يمنع القراءة. يمكنك فتح الأصل.",
   "Preparing a summary": "جارٍ تجهيز ملخص",
   "Articles summarized": "مقالات ملخّصة",
   "Summary source": "مصدر التلخيص",

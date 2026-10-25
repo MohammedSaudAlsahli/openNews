@@ -5,6 +5,7 @@ import type { ArticleIncident } from "./support-report";
 import { readerMarkdown, readerLayout } from "./reader-format";
 import { ArticleSite } from "./article-site";
 import { ArticleExplanation } from "./article-explanation";
+import { ReaderLinkPreviews } from "./link-preview";
 import { ArticleHistory } from "./article-history";
 import { summaryModel } from "./summary-model";
 import * as Popover from "@radix-ui/react-popover";
@@ -610,129 +611,131 @@ export function Articles({
             onError={onError}
           />
         )}
-        <div
-          hidden={siteMode}
-          className="reader-content"
-          style={{ "--reading-size": `${fontSize}px` } as React.CSSProperties}
-        >
-          <header
-            className={`article-heading${layout?.cover ? " has-cover" : ""}`}
+        <ReaderLinkPreviews articleId={selected.id}>
+          <div
+            hidden={siteMode}
+            className="reader-content"
+            style={{ "--reading-size": `${fontSize}px` } as React.CSSProperties}
           >
-            <div className="article-heading-copy">
-              <div className="reader-source">
-                {layout?.logo && (
-                  <div className="reader-source-logo">
-                    <ArticleImage article={selected.id} id={layout.logo.id} />
-                  </div>
-                )}
-                <span dir="auto">{selected.source_title}</span>
-                <span className="muted">
-                  · <RelativeTime value={selected.published_at} now={clock} />
-                </span>
-              </div>
-              <h1 dir="auto">{selected.title}</h1>
-            </div>
-            {layout?.cover && (
-              <figure className="reader-cover">
-                <ArticleImage article={selected.id} id={layout.cover.id} />
-                <figcaption>
-                  {getLocale() === "ar" ? "غلاف المقالة" : "Article cover"}
-                </figcaption>
-              </figure>
-            )}
-          </header>
-          {selected.body_status !== "full" && (
-            <p className="notice">
-              {reading
-                ? t(
-                    openStage === "local_cache"
-                      ? "Opening saved article…"
-                      : openStage === "website_recovery"
-                        ? "Retrieving text from the original website…"
-                        : "Retrieving article text…",
-                  )
-                : t(
-                    "The full article has not been retrieved yet. You can retry or read the original.",
+            <header
+              className={`article-heading${layout?.cover ? " has-cover" : ""}`}
+            >
+              <div className="article-heading-copy">
+                <div className="reader-source">
+                  {layout?.logo && (
+                    <div className="reader-source-logo">
+                      <ArticleImage article={selected.id} id={layout.logo.id} />
+                    </div>
                   )}
-            </p>
-          )}
-          {selected.body_status !== "full" && (
-            <div className="reader-actions">
-              <button
-                disabled={reading}
-                onClick={() => void open(selected.id, true)}
-              >
-                <RefreshCw size={15} />
-                {t("Retry full article")}
-              </button>
-              <button onClick={() => setSiteMode(true)}>
-                {t("Read original")}
-                <ArrowUpRight size={15} />
-              </button>
-            </div>
-          )}
-          {(selected.body_status === "full" ||
-            selected.prepared_summary?.summary) && (
-            <ArticleExplanation
-              key={selected.id}
-              article={selected}
-              phase={(digestStatus || snapshot.news_digest)?.phase}
-              configured={
-                !!summaryModel(snapshot, digestStatus || snapshot.news_digest)
-              }
-              onConfigure={onConfigureExplanations}
-            />
-          )}
-          {selected.body_status === "full" &&
-          selected.reader?.blocks?.length ? (
-            layout!.body.map((b: RecordData, i: number) =>
-              b.type === "image" ? (
-                <ArticleImage key={i} article={selected.id} id={b.id} />
-              ) : (
-                <Markdown key={i} text={readerMarkdown(b.text || "")} />
-              ),
-            )
-          ) : (
-            <Markdown
-              text={
-                selected.body_status === "full"
-                  ? selected.text || ""
-                  : articleExcerpt(selected.summary || "") || ""
-              }
-            />
-          )}
-          <ArticleHistory
-            key={`history:${selected.id}`}
-            articleId={selected.id}
-          />
-          {related.length > 0 && (
-            <section className="related-reading">
-              <h2>{t("Related reading")}</h2>
-              {related.map((a) => (
-                <button
-                  className="related"
-                  key={a.id}
-                  onClick={() => void open(a.id)}
-                >
-                  <span className="related-copy">
-                    <span dir="auto">{a.title}</span>
-                    {(a.source_title || a.published_at) && (
-                      <small>
-                        {a.source_title && (
-                          <span dir="auto">{a.source_title}</span>
-                        )}
-                        {a.published_at && (
-                          <RelativeTime value={a.published_at} now={clock} />
-                        )}
-                      </small>
-                    )}
+                  <span dir="auto">{selected.source_title}</span>
+                  <span className="muted">
+                    · <RelativeTime value={selected.published_at} now={clock} />
                   </span>
-                  <ChevronRight className="related-arrow" size={16} />
+                </div>
+                <h1 dir="auto">{selected.title}</h1>
+              </div>
+              {layout?.cover && (
+                <figure className="reader-cover">
+                  <ArticleImage article={selected.id} id={layout.cover.id} />
+                  <figcaption>
+                    {getLocale() === "ar" ? "غلاف المقالة" : "Article cover"}
+                  </figcaption>
+                </figure>
+              )}
+            </header>
+            {selected.body_status !== "full" && (
+              <p className="notice">
+                {reading
+                  ? t(
+                      openStage === "local_cache"
+                        ? "Opening saved article…"
+                        : openStage === "website_recovery"
+                          ? "Retrieving text from the original website…"
+                          : "Retrieving article text…",
+                    )
+                  : t(
+                      "The full article has not been retrieved yet. You can retry or read the original.",
+                    )}
+              </p>
+            )}
+            {selected.body_status !== "full" && (
+              <div className="reader-actions">
+                <button
+                  disabled={reading}
+                  onClick={() => void open(selected.id, true)}
+                >
+                  <RefreshCw size={15} />
+                  {t("Retry full article")}
                 </button>
-              ))}
-            </section>
-          )}
-        </div>
+                <button onClick={() => setSiteMode(true)}>
+                  {t("Read original")}
+                  <ArrowUpRight size={15} />
+                </button>
+              </div>
+            )}
+            {(selected.body_status === "full" ||
+              selected.prepared_summary?.summary) && (
+              <ArticleExplanation
+                key={selected.id}
+                article={selected}
+                phase={(digestStatus || snapshot.news_digest)?.phase}
+                configured={
+                  !!summaryModel(snapshot, digestStatus || snapshot.news_digest)
+                }
+                onConfigure={onConfigureExplanations}
+              />
+            )}
+            {selected.body_status === "full" &&
+            selected.reader?.blocks?.length ? (
+              layout!.body.map((b: RecordData, i: number) =>
+                b.type === "image" ? (
+                  <ArticleImage key={i} article={selected.id} id={b.id} />
+                ) : (
+                  <Markdown key={i} text={readerMarkdown(b.text || "")} />
+                ),
+              )
+            ) : (
+              <Markdown
+                text={
+                  selected.body_status === "full"
+                    ? selected.text || ""
+                    : articleExcerpt(selected.summary || "") || ""
+                }
+              />
+            )}
+            <ArticleHistory
+              key={`history:${selected.id}`}
+              articleId={selected.id}
+            />
+            {related.length > 0 && (
+              <section className="related-reading">
+                <h2>{t("Related reading")}</h2>
+                {related.map((a) => (
+                  <button
+                    className="related"
+                    key={a.id}
+                    onClick={() => void open(a.id)}
+                  >
+                    <span className="related-copy">
+                      <span dir="auto">{a.title}</span>
+                      {(a.source_title || a.published_at) && (
+                        <small>
+                          {a.source_title && (
+                            <span dir="auto">{a.source_title}</span>
+                          )}
+                          {a.published_at && (
+                            <RelativeTime value={a.published_at} now={clock} />
+                          )}
+                        </small>
+                      )}
+                    </span>
+                    <ChevronRight className="related-arrow" size={16} />
+                  </button>
+                ))}
+              </section>
+            )}
+          </div>
+        </ReaderLinkPreviews>
       </div>
     );
   return (

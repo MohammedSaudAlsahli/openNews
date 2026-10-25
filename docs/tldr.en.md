@@ -13,3 +13,13 @@ Direct quotations must match retrieved source text exactly and fit a total of 25
 Local work shares one inference lease with search, disables extended thinking, limits output, rests between long-article sections, and respects fresh memory/thermal signals, battery policy and manual pause. These controls reduce sustained load; they cannot guarantee zero heat or embedding-like generation speed.
 
 [العربية](tldr.md)
+
+## Persistence, model provenance and link previews
+
+Summaries are stored in SQLite with their generating model ID. The reader shows that original model and the recorded creation time, without invoking inference when opening the article, including after an app restart. Article, assigned-model or output-language changes can invalidate a result and queue a replacement. Older results without reliable creation metadata do not receive invented timestamps.
+
+Pause over a link in reading mode, or focus it with the keyboard, to see the source card. Down Arrow focuses Open original; Escape dismisses it. Moving into the card keeps it open. It displays an available source excerpt, not a newly generated summary, and does not run inference, publisher scripts or X embeds. Clicking the original link still opens it.
+
+Previews prefer a saved article, then reuse the shared 24-hour source cache or perform a bounded public fetch. Unavailable results are cached too, and only one page fetch runs at a time. The interface retains at most 80 preview responses for five minutes each. Requests must refer to links in the selected article; hovering neither imports an article nor marks one read. Blocked or sign-in-only posts disclose their unavailable state. Cards are not injected into the separate original-website view.
+
+Regenerate summary starts a fresh request using the currently assigned summary model and bypasses previous generated summary/section-note results. The old summary remains visible and persisted until a validated replacement succeeds, including after connection or generation failures. Explicit work takes priority after safely stopping background preparation; duplicate manual requests are rejected, and thermal, memory and battery limits remain in force. Regeneration still reuses unexpired source-page text rather than automatically fetching it again.

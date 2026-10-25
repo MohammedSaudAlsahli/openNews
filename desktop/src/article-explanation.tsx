@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { BookOpen, LoaderCircle } from "lucide-react";
+import { BookOpen, LoaderCircle, RotateCcw } from "lucide-react";
 import { call, type RecordData } from "./engine";
 import { Markdown } from "./components";
-import { t } from "./locale";
+import { t, useLocale } from "./locale";
+import { PreviewLink } from "./link-preview";
 import { invoke } from "@tauri-apps/api/core";
 import { processingLabel } from "./processing-status";
 
@@ -18,6 +19,7 @@ export function ArticleExplanation({
   phase?: string;
   onConfigure?: () => void;
 }) {
+  const locale = useLocale();
   const [result, setResult] = useState<RecordData>(
     article.prepared_summary || {},
   );
@@ -36,7 +38,8 @@ export function ArticleExplanation({
     setResult(article.prepared_summary || {});
   }, [article.prepared_summary]);
   useEffect(() => {
-    if ((result.summary && !result.needs_refresh) || busy || !configured) return;
+    if ((result.summary && !result.needs_refresh) || busy || !configured)
+      return;
     let live = true,
       polling = false;
     const timer = setInterval(async () => {
@@ -57,12 +60,16 @@ export function ArticleExplanation({
       clearInterval(timer);
     };
   }, [article.id, result.summary, result.needs_refresh, busy, configured]);
-  async function generate() {
+  async function generate(regenerate = false) {
     setBusy(true);
     setError("");
     try {
       setResult(
-        await call("news.summarize", { article_id: article.id, consent: true }),
+        await call("news.summarize", {
+          article_id: article.id,
+          consent: true,
+          ...(regenerate ? { regenerate: true } : {}),
+        }),
       );
     } catch (reason) {
       setError(String(reason));
@@ -87,9 +94,57 @@ export function ArticleExplanation({
       <header>
         <BookOpen size={17} aria-hidden="true" />
         <h2>{t("TL;DR")}</h2>
+        {result.summary && (
+          <button
+            className="tldr-regenerate"
+            disabled={busy || blocked || !configured}
+            title={t(
+              "Generate again with your current summary model. Your saved summary stays until the new one is ready.",
+            )}
+            onClick={() => void generate(true)}
+          >
+            {busy ? (
+              <LoaderCircle size={14} className="spin" aria-hidden="true" />
+            ) : (
+              <RotateCcw size={14} aria-hidden="true" />
+            )}
+            {t(busy ? "Regenerating…" : "Regenerate summary")}
+          </button>
+        )}
       </header>
+      {!busy && blocked && result.summary && configured && (
+        <p className="tldr-regeneration-status" role="status">
+          {processingLabel(phase)}
+        </p>
+      )}
+      {busy && result.summary && (
+        <p className="tldr-regeneration-status" role="status">
+          {t(
+            "Preparing a new summary with your current model. Your saved summary remains available.",
+          )}
+        </p>
+      )}
       {result.summary ? (
         <>
+          <p className="tldr-provenance">
+            <span>{t("Saved on this Mac")}</span>
+            {result.model ? (
+              <span>
+                {t("Summarized by")} <bdi>{result.model}</bdi>
+              </span>
+            ) : (
+              <span>{t("Model not recorded")}</span>
+            )}
+            {result.generated_at &&
+              !Number.isNaN(Date.parse(result.generated_at)) && (
+                <time dateTime={result.generated_at}>
+                  {new Intl.DateTimeFormat(locale, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(result.generated_at))}
+                </time>
+              )}
+          </p>
           <Markdown text={result.summary} />
           {!!result.quotes?.length && (
             <div className="tldr-quotes">
@@ -98,9 +153,9 @@ export function ArticleExplanation({
                 <figure key={index}>
                   <blockquote dir="auto">{quote.text}</blockquote>
                   <figcaption>
-                    <a href={quote.url}>
+                    <PreviewLink href={quote.url}>
                       {quote.source_id} · {new URL(quote.url).hostname}
-                    </a>
+                    </PreviewLink>
                   </figcaption>
                 </figure>
               ))}
@@ -112,11 +167,11 @@ export function ArticleExplanation({
               <ul>
                 {result.sources.map((source: RecordData) => (
                   <li key={source.id}>
-                    <a href={source.url}>
+                    <PreviewLink href={source.url}>
                       <bdi>
                         {source.id} · {new URL(source.url).hostname}
                       </bdi>
-                    </a>
+                    </PreviewLink>
                     <span>
                       {t(
                         source.status === "read"

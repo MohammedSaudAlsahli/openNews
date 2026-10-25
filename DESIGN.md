@@ -317,3 +317,9 @@ Settings switch thumbs and disclosure chevrons use 120ms ease transitions; share
 ### Verification
 
 Use the developer-only desktop/qa fixture for repeatable visual and keyboard inspection, plus real Tauri/runtime checks for native window controls and embedded websites. Verify both themes, both interface languages, native minimum width and wide desktop. New behavior needs regression tests for stale results, navigation/data protection and keyboard sending. Track remaining work in docs/interface-redesign-2026.md.
+
+### Reader source previews and summary provenance
+
+TL;DR identifies the stored generating model and recorded creation time in a wrapping 12px metadata row; an absent historical model or timestamp is never replaced with the current selection. Reader links and summary citations share a text-only floating preview using the existing paper/text/muted/focus tokens, 13px popup radius and floating-panel elevation. Titles are 16px/600, excerpts 14px/1.7, source/status metadata 12px. The card is 360px wide, clamped to viewport space, and supports both directions and themes. It opens after 320ms of pointer intent or on keyboard focus; a 180ms exit grace allows moving into it. Down Arrow focuses Open original; Escape dismisses and returns focus. Loading/unavailable states remain explicit. No decorative media, inference or remote embeds are added to this interaction.
+
+A compact Regenerate summary action sits at the trailing edge of the TL;DR heading. Its in-place progress leaves the previous summary and provenance visible; failure retains that result with retry available. Resource-blocked states explain the disabled action in adjacent status text. Only an explicit click starts regeneration.

@@ -206,3 +206,82 @@ def test_legacy_saved_summary_stays_visible_while_new_tldr_is_queued(service):
         with service.db: service.db.execute("UPDATE news_articles SET text=text||' Changed text.' WHERE id='story'")
         assert service.news_digest.preview('story','en') is None
     asyncio.run(run())
+
+
+def test_explicit_regeneration_bypasses_both_summary_caches_and_keeps_the_replacement(service):
+    async def run():
+        await configure(service)
+        initial=await summarize(service,{'article_id':'story','consent':True})
+        before=len(service.factory.calls)
+        assert (await summarize(service,{'article_id':'story','consent':True}))['cached']
+        assert len(service.factory.calls)==before
+        async def changed(profile,instructions,data,schema):
+            service.factory.calls.append((profile['model_id'],data['title']))
+            return ArticleSummary(summary='A newly regenerated summary with the original factual context.')
+        service.factory.run=changed
+        new=await summarize(service,{'article_id':'story','consent':True,'regenerate':True})
+        assert new['summary']!=initial['summary'] and new['cached'] is False
+        assert len(service.factory.calls)==before+1 and new['model']=='economy'
+        assert new['generated_at']
+        assert service.news_digest.preview('story','en')['summary']==new['summary']
+        assert (await summarize(service,{'article_id':'story','consent':True}))['summary']==new['summary']
+        assert len(service.factory.calls)==before+1 and not service.news_digest.manual_pending
+    asyncio.run(run())
+
+
+def test_failed_regeneration_retains_the_previous_summary_and_releases_priority(service):
+    async def run():
+        await configure(service)
+        original=await summarize(service,{'article_id':'story','consent':True})
+        async def failed(*_): raise RuntimeError('Synthetic provider failure')
+        service.factory.run=failed
+        with pytest.raises(RuntimeError):
+            await summarize(service,{'article_id':'story','consent':True,'regenerate':True})
+        assert service.news_digest.preview('story','en')['summary']==original['summary']
+        assert not service.news_digest.manual_pending
+    asyncio.run(run())
+
+
+def test_manual_regeneration_safely_interrupts_background_and_blocks_duplicate_requests(service):
+    async def run():
+        await configure(service)
+        await summarize(service,{'article_id':'story','consent':True})
+        pending=asyncio.create_task(asyncio.sleep(30))
+        service.news_digest.active_request=pending
+        started,finish=asyncio.Event(),asyncio.Event()
+        async def changed(profile,instructions,data,schema):
+            started.set();await finish.wait()
+            return ArticleSummary(summary='A regenerated summary after the background request stopped.')
+        service.factory.run=changed
+        request=asyncio.create_task(summarize(service,{'article_id':'story','consent':True,'regenerate':True}))
+        await started.wait()
+        assert pending.cancelled() and service.news_digest.manual_pending
+        assert await service.news_digest.prepare_next() is False
+        with pytest.raises(Failure) as failure:
+            await summarize(service,{'article_id':'story','consent':True,'regenerate':True})
+        assert failure.value.code=='BUSY'
+        finish.set();assert (await request)['cached'] is False
+        assert not service.news_digest.manual_pending
+        service.news_digest.active_request=None
+    asyncio.run(run())
+
+
+def test_local_regeneration_waits_for_short_duty_cycle_rest_without_starting_background(service):
+    async def run():
+        import time
+        await configure(service,local=True)
+        budget=service.news_digest.budget
+        budget.next_at=time.monotonic()+.03
+        calls=[]
+        async def model(name,instructions,data,schema):
+            assert service.news_digest.manual_pending
+            assert not await service.news.knowledge.embed_next()
+            calls.append(name)
+            return ArticleSummary(summary='A regenerated local summary with the original factual context.')
+        service.news_digest.local.run=model
+        start=time.monotonic()
+        result=await summarize(service,{'article_id':'story','consent':True,'regenerate':True})
+        assert time.monotonic()-start>=.03 and calls==['writer:small']
+        assert result['cached'] is False and not service.news_digest.manual_pending
+        assert budget.phase()=='resting'
+    asyncio.run(run())

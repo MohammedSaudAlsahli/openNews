@@ -2,7 +2,7 @@
 
 The HTML fixtures use the production React components with mock IPC. Run the
 frontend dev server and open `qa/index.html` or `qa/formatting.html`. Parameters:
-`lang=ar|en`, `theme=dark|light`; `first=1` on the workspace fixture shows first-run
+`lang=ar|en`, `theme=dark|light`; `links=1&preview=1` opens the reader and focuses a source preview; `first=1` on the workspace fixture shows first-run
 setup. Fixtures never import into the production entry or read the user's data.
 `long=1` supplies long account/model/assistant names; `models=retry` fails the
 first model-list request so the local retry and retained selection can be checked.
