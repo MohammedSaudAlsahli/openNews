@@ -10,7 +10,7 @@
 
 openNews is a macOS application for collecting, reading and discussing news and turning ideas into editable drafts. It supports Arabic and English, local models through Ollama, and cloud accounts you choose to connect.
 
-**Tauri is the supported application; `main` is its primary branch.** React renders the interface, Rust provides the native bridge, and an embedded Python engine uses SQLite. End users do not need Python or Node installed. The former SwiftUI application is preserved on [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy).
+**Tauri is the sole official, supported openNews application; `main` is its primary branch.** React renders the interface, Rust provides the native bridge, and an embedded Python engine uses SQLite. End users do not need Python or Node installed. The former SwiftUI application is retained only as an archive on [swift-legacy](https://github.com/MohammedSaudAlsahli/openNews/tree/swift-legacy), with no parallel supported app releases.
 
 ## What you can do
 
