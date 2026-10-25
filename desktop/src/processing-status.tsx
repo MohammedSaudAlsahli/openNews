@@ -9,7 +9,7 @@ const labels: Record<string, string> = {
   disabled: "Paused",
   needs_model: "Choose a model to begin",
   needs_download: "Model download required",
-  summarizing: "Explaining an article",
+  summarizing: "Preparing a summary",
   waiting_model: "Waiting for the model",
   ready: "Up to date",
   waiting_articles: "Waiting for articles",
@@ -24,6 +24,9 @@ const labels: Record<string, string> = {
   low_power: "Paused in Low Power Mode",
   waiting_device: "Waiting for your Mac",
 };
+export function processingLabel(phase: string) {
+  return t(labels[phase] || "Status unavailable");
+}
 export function ProcessingStatus({
   data,
   search = false,
@@ -74,7 +77,7 @@ export function ProcessingStatus({
         ) : (
           <Pause size={16} />
         )}
-        <strong>{t(labels[phase] || "Status unavailable")}</strong>
+        <strong>{processingLabel(phase)}</strong>
         {total !== null && total > 0 && (
           <span>
             {finished} / {total}
@@ -86,14 +89,14 @@ export function ProcessingStatus({
           value={finished!}
           max={total}
           aria-label={t(
-            search ? "Articles searchable by meaning" : "Articles explained",
+            search ? "Articles searchable by meaning" : "Articles summarized",
           )}
         />
       )}
       <div className="processing-counts">
         <span>
           <strong>{finished ?? "—"}</strong>
-          {t(search ? "Articles searchable by meaning" : "Articles explained")}
+          {t(search ? "Articles searchable by meaning" : "Articles summarized")}
         </span>
         <span>
           <strong>{waiting ?? "—"}</strong>

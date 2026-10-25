@@ -4,6 +4,9 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Preparing a summary": "جارٍ تجهيز ملخص",
+  "Articles summarized": "مقالات ملخّصة",
+  "Summary source": "مصدر التلخيص",
   "Apply the selected model to a task. TL;DR can also use a local model in article settings.": "عيّن النموذج لمهمة. يمكنك اختيار نموذج محلي للملخص من إعدادات المقالات.",
   "TL;DR": "الملخص",
   "Source quotations": "اقتباسات من المصادر",

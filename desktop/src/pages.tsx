@@ -676,6 +676,7 @@ export function Articles({
             <ArticleExplanation
               key={selected.id}
               article={selected}
+              phase={(digestStatus || snapshot.news_digest)?.phase}
               configured={
                 !!summaryModel(snapshot, digestStatus || snapshot.news_digest)
               }

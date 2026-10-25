@@ -113,3 +113,13 @@ it("shows source availability and coverage without hiding the summary", () => {
   expect(screen.getByText(/Coverage is limited/)).toBeTruthy();
   expect(call).not.toHaveBeenCalled();
 });
+it("shows the actual waiting reason and does not offer work while resources block it", () => {
+  render(<ArticleExplanation article={{ id: "a" }} phase="waiting_charger" />);
+  expect(screen.getByRole("status").textContent).toBe("Waiting for a charger");
+  expect(
+    screen
+      .getByRole("button", { name: "Prepare this summary" })
+      .hasAttribute("disabled"),
+  ).toBe(true);
+  expect(call).not.toHaveBeenCalled();
+});

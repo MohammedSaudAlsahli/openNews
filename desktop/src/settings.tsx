@@ -1034,7 +1034,7 @@ export default function Settings({
                       </select>
                     </label>
                     <label className="setting-row">
-                      {t("Explanation source")}
+                      {t("Summary source")}
                       <select
                         disabled={changing}
                         value={data.engine || "provider"}

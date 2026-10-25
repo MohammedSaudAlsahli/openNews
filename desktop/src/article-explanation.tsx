@@ -4,15 +4,18 @@ import { call, type RecordData } from "./engine";
 import { Markdown } from "./components";
 import { t } from "./locale";
 import { invoke } from "@tauri-apps/api/core";
+import { processingLabel } from "./processing-status";
 
 // Mounted by article ID; late responses cannot replace another article's TL;DR.
 export function ArticleExplanation({
   article,
   configured = true,
+  phase = "",
   onConfigure,
 }: {
   article: RecordData;
   configured?: boolean;
+  phase?: string;
   onConfigure?: () => void;
 }) {
   const [result, setResult] = useState<RecordData>(
@@ -20,6 +23,15 @@ export function ArticleExplanation({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const blocked = [
+    "paused",
+    "stopping",
+    "memory_pressure",
+    "waiting_charger",
+    "cooling",
+    "low_power",
+    "waiting_device",
+  ].includes(phase);
   useEffect(() => {
     setResult(article.prepared_summary || {});
   }, [article.prepared_summary]);
@@ -130,6 +142,9 @@ export function ArticleExplanation({
         </>
       ) : (
         <div className="tldr-empty">
+          {configured && blocked && (
+            <p role="status">{processingLabel(phase)}</p>
+          )}
           <p className="muted">
             {t(
               configured
@@ -138,7 +153,7 @@ export function ArticleExplanation({
             )}
           </p>
           {configured ? (
-            <button disabled={busy} onClick={() => void generate()}>
+            <button disabled={busy || blocked} onClick={() => void generate()}>
               {busy && (
                 <LoaderCircle size={16} className="spin" aria-hidden="true" />
               )}

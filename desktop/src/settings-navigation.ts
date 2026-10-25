@@ -96,7 +96,7 @@ export const settingsCategories = [
       {
         id: "summaries",
         title: "TL;DR",
-        keywords: ["Automatic summaries", "Language", "Explanation source"],
+        keywords: ["Automatic summaries", "Language", "Summary source"],
       },
     ],
   },
