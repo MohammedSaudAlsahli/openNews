@@ -1,11 +1,11 @@
 {
-  "version": "0.3.5",
-  "pub_date": "2026-10-25T20:06:20Z",
-  "notes": "إصلاح احتساب الملخصات القديمة والاحتفاظ بها عند تغيير المودل، وإزالة رسالة انتظار الموارد من الملخص الجاهز. ترتيب شريط نافذة الماك والتنقل المصغّر مع حركات خفيفة تراعي تقليل الحركة. تبقى مقالاتك وملخصاتك ومحادثاتك وحساباتك ونماذجك محفوظة.\n\nCorrect saved-summary coverage and retain results when choosing a future model. Ready summaries no longer show resource-wait banners. Refine macOS chrome, compact navigation and accessible micro-interactions. Existing articles, summaries, conversations, accounts and models are retained.",
+  "version": "0.3.6",
+  "pub_date": "2026-10-26T21:57:40Z",
+  "notes": "تحديث openNews الرسمي مع إبقاء المقالات والحسابات والنماذج.\n\nOfficial openNews update; articles, accounts and downloaded models are retained.",
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.5/openNews-0.3.5-macOS-arm64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MFhocUZSMXRqY29rY0pkbUpVRWdrVE9FU0o0N1NSckdJejJ1Ukw3Rllici82SzZjNytsOTMwZ2Q5SUtqKzZGRXVkdEZHYlowbTRpeW9pNlpieHFKelF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTU5MDM5CWZpbGU6b3Blbk5ld3MtMC4zLjUtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy41ClErclBOd1p6bys0Myt6OE5aaldXQWZOTzVDM3hieGdCVG5zNXV5OSttdDcvVUZELzBacFFHZko0UWVkU2ZnakdabnNVazl1L093YnByM0luVDFpdkRRPT0K"
+      "url": "https://github.com/MohammedSaudAlsahli/openNews/releases/download/v0.3.6/openNews-0.3.6-macOS-arm64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSmRSMnNmT1h3MGR2R2dLMGk4WjRwVmlubCtZYy9tOEQvMmdNYzlHNjg1alI4am1YRUFMYURteEtkaStncXFxbUZvUWVvaWMybGZNdWM3N1dWRzQxM24wc3FuQ0daSHd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDUyMDg2CWZpbGU6b3Blbk5ld3MtMC4zLjYtbWFjT1MtYXJtNjQuYXBwLnRhci5negl2ZXJzaW9uOjAuMy42CktvelM1RHprL0lsMCs4azZHOTVYbHZYMEloU2orNk9rWC8ybjRHYXE5c2JSMTdPMUpJUUt1eDduQlBIQjV3NUdyRGRKTlJlVXN5WUJzZDNaOXJua0JBPT0K"
     }
   }
 }
