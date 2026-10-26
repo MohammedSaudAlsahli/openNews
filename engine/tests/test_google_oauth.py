@@ -47,6 +47,7 @@ def test_google_pkce_private_storage_refresh_and_disconnect(service,monkeypatch)
         assert params['scope']==[auth.SCOPE]
         response=await callback(service,result)
         assert response.status_code==200
+        assert 'ChatGPT' not in response.text
         status=await service.dispatch('providers.auth.status',{'auth_id':result['auth_id']})
         assert status['status']=='complete'
         profile=service.profile(status['profile_id']); path=credential_path(profile)
