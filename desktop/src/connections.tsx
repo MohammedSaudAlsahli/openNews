@@ -347,7 +347,7 @@ export function Connections({
             {t("Choose the account your assistant uses.")}
           </p>
         </div>
-        {!adding && <button
+        {!adding && (snapshot.profiles || []).length > 0 && <button
           className="primary"
           disabled={busy || Boolean(auth)}
           onClick={() => {

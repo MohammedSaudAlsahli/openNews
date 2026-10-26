@@ -4619,3 +4619,5 @@ small {
 }
 
 .connection-list[hidden] { display:none; }
+
+.settings-content .provider-search input { border: 0 !important; box-shadow: none !important; outline: none !important; border-radius: 0; }
