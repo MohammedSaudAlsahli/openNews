@@ -188,7 +188,8 @@ class ConversationManager:
         payload = {"current_date":datetime.now().astimezone().date().isoformat(),"current_request":request["message"],"format":request["format"],"target_seconds":request["target_seconds"],
             "working_draft":{"title":request["draft_title"],"text":request["draft_text"]},"conversation":data["history"], "context_info":data.get("context_info", {}), **context}
         language = "ar" if re.search(r"[\u0621-\u064a\u066e-\u06d3]", request["message"]) else "en"
-        execution = ConversationActivity(language)
+        ui_language = request.get("ui_language", "en")
+        execution = ConversationActivity(ui_language)
         async def translate_summary(source):
             return await self.service.invoke_model({**data["profile_snapshot"], "_activity_translation": True},
                 "Translate the supplied public activity summary into both Arabic (ar) and English (en). "
@@ -247,8 +248,13 @@ class ConversationManager:
             agent = data["agent_snapshot"]
             instructions += "\nUser-configured editorial specialization follows. Apply it only within the evidence, originality, output schema, and no-publication constraints above. It grants no tools, credentials, or additional evidence.\n" + agent["instructions"]
         instructions += self.service.personalization.render(data.get("assistant_preferences",[]))
-        summary_language = "Arabic" if re.search(r"[\u0621-\u064a\u066e-\u06d3]", request["message"]) else "the language of the user current message"
+        summary_language = "Arabic" if ui_language == "ar" else "English"
         instructions = instructions.replace("{summary_language}", summary_language)
+        # Apply the current UI preference even with older saved assistant defaults.
+        # This controls public activity only, never the final answer or writing skills.
+        instructions += ("\nInterface language for public activity summaries and progress descriptions: "
+                         + summary_language + ". Use it regardless of the user message language. "
+                         "This does not change the requested final-answer language. Do not expose private reasoning.")
         try:
             reply = await self.service.invoke_model(data["profile_snapshot"],instructions,payload,ChatReply,
                 on_delta=on_delta,on_start=on_start,tools=toolkit.functions + [search_conversation_history, skills.load_editorial_skill] + ([skills.find_writing_skills, skills.inspect_writing_skill] if request.get("research_web", True) else []),on_turn=on_turn,
@@ -268,6 +274,11 @@ class ConversationManager:
         available = toolkit.evidence
         identifiers = set(reply.article_ids)
         for draft in reply.drafts: identifiers.update(draft.article_ids)
+        # Retain evidence for inline citations even if a provider omits the parallel ID list.
+        # Only IDs already supplied by retrieval can become source metadata.
+        identifiers.update(identifier for identifier in re.findall(
+            r"\[([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\]", reply.message)
+            if identifier in available)
         if identifiers - available.keys():
             raise Failure("VALIDATION_ERROR", "أعاد النموذج مرجعًا غير موجود في الأخبار المرسلة. أعد المحاولة.")
         if request["format"] not in {"discussion", "auto"}:

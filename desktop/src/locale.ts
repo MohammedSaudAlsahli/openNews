@@ -4,6 +4,13 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Source preview": "معاينة المصدر",
+  "Could not open the source. Try again.": "تعذّر فتح المصدر. حاول مرة أخرى.",
+  "Source unavailable": "المصدر غير متاح",
+  "Saved source excerpt": "مقتطف محفوظ من المصدر",
+  "No saved excerpt is available for this reference.": "لا يتوفر مقتطف محفوظ لهذا المرجع.",
+  "Preparing activity in your interface language…": "جارٍ تجهيز وصف العمل بلغة الواجهة…",
+  "Activity summary is unavailable in this language.": "وصف العمل غير متاح بهذه اللغة.",
   Show: "إظهار",
   Hide: "إخفاء",
   "Main navigation": "التنقل الرئيسي",

@@ -16,6 +16,7 @@ These guides describe the supported Tauri application. The former application an
 | Changes | [Changelog](../CHANGELOG.md) |
 | Reading and saved articles | [Reader](article-reader.md) and [archive](news-archive.md) |
 | Models and local search | [Providers](providers.md) and [indexing](news-indexing.md) |
+| Activity language and source previews | [Conversation references](chat-references.en.md) |
 | Conversations and instructions | [Conversation context](conversation-context.md) and [instructions](editorial-instructions.md) |
 | Writing skills | [Skills](writing-skills.md) and [skill interface](skills-surface.md) |
 | Settings and design | [Settings](settings-surface.md) and [design system](../DESIGN.md) |

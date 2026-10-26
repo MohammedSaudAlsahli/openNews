@@ -83,6 +83,10 @@ const qaExecution = {
     params.get("lang") === "ar"
       ? "التخطيط لبحث واسع عن أحدث الأخبار"
       : "Planning a broad search for the latest news",
+  reasoning_summaries: {
+    ar: "أراجع المصادر المتاحة وأقارن تواريخ نشرها.",
+    en: "Reviewing available sources and comparing publication dates.",
+  },
   steps: [
     { id: "1", kind: "context", detail: "" },
     {
@@ -305,10 +309,20 @@ mockIPC(
               id: "m2",
               role: "assistant",
               activity: activityMode === "completed" ? qaExecution : undefined,
-              content:
-                '## البحث بالمعنى\n\nيربط البحث الدلالي فكرتك بالأخبار ذات الصلة، حتى عندما تستخدم كلمات مختلفة.\n\n- يحتفظ التطبيق بنص المقالة ومصدرها.\n- ينشئ نموذج التضمين تمثيلًا رقميًا للنص.\n- يقارن معنى سؤالك بالمقالات المفهرسة.\n\n```python\nresults = search("local language models")\nfor article in results:\n    print(article.title)\n```',
+              content: params.has("citations")
+                ? "## ملخص المصادر — بيانات تجريبية\n\nيعرض هذا المثال كيف تبقى الإجابة بالعربية بينما تتبع خطوات العمل لغة الواجهة. نتائج التقرير تخص عام 2025، وليست نشاط أكتوبر وحده. [456d7be5-e790-4af9-babd-f38b273dd6fe]\n\nيمكنك معاينة المصدر من الرقم الصغير دون مغادرة المحادثة. ويشير الرقم المكرر إلى المصدر نفسه. [456d7be5-e790-4af9-babd-f38b273dd6fe]"
+                : '## البحث بالمعنى\n\nيربط البحث الدلالي فكرتك بالأخبار ذات الصلة، حتى عندما تستخدم كلمات مختلفة.\n\n- يحتفظ التطبيق بنص المقالة ومصدرها.\n- ينشئ نموذج التضمين تمثيلًا رقميًا للنص.\n- يقارن معنى سؤالك بالمقالات المفهرسة.\n\n```python\nresults = search("local language models")\nfor article in results:\n    print(article.title)\n```',
               citations: [
-                { title: "Ollama Blog", url: "https://ollama.com/blog" },
+                params.has("citations")
+                  ? {
+                      article_id: "456d7be5-e790-4af9-babd-f38b273dd6fe",
+                      title: "Investment figures · Sample source",
+                      url: "https://example.org/report",
+                      published_at: "2026-10-19T10:00:00Z",
+                      excerpt:
+                        "This is synthetic preview content for interface verification. The report covers the 2025 calendar year; its publication date does not establish October activity.",
+                    }
+                  : { title: "Ollama Blog", url: "https://ollama.com/blog" },
               ],
             },
           ].filter(

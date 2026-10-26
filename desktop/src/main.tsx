@@ -58,7 +58,7 @@ const Drafts = lazy(() =>
   import("./pages").then((x) => ({ default: x.Drafts })),
 );
 export function App() {
-  useLocale();
+  const locale = useLocale();
   const [support, setSupport] = useState(false);
   const [reportCode, setReportCode] = useState("");
   const [uncleanExit, setUncleanExit] = useState(false);
@@ -390,6 +390,7 @@ ${f.text}
       const payload = {
         conversation_id: id,
         message: text + fileText,
+        ui_language: locale,
         profile_id: profile,
         model_id: model,
         consent: true,
@@ -952,7 +953,10 @@ ${f.text}
                     {running && (
                       <article className="message assistant">
                         <Trace data={progress[selected] || {}} running />
-                        <Markdown text={progress[selected]?.message || ""} />
+                        <Markdown
+                          text={progress[selected]?.message || ""}
+                          citations={progress[selected]?.citations || []}
+                        />
                       </article>
                     )}
                     {!running &&

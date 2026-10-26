@@ -8,11 +8,15 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { setLocale } from "./locale";
 import { Trace, Markdown } from "./components";
 import publisher from "../qa/formatting-publisher.json";
 import table from "../qa/formatting-table.json";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setLocale("en");
+});
 it("retains all seven comparison columns and eleven rows from the reported article", () => {
   const { container } = render(<Markdown text={table.markdown} />);
   expect(screen.getByRole("region", { name: "Table" }).tabIndex).toBe(0);
@@ -93,6 +97,7 @@ it("renders the publisher newsletter and recovered C++ lines without formatting 
 });
 describe("live public activity", () => {
   it("updates while working, collapses after completion, and can be reopened", () => {
+    setLocale("ar");
     const first = {
       execution: { reasoning_summary: "أبحث في الأخبار", steps: [] },
     };
@@ -116,6 +121,7 @@ describe("live public activity", () => {
     expect(screen.getByText("أقارن المصادر الآن")).toBeTruthy();
   });
   it("does not fall back to the wrong language when translation is pending", () => {
+    setLocale("ar");
     render(
       <Trace
         running

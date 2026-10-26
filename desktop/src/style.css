@@ -4507,3 +4507,31 @@ small {
   .change-number { padding-inline: 4px; }
   .change-text { padding-inline-end: 10px; }
 }
+
+/* References stay attached to a claim; the saved source opens without a model request. */
+.prose .inline-citation {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: baseline;
+  min-width: 24px;
+  min-height: 24px;
+  height: 24px;
+  margin-inline: 3px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+}
+.prose .inline-citation:hover, .prose .inline-citation[data-state="open"] { background: var(--hover); border-color: var(--muted); }
+.prose .inline-citation:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.citation-preview-close { width: 28px; height: 28px; min-height: 28px; padding: 0; justify-content: center; border-radius: 5px; margin-block: -4px; }
+.citation-preview .link-preview-source { align-items: center; }
+.citation-preview time { display: block; margin-block: -3px 10px; color: var(--muted); font-size: 12px; }
+.trace-translation-status { color: var(--muted); font-size: 12px; line-height: 1.6; margin-block: 0 12px; }
