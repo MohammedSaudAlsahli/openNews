@@ -11,7 +11,7 @@ async def configure(service, local=False):
     if local:
         service.news_digest.local.installed={'writer:small':100}
         service.news_digest.configure({'enabled':True,'engine':'local','local_model':'writer:small','language':'en'})
-        service.news_digest.device_state({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False})
+        service.news_digest.device_state({'idle_seconds':600,'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False})
     else:
         saved=await service.dispatch('providers.save',{'provider_key':'openai','model_id':'economy'})
         from eis_engine.storage import encode, now

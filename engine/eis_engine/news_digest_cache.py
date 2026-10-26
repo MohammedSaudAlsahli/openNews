@@ -137,7 +137,7 @@ class DigestCache:
 
     @staticmethod
     def select():
-        return """SELECT a.id,a.title,a.url,a.text,a.published_at,a.body_status,s.title AS source_title,s.kind AS source_kind,
+        return """SELECT a.id,a.title,a.url,a.text,a.published_at,a.discovered_at,a.body_status,s.title AS source_title,s.kind AS source_kind,
             d.revision,r.source_revision,r.source_hash,r.language AS saved_language,r.summary,r.model_id,r.profile_id,r.attempts,r.retry_after
             FROM news_digest_sources d JOIN news_articles a ON a.id=d.article_id JOIN news_subscriptions s ON s.id=a.subscription_id
             LEFT JOIN news_digest_results r ON r.workspace_id=d.workspace_id AND r.article_id=d.article_id"""
@@ -158,15 +158,19 @@ class DigestCache:
             AND (r.source_revision IS NULL OR r.source_revision!=d.revision OR r.language!=?
                 OR (r.summary='' AND (r.profile_id!=? OR r.model_id!=? OR r.retry_after<=?))) LIMIT 1""",(self.ws,language,assignment['profile_id'],assignment['model_id'],current)))
 
-    def candidate(self, language, assignment, current):
-        candidate = self.store.one("""SELECT d.article_id FROM news_digest_sources d
+    def candidate_metadata(self, language, assignment, current):
+        candidate = self.store.one("""SELECT d.article_id,a.published_at,a.discovered_at FROM news_digest_sources d
             JOIN news_articles a ON a.id=d.article_id
             LEFT JOIN news_digest_results r ON r.workspace_id=d.workspace_id AND r.article_id=d.article_id
             WHERE d.workspace_id=? AND d.eligible=1
             AND a.id NOT IN (SELECT article_id FROM news_article_duplicates)
             AND (r.source_revision IS NULL OR r.source_revision!=d.revision OR r.language!=?
-                OR (r.summary='' AND (r.profile_id!=? OR r.model_id!=? OR r.retry_after<=?))) ORDER BY a.discovered_at DESC LIMIT 1""",
+                OR (r.summary='' AND (r.profile_id!=? OR r.model_id!=? OR r.retry_after<=?))) ORDER BY CASE WHEN julianday(coalesce(a.published_at,a.discovered_at))>=julianday('now','-1 day') THEN 0 ELSE 1 END,a.discovered_at DESC LIMIT 1""",
             (self.ws,language,assignment['profile_id'],assignment['model_id'],current))
+        return candidate
+
+    def candidate(self, language, assignment, current):
+        candidate = self.candidate_metadata(language, assignment, current)
         if not candidate: return None
         # Fetch a single body only after metadata has selected the next job.
         row = self.store.one(self.select()+' WHERE d.article_id=?',(candidate['article_id'],))

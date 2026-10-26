@@ -26,12 +26,12 @@ def test_local_queue_keeps_saved_summaries_when_future_model_changes(service):
             return ArticleSummary(summary='ملخص المقالة.')
         local.run=run
         service.news_digest.configure({'enabled':True,'engine':'local','local_model':'custom:small','daily_limit':1})
-        service.news_digest.device_state({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False})
+        service.news_digest.device_state({'idle_seconds':600,'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False})
         service.news_digest.cache.reserve(1)
         assert await service.news_digest.prepare_next()
         assert calls==['custom:small']
         assert service.news_digest.status()['phase']=='ready'
-        assert service.news_digest.budget.phase()=='resting'
+        assert service.news_digest.budget.summary_phase()=='resting'
         assert not await service.news_digest.prepare_next()
         assert service.news_digest.preview('story')['summary']=='ملخص المقالة.'
         assert service.news_digest.article_states(['story'])['states']['story']=='ready'
@@ -39,6 +39,7 @@ def test_local_queue_keeps_saved_summaries_when_future_model_changes(service):
         assert service.news_digest.preview('story')['model']=='custom:small'
         assert service.news_digest.article_states(['story'])['states']['story']=='ready'
         service.news_digest.budget.next_at = 0
+        service.news_digest.budget.summary_next_at = 0
         assert not await service.news_digest.prepare_next()
         from eis_engine.article_summary import summarize
         replacement=await summarize(service,{'article_id':'story','consent':True,'regenerate':True})
@@ -83,7 +84,7 @@ def test_arabic_and_english_manual_summary_use_selected_local_model(service):
         local=service.news_digest.local
         local.installed={'custom:small':100}
         service.news_digest.configure({'enabled':False,'engine':'local','local_model':'custom:small'})
-        service.news_digest.device_state({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False})
+        service.news_digest.device_state({'idle_seconds':600,'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False})
         prompts=[]
         async def generate(name,instructions,data,schema):
             prompts.append(instructions)
@@ -96,7 +97,8 @@ def test_arabic_and_english_manual_summary_use_selected_local_model(service):
         assert service.factory.calls==[]
     asyncio.run(run())
 
-def test_agno_adapter_is_local_bounded_and_returns_validated_output(service,monkeypatch):
+@pytest.mark.parametrize("article,context",[("Public article",4096),("Evidence "*700,8192)])
+def test_agno_adapter_is_local_bounded_and_returns_validated_output(service,monkeypatch,article,context):
     from agno import agent
     from agno.models import ollama
     from types import SimpleNamespace
@@ -104,7 +106,9 @@ def test_agno_adapter_is_local_bounded_and_returns_validated_output(service,monk
     def model(**kwargs): captured.update(kwargs); return object()
     class FakeAgent:
         def __init__(self,**kwargs): captured['agent']=kwargs
-        async def arun(self,prompt): return SimpleNamespace(content='{"summary":"Verified"}')
+        async def arun(self,prompt):
+            captured['prompt']=prompt
+            return SimpleNamespace(content='{"summary":"Verified"}')
     monkeypatch.setattr(ollama,'Ollama',model)
     monkeypatch.setattr(agent,'Agent',FakeAgent)
     async def check(name): return name
@@ -112,11 +116,14 @@ def test_agno_adapter_is_local_bounded_and_returns_validated_output(service,monk
     local.check_generation=check
     local.runtime=True
     local.capabilities['custom:small']=['completion','thinking']
-    result=asyncio.run(local.run('custom:small','Arabic summary',{'text':'Public article'},ArticleSummary))
+    result=asyncio.run(local.run('custom:small','Arabic summary',{'text':article},ArticleSummary))
     assert result.summary=='Verified'
     assert captured['host']=='http://127.0.0.1:11435'
     assert captured['api_key'] is None
-    assert captured['options']['num_ctx']==8192
+    assert captured['options']['num_ctx']==context
+    import json
+    assert json.loads(captured['prompt'])['text']==article
+    assert captured['options']['num_predict']==1100
     assert captured['request_params']=={'think':False}
     assert not service.model_lock.locked()
 

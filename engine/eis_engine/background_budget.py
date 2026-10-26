@@ -1,5 +1,6 @@
 """Persisted processing policy and conservative, fresh native device signals."""
 import time
+import math
 from .contracts import Failure
 
 
@@ -10,6 +11,8 @@ class BackgroundBudget:
         self.thermal, self.memory_pressure = 'unknown', 'unknown'
         self.low_power, self.on_battery = False, None
         self.next_at = 0.0
+        self.summary_next_at = 0.0
+        self.idle_seconds = None
         self.mode, self.index_on_battery, self.paused = 'quiet', False, False
         self.metrics = {}
         if store:
@@ -38,6 +41,10 @@ class BackgroundBudget:
         pressure, battery = payload.get('memory_pressure','unknown'),payload.get('on_battery')
         if thermal not in {'nominal','fair','serious','critical','unknown'} or type(low_power) is not bool or pressure not in {'normal','warning','critical','unknown'} or battery is not None and type(battery) is not bool:
             raise Failure('VALIDATION_ERROR', 'Invalid device energy state.')
+        idle = payload.get('idle_seconds')
+        if idle is not None and (type(idle) not in {int,float} or not math.isfinite(idle) or idle < 0):
+            raise Failure('VALIDATION_ERROR', 'Invalid device idle time.')
+        self.idle_seconds = idle
         self.thermal,self.low_power,self.memory_pressure,self.on_battery = thermal,low_power,pressure,battery
         self.updated = time.monotonic()
         return self.status()
@@ -52,6 +59,23 @@ class BackgroundBudget:
         if self.on_battery and not self.index_on_battery: return 'waiting_charger'
         if time.monotonic()<self.next_at: return 'resting'
         return ''
+
+    def summary_phase(self, *, archive=False, manual=False):
+        phase = self.phase()
+        if phase: return phase
+        if manual: return ''
+        if self.idle_seconds is None: return 'waiting_device'
+        if archive and self.on_battery: return 'waiting_charger'
+        threshold = 180 if archive else 45
+        if self.idle_seconds < threshold: return 'waiting_idle'
+        if time.monotonic() < self.summary_next_at: return 'resting'
+        return ''
+
+    def summary_finished(self, elapsed):
+        # Generative work has a separate duty cycle; do not slow embedding queries.
+        rest = min(180, max(30, elapsed * 2)) if self.mode == 'quiet' else min(60, max(10, elapsed))
+        self.summary_next_at = time.monotonic() + rest
+        self.metrics.update(summary_batch_ms=round(elapsed*1000), summary_rest_ms=round(rest*1000))
 
     @property
     def batch_size(self):

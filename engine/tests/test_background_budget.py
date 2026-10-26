@@ -102,3 +102,82 @@ def test_automatic_embeddings_share_quiet_budget_and_yield_to_conversation(servi
         assert service.news_digest.budget.phase() == 'resting'
         assert not await knowledge.embed_next()
     asyncio.run(scenario())
+
+
+def test_summary_idle_gate_and_duty_cycle_do_not_slow_search():
+    with patch('eis_engine.background_budget.time.monotonic',return_value=100):
+        b=BackgroundBudget()
+        healthy={'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False}
+        b.update(healthy)
+        assert b.phase() == ''
+        assert b.summary_phase() == 'waiting_device'
+        b.update({**healthy,'idle_seconds':0})
+        assert b.summary_phase() == 'waiting_idle'
+        assert b.summary_phase(manual=True) == ''
+        b.update({**healthy,'idle_seconds':60})
+        assert b.summary_phase() == ''
+        assert b.summary_phase(archive=True) == 'waiting_idle'
+        b.update({**healthy,'idle_seconds':200})
+        assert b.summary_phase(archive=True) == ''
+        b.summary_finished(40)
+        assert b.summary_next_at == 180
+        assert b.phase() == ''  # Embeddings are not held by the summary rest.
+        assert b.summary_phase() == 'resting'
+        assert b.summary_phase(manual=True) == ''
+        b.configure({'index_on_battery':True})
+        b.update({**healthy,'idle_seconds':200,'on_battery':True})
+        assert b.summary_phase(archive=True) == 'waiting_charger'
+
+
+def test_returning_user_cancels_only_automatic_summary(service):
+    async def run():
+        d=service.news_digest
+        d.local.installed={'custom:small':100}
+        d.configure({'enabled':True,'engine':'local','local_model':'custom:small'})
+        d.active_request=asyncio.create_task(asyncio.sleep(100))
+        d.device_state({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False,'idle_seconds':0})
+        await asyncio.gather(d.active_request,return_exceptions=True)
+        assert d.active_request.cancelled()
+        d.active_request=asyncio.create_task(asyncio.sleep(100))
+        d.manual_pending=True
+        d.device_state({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False,'idle_seconds':0})
+        await asyncio.sleep(0)
+        assert not d.active_request.cancelled()
+        d.active_request.cancel()
+        await asyncio.gather(d.active_request,return_exceptions=True)
+        d.active_request=None
+        d.manual_pending=False
+    asyncio.run(run())
+
+
+def test_invalid_idle_signals_are_not_treated_as_idle():
+    import pytest
+    from eis_engine.contracts import Failure
+    b=BackgroundBudget()
+    for value in (-1, float('nan'), float('inf'), True, '600'):
+        with pytest.raises(Failure):
+            b.update({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False,'idle_seconds':value})
+
+
+def test_busy_device_does_not_fetch_bodies_or_hold_generation_weights(service):
+    from unittest.mock import AsyncMock
+    async def run():
+        d=service.news_digest
+        d.local.installed={'custom:small':100}
+        d.configure({'enabled':True,'engine':'local','local_model':'custom:small'})
+        d.device_state({'thermal':'nominal','low_power':False,'memory_pressure':'normal','on_battery':False,'idle_seconds':0})
+        d.local.release_generation=AsyncMock()
+        with patch.object(d.cache,'candidate',side_effect=AssertionError('Body fetched while user active')):
+            assert not await d.prepare_next()
+        d.local.release_generation.assert_awaited_once()
+        assert not d.has_pending()  # Do not reserve the search model's next turn.
+        assert d.status()['phase']=='waiting_idle'
+    asyncio.run(run())
+
+
+def test_archive_needs_longer_idle_than_current_news():
+    from datetime import datetime,timedelta,timezone
+    from eis_engine.news_digest import NewsDigest
+    assert not NewsDigest.is_archive({'published_at':datetime.now(timezone.utc).isoformat()})
+    assert NewsDigest.is_archive({'published_at':(datetime.now(timezone.utc)-timedelta(days=2)).isoformat()})
+    assert NewsDigest.is_archive({})

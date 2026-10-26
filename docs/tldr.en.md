@@ -23,3 +23,11 @@ Pause over a link in reading mode, or focus it with the keyboard, to see the sou
 Previews prefer a saved article, then reuse the shared 24-hour source cache or perform a bounded public fetch. Unavailable results are cached too, and only one page fetch runs at a time. The interface retains at most 80 preview responses for five minutes each. Requests must refer to links in the selected article; hovering neither imports an article nor marks one read. Blocked or sign-in-only posts disclose their unavailable state. Cards are not injected into the separate original-website view.
 
 Regenerate summary starts a fresh request using the currently assigned summary model and bypasses previous generated summary/section-note results. The old summary remains visible and persisted until a validated replacement succeeds, including after connection or generation failures. Explicit work takes priority after safely stopping background preparation; duplicate manual requests are rejected, and thermal, memory and battery limits remain in force. Regeneration still reuses unexpired source-page text rather than automatically fetching it again.
+
+## Quiet local execution
+
+The selected model, weight quantization and KV cache type remain unchanged. Automatic summaries wait for 45 seconds of user-input inactivity for news published within the last day, or 180 seconds for the archive. Archive processing requires AC even when battery indexing is allowed. Returning input cancels automatic inference safely; completed summaries and source notes remain saved.
+
+After each job, quiet mode rests for twice its elapsed time, bounded to 30–180 seconds; balanced mode rests for 10–60 seconds. The generation model is unloaded during this rest. This separate summary budget does not impose the same delay on search indexing. Manual regeneration bypasses summary inactivity/rest only; thermal, memory and energy protections still apply.
+
+macOS idle time is read without recording input contents. Unknown/stale device signals stop automatic processing. Requests use 4096 context only when the estimated instructions, evidence, output schema and output allowance fit with a 512-token margin; otherwise 8192 remains. Input is never truncated to fit the smaller setting. Scheduling cannot eliminate inference's working memory or heat.

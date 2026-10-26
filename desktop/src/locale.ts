@@ -220,6 +220,7 @@ const ar: Record<string, string> = {
   "View download": "عرض التنزيل",
   "Background processing": "المعالجة في الخلفية",
   "Background processing is paused": "المعالجة في الخلفية متوقفة",
+  "Waiting until you are away": "بانتظار خمول الجهاز لتخفيف الحمل",
   "Waiting for a charger": "بانتظار توصيل الشاحن",
   "Waiting for more available memory": "بانتظار توفر ذاكرة كافية",
   "Another local task is running": "تعمل مهمة محلية أخرى",

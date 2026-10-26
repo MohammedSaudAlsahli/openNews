@@ -1,6 +1,7 @@
 import Foundation
 import IOKit.ps
 import Darwin
+import CoreGraphics
 // Narrow native bridge: no credentials, shell commands, arbitrary paths or URLs.
 func output(_ value: [String: Any]) {
     if let data = try? JSONSerialization.data(withJSONObject: value), let text = String(data: data, encoding: .utf8) { print(text) }
@@ -17,7 +18,8 @@ if command == "device" {
        let source = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() {
         battery = (source as String) == (kIOPSBatteryPowerValue as String)
     }
-    output(["thermal": states[ProcessInfo.processInfo.thermalState] ?? "unknown",
+    let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: UInt32.max)!)
+    output(["idle_seconds": idle.isFinite && idle >= 0 ? idle : NSNull(), "thermal": states[ProcessInfo.processInfo.thermalState] ?? "unknown",
         "low_power": ProcessInfo.processInfo.isLowPowerModeEnabled,
         "on_battery": battery, "memory_pressure": success ? levels[pressure] ?? "unknown" : "unknown"])
 } else {
