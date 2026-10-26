@@ -1,3 +1,15 @@
+import {
+  readingPosition,
+  saveReadingPosition,
+  readingFilters,
+  saveReadingFilters,
+} from "./reading-session";
+import {
+  ReadingWorkspace,
+  ReaderTools,
+  SourceComparison,
+} from "./reading-workspace";
+import { SourceMedia } from "./source-media";
 import { RefreshInterval } from "./refresh-interval";
 import { RelativeTime } from "./relative-time";
 import { SupportPanel } from "./support-panel";
@@ -35,25 +47,25 @@ export function ArticleImage({
   article,
   id,
   cover = false,
+  sourceTitle,
 }: {
   article: string;
   id?: string;
   cover?: boolean;
+  sourceTitle?: string;
 }) {
   const [src, setSrc] = useState("");
-  const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
   const placeholder = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let live = true;
     setSrc("");
-    setExpanded(false);
     setFailed(false);
     if (!id) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return;
-        observer.disconnect();
+        observer?.disconnect();
         // The engine keeps the disk cache; only visible images enter webview memory.
         invoke<string>("article_image", { articleId: article, imageId: id })
           .then((value) => {
@@ -71,7 +83,7 @@ export function ArticleImage({
     if (placeholder.current) observer.observe(placeholder.current);
     return () => {
       live = false;
-      observer.disconnect();
+      observer?.disconnect();
     };
   }, [article, id]);
   return (
@@ -83,7 +95,7 @@ export function ArticleImage({
       {!id || failed ? (
         <div className="cover-fallback">
           <BookOpen size={28} />
-          <span>{t("No cover available")}</span>
+          <span dir="auto">{sourceTitle || t("No cover available")}</span>
         </div>
       ) : src ? (
         cover ? (
@@ -95,20 +107,7 @@ export function ArticleImage({
             onError={() => setFailed(true)}
           />
         ) : (
-          <button
-            className={`reader-image-toggle${expanded ? " expanded" : ""}`}
-            aria-expanded={expanded}
-            aria-label={
-              getLocale() === "ar"
-                ? expanded
-                  ? "تصغير الصورة"
-                  : "تكبير الصورة"
-                : expanded
-                  ? "Reduce image"
-                  : "Enlarge image"
-            }
-            onClick={() => setExpanded(!expanded)}
-          >
+          <div className="reader-image-toggle">
             <img
               className="article-image"
               src={src}
@@ -116,7 +115,7 @@ export function ArticleImage({
               loading="lazy"
               onError={() => setFailed(true)}
             />
-          </button>
+          </div>
         )
       ) : (
         <div className="image-placeholder" aria-hidden="true" />
@@ -141,11 +140,21 @@ export function Articles({
   libraryRequest?: number;
 }) {
   const [articles, setArticles] = useState<RecordData[]>([]),
-    [query, setQuery] = useState(""),
-    [scope, setScope] = useState("all"),
-    [source, setSource] = useState(""),
-    [order, setOrder] = useState("newest"),
-    [days, setDays] = useState(0),
+    [query, setQuery] = useState(() =>
+      String(readingFilters().query || "").slice(0, 200),
+    ),
+    [scope, setScope] = useState(() =>
+      ["all", "unread", "saved"].includes(readingFilters().scope)
+        ? readingFilters().scope
+        : "all",
+    ),
+    [source, setSource] = useState(() => String(readingFilters().source || "")),
+    [order, setOrder] = useState(() =>
+      readingFilters().order === "oldest" ? "oldest" : "newest",
+    ),
+    [days, setDays] = useState(() =>
+      [0, 1, 7, 30].includes(readingFilters().days) ? readingFilters().days : 0,
+    ),
     [digestStatus, setDigestStatus] = useState<RecordData>(),
     [fontSize, setFontSize] = useState(() =>
       Math.min(
@@ -160,6 +169,60 @@ export function Articles({
     [reading, setReading] = useState(false),
     [related, setRelated] = useState<RecordData[]>([]),
     [states, setStates] = useState<RecordData>({});
+  useEffect(() => {
+    saveReadingFilters({ query, scope, source, order, days });
+  }, [query, scope, source, order, days]);
+  const [bookmarkUndo, setBookmarkUndo] = useState<RecordData>();
+  useEffect(() => {
+    if (!bookmarkUndo) return;
+    const timer = setTimeout(() => setBookmarkUndo(undefined), 10000);
+    return () => clearTimeout(timer);
+  }, [bookmarkUndo]);
+
+  const readerScroll = useRef<HTMLDivElement>(null);
+  const [linkedAddress, setLinkedAddress] = useState("");
+  const [trail, setTrail] = useState<RecordData[]>([]);
+  useEffect(() => {
+    const id = selected?.id;
+    if (!id) return;
+    const node = readerScroll.current;
+    const saved = readingPosition(id);
+    let restoring = saved > 0;
+    const restore = () => {
+      if (!node || !restoring) return;
+      node.scrollTop = saved;
+      if (node.scrollHeight - node.clientHeight >= saved) restoring = false;
+    };
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(restore) : undefined;
+    if (node?.firstElementChild) observer?.observe(node.firstElementChild);
+    const stopRestore = () => {
+      restoring = false;
+    };
+    node?.addEventListener("wheel", stopRestore, { passive: true });
+    node?.addEventListener("pointerdown", stopRestore);
+    const timer = setTimeout(restore, 100);
+    let pending: ReturnType<typeof setTimeout>;
+    const remember = () => {
+      clearTimeout(pending);
+      pending = setTimeout(
+        () => saveReadingPosition(id, node?.scrollTop || 0),
+        200,
+      );
+    };
+    node?.addEventListener("scroll", remember, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(pending);
+      observer?.disconnect();
+      node?.removeEventListener("wheel", stopRestore);
+      node?.removeEventListener("pointerdown", stopRestore);
+      node?.removeEventListener("scroll", remember);
+      saveReadingPosition(id, node?.scrollTop || 0);
+      void call("reading.workspace", { action: "visit", article_id: id }).catch(
+        () => {},
+      );
+    };
+  }, [selected?.id]);
   const [clock, setClock] = useState(Date.now);
   const [listError, setListError] = useState("");
   const appendRequest = useRef<number | null>(null);
@@ -388,6 +451,10 @@ export function Articles({
     };
   }, [selected?.id, selected?.body_status, reading]);
   async function open(id: string, refresh = false) {
+    if (selected && selected.id !== id)
+      setTrail((old) =>
+        [...old, { id: selected.id, title: selected.title }].slice(-12),
+      );
     const token = ++selection.current;
     openTiming.current = {
       started: performance.now(),
@@ -403,6 +470,7 @@ export function Articles({
       (selected?.id === id ? selected : undefined);
     setSelected(card || { id, title: t("Loading…"), body_status: "loading" });
     setReading(true);
+    setLinkedAddress("");
     setSiteMode(false);
     setRelated([]);
     try {
@@ -475,6 +543,7 @@ export function Articles({
       setArticles((old) =>
         old.map((x) => (x.id === a.id ? { ...x, is_bookmarked: saved } : x)),
       );
+      setBookmarkUndo({ ...a, is_bookmarked: saved });
       setSelected((current) =>
         current?.id === a.id ? { ...current, is_bookmarked: saved } : current,
       );
@@ -485,15 +554,33 @@ export function Articles({
       setBookmarking((old) => old.filter((id) => id !== a.id));
     }
   }
+  const undoNotice = bookmarkUndo && (
+    <div className="reading-undo" role="status">
+      <span>
+        {getLocale() === "ar" ? "تم تحديث المحفوظات" : "Bookmarks updated"}
+      </span>
+      <button
+        disabled={bookmarking.includes(bookmarkUndo.id)}
+        onClick={() => {
+          void bookmark(bookmarkUndo);
+          setBookmarkUndo(undefined);
+        }}
+      >
+        {getLocale() === "ar" ? "تراجع" : "Undo"}
+      </button>
+    </div>
+  );
   const layout = selected
     ? readerLayout(selected.reader?.blocks || [], selected.cover_image_id)
     : undefined;
   if (selected)
     return (
       <div
+        ref={readerScroll}
         className={`reader ${siteMode ? "reader-site-mode" : ""}`}
         key={selected.id}
       >
+        {undoNotice}
         {articleReport && (
           <SupportPanel
             incidentCode="ARTICLE_READING_PROBLEM"
@@ -503,10 +590,36 @@ export function Articles({
           />
         )}
         <div className="reader-toolbar">
+          {siteMode && linkedAddress && (
+            <button
+              onClick={() => {
+                setSiteMode(false);
+                setLinkedAddress("");
+              }}
+              title={selected.title}
+            >
+              <ArrowLeft size={15} />
+              {getLocale() === "ar" ? "العودة للمقال" : "Back to article"}
+            </button>
+          )}
+          {trail.length > 0 && (
+            <button
+              onClick={() => {
+                const previous = trail[trail.length - 1];
+                void open(previous.id);
+                setTrail(trail.slice(0, -1));
+              }}
+              title={trail[trail.length - 1].title}
+            >
+              <ArrowLeft size={15} />
+              {getLocale() === "ar" ? "المقال السابق" : "Previous article"}
+            </button>
+          )}
           <button
             onClick={() => {
               ++selection.current;
               setSelected(undefined);
+              setTrail([]);
               setReading(false);
               void load();
             }}
@@ -525,7 +638,10 @@ export function Articles({
             <button
               aria-pressed={siteMode}
               className={siteMode ? "selected" : ""}
-              onClick={() => setSiteMode(true)}
+              onClick={() => {
+                setLinkedAddress("");
+                setSiteMode(true);
+              }}
             >
               {t("Original website")}
             </button>
@@ -633,16 +749,28 @@ export function Articles({
         {siteMode && (
           <ArticleSite
             key={selected.id}
-            address={selected.url}
+            address={linkedAddress || selected.url}
             onError={onError}
           />
         )}
-        <ReaderLinkPreviews articleId={selected.id}>
+        <ReaderLinkPreviews
+          articleId={selected.id}
+          onOpen={(url) => {
+            setLinkedAddress(url);
+            setSiteMode(true);
+          }}
+        >
           <div
             hidden={siteMode}
             className="reader-content"
             style={{ "--reading-size": `${fontSize}px` } as React.CSSProperties}
           >
+            <ReaderTools
+              key={`tools:${selected.id}`}
+              article={selected}
+              onDiscuss={onDiscuss}
+              onError={onError}
+            />
             <header
               className={`article-heading${layout?.cover ? " has-cover" : ""}`}
             >
@@ -711,11 +839,18 @@ export function Articles({
                 onConfigure={onConfigureExplanations}
               />
             )}
-            {selected.body_status === "full" &&
+            {["full", "media_summary"].includes(selected.body_status) &&
             selected.reader?.blocks?.length ? (
               layout!.body.map((b: RecordData, i: number) =>
                 b.type === "image" ? (
                   <ArticleImage key={i} article={selected.id} id={b.id} />
+                ) : ["video", "audio", "embed"].includes(b.type) ? (
+                  <SourceMedia
+                    key={`${selected.id}:${b.id}`}
+                    media={b}
+                    articleId={selected.id}
+                    sourceUrl={selected.url}
+                  />
                 ) : (
                   <Markdown key={i} text={readerMarkdown(b.text || "")} />
                 ),
@@ -729,6 +864,12 @@ export function Articles({
                 }
               />
             )}
+            <SourceComparison
+              key={`compare:${selected.id}`}
+              article={selected}
+              related={related}
+              onError={onError}
+            />
             <ArticleHistory
               key={`history:${selected.id}`}
               articleId={selected.id}
@@ -766,6 +907,7 @@ export function Articles({
     );
   return (
     <div className="page">
+      {undoNotice}
       <div className="page-title">
         <h1>{t("Articles")}</h1>
         <button
@@ -781,6 +923,7 @@ export function Articles({
       <p className="muted">
         {t("The stories you follow, with room to focus.")}
       </p>
+      <ReadingWorkspace onOpen={(id) => void open(id)} onError={onError} />
       <div className="filters">
         <div className="segments">
           {["all", "unread", "saved"].map((s) => (
@@ -931,7 +1074,12 @@ export function Articles({
         <div className="article-grid" aria-busy={busy}>
           {articles.map((a) => (
             <article className="article-card" key={a.id}>
-              <ArticleImage article={a.id} id={a.cover_image_id} cover />
+              <ArticleImage
+                article={a.id}
+                id={a.cover_image_id}
+                cover
+                sourceTitle={a.source_title}
+              />
               <p className="eyebrow">{a.source_title}</p>
               <button
                 className="article-title article-open"

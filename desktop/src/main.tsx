@@ -1165,7 +1165,7 @@ ${f.text}
                     ...old,
                     new: [
                       old.new,
-                      t("Discuss this article with me") + ": " + article.title,
+                      article.discussion_prompt || t("Discuss this article with me") + ": " + article.title,
                     ]
                       .filter(Boolean)
                       .join("\n\n"),

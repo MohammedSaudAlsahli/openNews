@@ -209,6 +209,14 @@ def parse_feed(body, base, kind="rss"):
                     blocks[:] = [b for b in blocks if b.get('url') != cover]
                     blocks.insert(0, {'type':'image','id':'feed-cover','url':cover,'alt':'','caption':''})
                     break
+        for media in entry.iter():
+            mime = media.get('type', '')
+            if local_name(media.tag) in {'enclosure', 'content', 'link'} and mime.startswith(('audio/', 'video/')):
+                from .article_reader import image_url
+                address = image_url(media.get('url') or media.get('href'), link)
+                blocks = reader.setdefault('blocks', [])
+                if address and len(blocks)<50 and not any(b.get('url')==address for b in blocks):
+                    blocks.append({'type':mime.split('/')[0], 'id':'feed-media-'+str(len(blocks)), 'url':address, 'source_url':link, 'title':plain(node_text(entry, {'title'}))[:300]})
         full_text = summary_markdown(full_markup, link) if full_markup and not media_only else ""
         if reddit_url:
             full_text = '\n\n'.join(b['text'] for b in reader.get('blocks', []) if b.get('type') == 'text')

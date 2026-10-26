@@ -58,6 +58,9 @@ class ServiceCommandsMixin:
             return self.news.archive.history(p.get("article_id"))
         if command == "news.revision":
             return self.news.archive.compare(p.get("article_id"),p.get("revision_id"))
+        if command == "reading.workspace":
+            from .reading_workspace import dispatch
+            return dispatch(self, p)
         if command == "news.list":
             return self.news.list_articles(p)
         if command == "news.bookmark":
@@ -142,6 +145,9 @@ class ServiceCommandsMixin:
             return self.news.next_public_capture()
         if command == "news.reader":
             return await self.news.reader(p["article_id"], force=p.get("refresh") is True)
+        if command == "news.media":
+            from .source_media import load
+            return await load(self, p)
         if command == "news.image":
             return await self.news.image(p["article_id"], p["image_id"])
         if command == "news.preview":

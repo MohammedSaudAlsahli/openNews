@@ -75,6 +75,7 @@ class ConversationTools:
             self.notify('reading', row['title'])
             if row['body_status'] not in {'full', 'media_summary'}: row = await self.news.reader(article_id)
             item = {key: row.get(key) for key in ('id', 'title', 'url', 'source_title', 'source_kind', 'published_at', 'discovered_at', 'body_status')}
+            item['media'] = [b for b in row.get('reader', {}).get('blocks', []) if b.get('type') in {'image','video','audio','embed'}][:6]
             item['text'] = (row.get('text') or row.get('summary') or '')[:16000]
             return self.output(self.remember(item))
         except Exception:
@@ -125,7 +126,8 @@ class ConversationTools:
             from .feed_parser import date_value
             item = self.remember({**previous, 'id': previous.get('id') or uid(), 'url': address,
                 'title': title[:500], 'source_title': urlsplit(response['url']).hostname,
-                'published_at': date_value(published), 'body_status': 'full', 'text': text[:16000], 'origin': 'web'})
+                'published_at': date_value(published), 'body_status': 'full', 'text': text[:16000], 'origin': 'web',
+                'media': [b for b in reader['blocks'] if b.get('type') in {'image','video','audio','embed'}][:6]})
             self.notify('reading', title[:180])
             return self.output(item)
         except Exception:

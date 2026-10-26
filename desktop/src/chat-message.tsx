@@ -1,3 +1,4 @@
+import { SourceMedia } from "./source-media";
 import { memo, useState, useEffect, useRef } from "react";
 import {
   Copy,
@@ -58,6 +59,27 @@ export const ChatMessage = memo(function ChatMessage({
           message.role === "assistant" ? message.citations || [] : undefined
         }
       />
+      {message.role === "assistant" &&
+        (message.citations || [])
+          .flatMap((c: RecordData) =>
+            (c.media || []).map((media: RecordData) => ({
+              ...media,
+              source_url: c.url,
+            })),
+          )
+          .filter(
+            (m: RecordData, i: number, all: RecordData[]) =>
+              all.findIndex((x) => x.url === m.url) === i,
+          )
+          .slice(0, 4)
+          .map((media: RecordData) => (
+            <SourceMedia
+              key={media.url}
+              media={media}
+              messageId={message.id}
+              sourceUrl={media.source_url}
+            />
+          ))}
       {!!message.citations?.length && (
         <details className="citations">
           <summary>

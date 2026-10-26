@@ -116,7 +116,8 @@ class ConversationManager:
                 if len(identifiers) == 12: break
             articles = [self.service.news.article(identifier, mark_read=False) for identifier in identifiers]
         evidence = [{k:article.get(k) for k in ("id","title","url","source_title","source_kind","published_at","discovered_at","body_status")} |
-                    {"text":(article.get("text") or article.get("summary") or "")[:1800],
+                    {"media":[b for b in article.get("reader", {}).get("blocks", []) if b.get("type") in {"image","video","audio","embed"}][:6],
+                     "text":(article.get("text") or article.get("summary") or "")[:1800],
                      "prepared_summary":(self.service.news_digest.preview(article["id"]) or {}).get("summary", "")}
                     for article in articles]
         samples = self.store.rows("""SELECT i.id,v.id AS version_id,s.title,v.text FROM source_roles r
@@ -255,6 +256,9 @@ class ConversationManager:
         instructions += ("\nInterface language for public activity summaries and progress descriptions: "
                          + summary_language + ". Use it regardless of the user message language. "
                          "This does not change the requested final-answer language. Do not expose private reasoning.")
+        instructions += ("\nWhen pictures, video or audio would clarify the user's question, use the permitted search/read tools to find relevant primary source pages. "
+                         "Cited source media is displayed by the app from retrieved metadata. Never invent media URLs or claim to have watched/listened to a file: the tools expose text and media metadata, not audiovisual understanding. "
+                         "Keep the explanation useful even when media is unavailable.")
         try:
             reply = await self.service.invoke_model(data["profile_snapshot"],instructions,payload,ChatReply,
                 on_delta=on_delta,on_start=on_start,tools=toolkit.functions + [search_conversation_history, skills.load_editorial_skill] + ([skills.find_writing_skills, skills.inspect_writing_skill] if request.get("research_web", True) else []),on_turn=on_turn,
@@ -314,4 +318,5 @@ class ConversationManager:
     @staticmethod
     def citation(article):
         return {"article_id":article["id"],"title":article["title"],"url":article["url"],"published_at":article.get("published_at"),
-                "origin":article.get("origin", "library"), "excerpt":article.get("text", "")[:500]}
+                "origin":article.get("origin", "library"), "excerpt":article.get("text", "")[:500],
+                "media":article.get("media", [])[:6]}

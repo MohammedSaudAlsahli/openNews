@@ -7,7 +7,7 @@ from trafilatura import extract
 from .news import MAX_TEXT, MarkdownSummary, canonical_url, NewsError, plain, safe_content_link
 
 MAX_IMAGES = 30
-READER_VERSION = 6
+READER_VERSION = 7
 MARKER = 'https://openstudio.invalid/reader-image/'
 
 
@@ -45,6 +45,25 @@ def prepare_tree(body, base):
         try: body = body.decode('utf-8-sig')
         except UnicodeDecodeError: pass
     tree = html.fromstring(body, parser=html.HTMLParser(no_network=True, remove_comments=True))
+    media = []
+    for node in list(tree.xpath('//video|//audio|//iframe')):
+        if any(p.tag in {'nav', 'header', 'footer', 'aside'} for p in node.iterancestors()):
+            continue
+        candidates = [node.get('src')] + node.xpath('./source/@src')
+        url = next((u for value in candidates if (u := image_url(value, base))), None)
+        if not url or len(media) >= 12:
+            continue
+        if node.tag == 'iframe' and (urlsplit(url).hostname or '').removeprefix('www.') not in {'youtube.com', 'youtube-nocookie.com', 'player.vimeo.com', 'w.soundcloud.com', 'open.spotify.com'}:
+            continue
+        if node.getparent() is None: continue
+        kind = node.tag if node.tag != 'iframe' else 'embed'
+        media.append({'type':kind, 'id':'media-' + str(len(media)), 'url':url,
+                      'title':plain(node.get('title') or node.get('aria-label') or '')[:300],
+                      'source_url':base})
+        replacement = html.Element('img')
+        replacement.set('src', MARKER + 'media-' + str(len(media)-1))
+        replacement.tail = node.tail
+        node.getparent().replace(node, replacement)
     for node in tree.xpath('//script|//style|//iframe|//object|//embed|//base|//svg|//noscript'):
         node.drop_tree()
     for node in tree.xpath('//a[@href]'):
@@ -75,6 +94,13 @@ def prepare_tree(body, base):
     images = []
     seen = set()
     for node in tree.xpath('//img'):
+        marker = node.get('src', '')
+        if marker.startswith(MARKER + 'media-'):
+            item = media[int(marker.rsplit('-', 1)[1])]
+            images.append(item)
+            node.set('src', MARKER + str(len(images)-1) + '.jpg')
+            node.set('alt', 'media')
+            continue
         url = image_source(node, base)
         decorative = bool(re.search(r'(^|[ _-])(emoji|avatar|icon)([ _-]|$)', node.get('class', ''), re.I)) or '/images/core/emoji/' in (url or '')
         chrome = any(re.search(r'(^|[ _-])(header-image|site-header|site-logo|site-branding|masthead)([ _-]|$)',

@@ -171,6 +171,30 @@ async fn engine_call(
         .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn source_media(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Runtime>,
+    article_id: Option<String>,
+    message_id: Option<String>,
+    url: String,
+) -> Result<String, String> {
+    let socket = state.engine.lock().map_err(|_| "Engine lock failed")?.as_ref()
+        .map(|e| e.socket.clone()).ok_or("Engine not ready")?;
+    let root = app.path().app_data_dir().map_err(|e| e.to_string())?.join("default/source-media");
+    tauri::async_runtime::spawn_blocking(move || {
+        use base64::Engine;
+        let result = exchange(socket, "news.media".into(), json!({"article_id":article_id,"message_id":message_id,"url":url}))?;
+        let path = PathBuf::from(result["path"].as_str().ok_or("No media path")?).canonicalize().map_err(|e| e.to_string())?;
+        if !path.starts_with(root.canonicalize().map_err(|e| e.to_string())?) { return Err("Media outside cache".into()); }
+        if std::fs::metadata(&path).map_err(|e| e.to_string())?.len()>4*1024*1024 { return Err("Media too large".into()); }
+        let mime=result["mime"].as_str().ok_or("No media type")?;
+        if !["image/png","image/jpeg","image/gif","image/webp","image/avif","audio/mpeg","audio/wav","audio/ogg","video/mp4","video/webm"].contains(&mime) { return Err("Unsupported media type".into()); }
+        let bytes=std::fs::read(path).map_err(|e| e.to_string())?;
+        Ok(format!("data:{};base64,{}",mime,base64::engine::general_purpose::STANDARD.encode(bytes)))
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn article_image(
     app: tauri::AppHandle,
     state: tauri::State<'_, Runtime>,
@@ -640,6 +664,7 @@ fn main() {
             updates::install_update,
             engine_call,
             article_image,
+            source_media,
             open_external,
             record_diagnostic,
             diagnostics_report,

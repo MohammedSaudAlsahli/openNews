@@ -226,6 +226,7 @@ let draftText =
   "## فكرة تستحق الاحتفاظ بها\n\nالأخبار تصبح أكثر فائدة عندما نربطها بالسياق ونراجع مصادرها.";
 mockIPC(
   async (cmd, args) => {
+    if (cmd === "source_media") return "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
     if (cmd !== "engine_call") {
       if (cmd === "previous_unclean_exit") return false;
       if (cmd === "diagnostics_report")
@@ -359,6 +360,12 @@ mockIPC(
               ]
             : [],
         };
+      case "reading.workspace":
+        if (p.action === "briefing") return {articles: articles.slice(0,p.view === "five" ? 2 : 3).map(a=>({...a,reading_minutes:2,saved_summary:"Synthetic saved summary for interface verification."})), state:{queue:[],topics:["AI"],quotes:[],muted:[]}};
+        if (p.action === "comparison") return {against:{title:"Synthetic related coverage"},excerpts:["This synthetic excerpt is different in the stored text; it is not a verified new fact."]};
+        return {queue:[],topics:[],quotes:[],muted:[]};
+      case "news.media":
+        return {data:"data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA="};
       case "news.list":
         return {
           articles: firstRun
@@ -408,7 +415,13 @@ mockIPC(
         return {
           ...articles.find((a) => a.id === p.article_id),
           text: "## الفكرة الأساسية\n\nهذا المحتوى مثال لاختبار واجهة القارئ، ولا يمثل نص المقالة الأصلية.\n\nيمكن قراءة [التقرير المرتبط](https://example.org/report) أو معاينة [المنشور الأصلي](https://x.com/example/status/1) دون مغادرة القارئ.\n\nنستخدم الفقرات والقوائم والروابط لفحص القراءة، مع عرض <u>التنسيق</u> كما يظهر داخل المصدر.\n\n- السياق والمصدر\n- القراءة والتحليل\n- العودة إلى المحادثة",
-          reader: { blocks: [] },
+          reader: { blocks: params.has("media") ? [
+            {type:"text",text:"## Synthetic article\n\nThis is a test article for reading and media controls. Select a passage to save a quote or prepare a question."},
+            {type:"audio",id:"a",url:"https://example.org/interview.mp3",title:"Interview — synthetic test"},
+            {type:"video",id:"v",url:"https://example.org/clip.mp4",title:"Video — synthetic test"},
+            {type:"embed",id:"e",url:"https://www.youtube.com/embed/test",title:"Embedded source — synthetic test"},
+            {type:"text",text:"## More context\n\nThe original source remains available. This is synthetic content for layout verification."}
+          ] : [] },
           prepared_summary: {
             model: "gemma4:e2b-it-qat",
             cached: true,
