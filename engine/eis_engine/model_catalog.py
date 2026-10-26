@@ -20,6 +20,7 @@ DEFAULT_BASES = {
     "langdb": "https://api.us-east-1.langdb.ai", "tuning-engines": "https://api.tuningengines.com/v1",
 }
 SPECIAL = {
+    "google-oauth": "vertex-oauth", "openai-chatgpt": "chatgpt-oauth",
     "anthropic": "anthropic", "azure-foundry-claude": "anthropic-foundry", "google": "google", "google-interactions": "google",
     "ollama": "ollama", "ollama-responses": "ollama", "aws-bedrock": "bedrock", "aws-claude": "bedrock",
     "vertexai-claude": "vertex", "azure-openai": "azure", "azure-openai-responses": "azure", "azure-ai-foundry": "azure",
@@ -111,13 +112,14 @@ async def _bedrock(config, secrets, claude=False):
     return await asyncio.to_thread(fetch)
 
 
-async def _vertex(client, config, secrets, publisher="anthropic"):
-    credential = google_credentials(secrets)
-    def token():
-        from google.auth.transport.requests import Request
-        credential.refresh(Request())
-        return credential.token
-    auth = await asyncio.to_thread(token)
+async def _vertex(client, config, secrets, publisher="anthropic", auth=None):
+    if auth is None:
+        credential = google_credentials(secrets)
+        def token():
+            from google.auth.transport.requests import Request
+            credential.refresh(Request())
+            return credential.token
+        auth = await asyncio.to_thread(token)
     region = config.get("region") or config.get("location") or "us-central1"
     if not re.fullmatch(r"[a-z0-9-]+", region): raise Failure("VALIDATION_ERROR", "منطقة Google غير صالحة.")
     url = f"https://{region}-aiplatform.googleapis.com/v1/publishers/{publisher}/models"
@@ -152,6 +154,13 @@ async def _discover(profile):
     if key == "openai-chatgpt":
         from .chatgpt_auth import discover_models
         return await discover_models(profile)
+    if key == "google-oauth":
+        from .google_auth import access_token
+        config = json.loads(profile["config_json"])
+        token = await access_token(profile)
+        async with httpx.AsyncClient(timeout=30, follow_redirects=False, trust_env=False) as client:
+            models = await _vertex(client, config, {}, "google", auth=token)
+        return {"models":models, "source":"Google Vertex AI — published models; verify project access before use"}
     entry = next((x for x in catalog()["providers"] if x["id"] == key), None)
     if not entry: raise Failure("MODEL_UNSUPPORTED", "المزود غير موجود في دليل Agno المثبت.")
     config = json.loads(profile.get("config_json", "{}"))

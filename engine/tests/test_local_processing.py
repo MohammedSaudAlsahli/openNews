@@ -12,7 +12,7 @@ from eis_engine.contracts import Failure
 from eis_engine.news_embeddings import LocalNewsEmbeddings
 from test_news_digest import service
 
-DEVICE = {'thermal':'nominal','low_power':False,'on_battery':False,'memory_pressure':'normal'}
+DEVICE = {'idle_seconds':600,'thermal':'nominal','low_power':False,'on_battery':False,'memory_pressure':'normal'}
 
 
 def test_processing_policy_is_strict_persistent_and_device_is_protective(service):
@@ -25,7 +25,7 @@ def test_processing_policy_is_strict_persistent_and_device_is_protective(service
         for invalid in ({'mode':'fast'},{'paused':1},{'index_on_battery':'yes'},{'anything':True},{}):
             with pytest.raises(Failure): restored.configure(invalid)
         restored.configure({'paused':False})
-        assert restored.update({'thermal':'nominal','low_power':False})['phase']=='waiting_device'
+        assert restored.update({'idle_seconds':600,'thermal':'nominal','low_power':False})['phase']=='waiting_device'
         assert restored.update({**DEVICE,'on_battery':True})['phase']=='ready'
         restored.configure({'index_on_battery':False})
         assert restored.phase()=='waiting_charger'

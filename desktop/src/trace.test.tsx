@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { Trace } from "./components";
 import { setLocale } from "./locale";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -67,7 +73,11 @@ it("preserves the chosen disclosure during updates and collapses at completion",
       running
       data={{
         elapsed_seconds: 21,
-        execution: { ...execution, reasoning_summary: "Comparing the sources" },
+        execution: {
+          ...execution,
+          summary_language: "en",
+          reasoning_summary: "Comparing the sources",
+        },
       }}
     />,
   );
@@ -117,4 +127,42 @@ it("retains readable content when an older activity record has missing or invali
   fireEvent.click(screen.getByRole("button", { name: "Work completed" }));
   expect(screen.getByText("Still readable")).toBeTruthy();
   expect(screen.getByText("Working…")).toBeTruthy();
+});
+
+it("switches cached public activity to the UI language without changing source queries", () => {
+  const data = {
+    execution: {
+      ...execution,
+      reasoning_summaries: {
+        ar: execution.reasoning_summary,
+        en: "Reviewing recent economic coverage",
+      },
+      steps: [
+        {
+          kind: "library",
+          label: "عنوان من لغة الرسالة",
+          detail: "أخبار الاستثمار الأجنبي",
+        },
+      ],
+    },
+  };
+  render(<Trace data={data} />);
+  fireEvent.click(screen.getByRole("button"));
+  expect(screen.getByText("Reviewing recent economic coverage")).toBeTruthy();
+  expect(screen.queryByText(execution.reasoning_summary)).toBeNull();
+  expect(screen.getByText("Searching saved articles")).toBeTruthy();
+  expect(screen.queryByText("عنوان من لغة الرسالة")).toBeNull();
+  act(() => setLocale("ar"));
+  expect(screen.getByText(execution.reasoning_summary)).toBeTruthy();
+  expect(screen.queryByText("Reviewing recent economic coverage")).toBeNull();
+  expect(screen.getByText("أخبار الاستثمار الأجنبي")).toBeTruthy();
+});
+it("keeps real steps visible without a wrong-language fallback for old records", () => {
+  render(<Trace data={{ execution }} />);
+  fireEvent.click(screen.getByRole("button"));
+  expect(
+    screen.getByText("Activity summary is unavailable in this language."),
+  ).toBeTruthy();
+  expect(screen.queryByText(execution.reasoning_summary)).toBeNull();
+  expect(screen.getAllByRole("listitem")).toHaveLength(3);
 });

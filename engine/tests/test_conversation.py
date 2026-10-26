@@ -402,9 +402,10 @@ def test_context_budget_and_history_search_survive_restart_and_isolate_sessions(
     asyncio.run(scenario())
 
 
-def test_session_events_are_scoped_persisted_and_separate_from_answer(service):
+@pytest.mark.parametrize("ui_language,summary_language", [("ar", "Arabic"), ("en", "English")])
+def test_session_events_are_scoped_persisted_and_separate_from_answer(service, ui_language, summary_language):
     async def scenario():
-        payload = await setup(service)
+        payload = await setup(service, ui_language=ui_language)
         class EventModel(FakeChatModel):
             supports_tools = True
             supports_session_events = True
@@ -414,13 +415,14 @@ def test_session_events_are_scoped_persisted_and_separate_from_answer(service):
                     return schema(ar='أراجع سياق السؤال. \n\nأربط المصادر المتاحة.', en='I review the question and connect the available sources.')
                 assert session_id == payload['conversation_id'] and user_id == service.ws
                 assert run_id
-                assert 'summaries and progress descriptions must be in Arabic' in instructions
+                assert f'summaries and progress descriptions must be in {summary_language}' in instructions
+                assert f'Interface language for public activity summaries and progress descriptions: {summary_language}.' in instructions
                 on_turn()
                 on_reasoning('أراجع سياق السؤال. ')
                 live = await service.dispatch('chat.progress', {'job_id': run_id})
                 assert live['state'] == 'running'
                 assert live['execution']['reasoning_summary'] == ''
-                assert live['execution']['summary_language'] == 'ar'
+                assert live['execution']['summary_language'] == ui_language
                 assert live['message'] == ''
                 history_tool = next(t for t in tools if t.__name__ == 'search_conversation_history')
                 await history_tool('زاوية')
@@ -435,7 +437,7 @@ def test_session_events_are_scoped_persisted_and_separate_from_answer(service):
         reply = detail['messages'][-1]
         assert reply['content'] == 'الجواب النهائي'
         assert [s['kind'] for s in reply['activity']['steps']] == ['context','history']
-        assert reply['activity']['reasoning_summary'] == 'أراجع سياق السؤال. \n\nأربط المصادر المتاحة.'
+        assert reply['activity']['reasoning_summary'] == reply['activity']['reasoning_summaries'][ui_language]
         assert reply['activity']['context_info']['total_messages'] == 0
     asyncio.run(scenario())
 
@@ -474,4 +476,17 @@ def test_month_period_reaches_archive_beyond_initial_source_sample(service):
         context = service.conversations.source_context(ChatSend.model_validate(payload))
         assert [a['id'] for a in context['news']] == [old]
         assert context['window']['requested_dates'] == [first.isoformat(), last.isoformat()]
+    asyncio.run(scenario())
+
+
+def test_inline_citation_retains_only_available_source_metadata(service):
+    async def scenario():
+        aid = article(service, now())
+        unknown = uid()
+        payload = await setup(service, include_news=True, article_ids=[aid])
+        service.factory.reply = ChatReply(message=f"نتائج التقرير [{aid}] ومرجع غير معروف [{unknown}]")
+        job = await finish(service, payload)
+        assert job["state"] == "completed"
+        detail = await service.dispatch("chat.detail", {"conversation_id": payload["conversation_id"]})
+        assert [c["article_id"] for c in detail["messages"][-1]["citations"]] == [aid]
     asyncio.run(scenario())

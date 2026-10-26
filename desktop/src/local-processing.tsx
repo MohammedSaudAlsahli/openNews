@@ -13,6 +13,7 @@ const reasons: Record<string, string> = {
   waiting_power: "Waiting for a charger",
   waiting_charger: "Waiting for a charger",
   on_battery: "Waiting for a charger",
+  waiting_idle: "Waiting until you are away",
   memory_pressure: "Waiting for more available memory",
   resting: "Resting between tasks",
   waiting_model: "Another local task is running",

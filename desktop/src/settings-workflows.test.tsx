@@ -306,14 +306,14 @@ it("keeps adding an account separate and advanced server settings collapsed", as
       onError={vi.fn()}
     />,
   );
-  expect(screen.queryByLabelText("Provider")).toBeNull();
+  expect(screen.queryByLabelText("Connection method")).toBeNull();
   fireEvent.click(screen.getByText("Add account"));
-  await screen.findByText("Ollama");
+  await screen.findByRole("button", {name:/Ollama/});
   expect(
     screen.getByText("Advanced connection options").closest("details")?.open,
   ).toBe(false);
   fireEvent.click(screen.getByText("Cancel"));
-  expect(screen.queryByLabelText("Provider")).toBeNull();
+  expect(screen.queryByLabelText("Connection method")).toBeNull();
 });
 
 it("shows saved health and live check failures without leaving a green ready state", async () => {
@@ -384,17 +384,14 @@ it("retries failed credential storage on the saved account without creating a du
       onError={vi.fn()}
     />,
   );
-  await screen.findByRole("option", { name: "OpenAI" });
-  fireEvent.change(screen.getByRole("combobox", { name: "Provider" }), {
-    target: { value: "openai" },
-  });
+  fireEvent.click(await screen.findByRole("button", { name: /OpenAI/ }));
   fireEvent.change(screen.getByLabelText("API key"), {
     target: { value: "test-key-not-real" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Connect" }));
   await screen.findByText("Credential store unavailable");
   expect(
-    (screen.getByRole("combobox", { name: "Provider" }) as HTMLSelectElement)
+    (screen.getByRole("combobox", { name: "Connection method" }) as HTMLSelectElement)
       .disabled,
   ).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Save credentials" }));
@@ -435,10 +432,7 @@ it("validates service-account JSON before saving an account and does not echo cr
       onError={vi.fn()}
     />,
   );
-  await screen.findByRole("option", { name: "Vertex" });
-  fireEvent.change(screen.getByRole("combobox", { name: "Provider" }), {
-    target: { value: "vertex" },
-  });
+  fireEvent.click(await screen.findByRole("button", { name: /Vertex/ }));
   fireEvent.change(
     screen.getByRole("textbox", { name: "Service account JSON" }),
     { target: { value: "private-value-invalid-json" } },
@@ -513,7 +507,7 @@ it("retries a failed provider catalog and protects typed credentials before navi
       .disabled,
   ).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  await screen.findByRole("option", { name: "Ollama" });
+  await screen.findByRole("button", {name:/Ollama/});
   fireEvent.change(
     screen.getByRole("textbox", { name: "Connection name (optional)" }),
     { target: { value: "My private connection" } },

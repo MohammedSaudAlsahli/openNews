@@ -83,6 +83,10 @@ const qaExecution = {
     params.get("lang") === "ar"
       ? "التخطيط لبحث واسع عن أحدث الأخبار"
       : "Planning a broad search for the latest news",
+  reasoning_summaries: {
+    ar: "أراجع المصادر المتاحة وأقارن تواريخ نشرها.",
+    en: "Reviewing available sources and comparing publication dates.",
+  },
   steps: [
     { id: "1", kind: "context", detail: "" },
     {
@@ -222,6 +226,7 @@ let draftText =
   "## فكرة تستحق الاحتفاظ بها\n\nالأخبار تصبح أكثر فائدة عندما نربطها بالسياق ونراجع مصادرها.";
 mockIPC(
   async (cmd, args) => {
+    if (cmd === "source_media") return "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
     if (cmd !== "engine_call") {
       if (cmd === "previous_unclean_exit") return false;
       if (cmd === "diagnostics_report")
@@ -305,10 +310,20 @@ mockIPC(
               id: "m2",
               role: "assistant",
               activity: activityMode === "completed" ? qaExecution : undefined,
-              content:
-                '## البحث بالمعنى\n\nيربط البحث الدلالي فكرتك بالأخبار ذات الصلة، حتى عندما تستخدم كلمات مختلفة.\n\n- يحتفظ التطبيق بنص المقالة ومصدرها.\n- ينشئ نموذج التضمين تمثيلًا رقميًا للنص.\n- يقارن معنى سؤالك بالمقالات المفهرسة.\n\n```python\nresults = search("local language models")\nfor article in results:\n    print(article.title)\n```',
+              content: params.has("citations")
+                ? "## ملخص المصادر — بيانات تجريبية\n\nيعرض هذا المثال كيف تبقى الإجابة بالعربية بينما تتبع خطوات العمل لغة الواجهة. نتائج التقرير تخص عام 2025، وليست نشاط أكتوبر وحده. [456d7be5-e790-4af9-babd-f38b273dd6fe]\n\nيمكنك معاينة المصدر من الرقم الصغير دون مغادرة المحادثة. ويشير الرقم المكرر إلى المصدر نفسه. [456d7be5-e790-4af9-babd-f38b273dd6fe]"
+                : '## البحث بالمعنى\n\nيربط البحث الدلالي فكرتك بالأخبار ذات الصلة، حتى عندما تستخدم كلمات مختلفة.\n\n- يحتفظ التطبيق بنص المقالة ومصدرها.\n- ينشئ نموذج التضمين تمثيلًا رقميًا للنص.\n- يقارن معنى سؤالك بالمقالات المفهرسة.\n\n```python\nresults = search("local language models")\nfor article in results:\n    print(article.title)\n```',
               citations: [
-                { title: "Ollama Blog", url: "https://ollama.com/blog" },
+                params.has("citations")
+                  ? {
+                      article_id: "456d7be5-e790-4af9-babd-f38b273dd6fe",
+                      title: "Investment figures · Sample source",
+                      url: "https://example.org/report",
+                      published_at: "2026-10-19T10:00:00Z",
+                      excerpt:
+                        "This is synthetic preview content for interface verification. The report covers the 2025 calendar year; its publication date does not establish October activity.",
+                    }
+                  : { title: "Ollama Blog", url: "https://ollama.com/blog" },
               ],
             },
           ].filter(
@@ -345,6 +360,12 @@ mockIPC(
               ]
             : [],
         };
+      case "reading.workspace":
+        if (p.action === "briefing") return {articles: articles.slice(0,p.view === "five" ? 2 : 3).map(a=>({...a,reading_minutes:2,saved_summary:"Synthetic saved summary for interface verification."})), state:{queue:[],topics:["AI"],quotes:[],muted:[]}};
+        if (p.action === "comparison") return {against:{title:"Synthetic related coverage"},excerpts:["This synthetic excerpt is different in the stored text; it is not a verified new fact."]};
+        return {queue:[],topics:[],quotes:[],muted:[]};
+      case "news.media":
+        return {data:"data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA="};
       case "news.list":
         return {
           articles: firstRun
@@ -394,7 +415,13 @@ mockIPC(
         return {
           ...articles.find((a) => a.id === p.article_id),
           text: "## الفكرة الأساسية\n\nهذا المحتوى مثال لاختبار واجهة القارئ، ولا يمثل نص المقالة الأصلية.\n\nيمكن قراءة [التقرير المرتبط](https://example.org/report) أو معاينة [المنشور الأصلي](https://x.com/example/status/1) دون مغادرة القارئ.\n\nنستخدم الفقرات والقوائم والروابط لفحص القراءة، مع عرض <u>التنسيق</u> كما يظهر داخل المصدر.\n\n- السياق والمصدر\n- القراءة والتحليل\n- العودة إلى المحادثة",
-          reader: { blocks: [] },
+          reader: { blocks: params.has("media") ? [
+            {type:"text",text:"## Synthetic article\n\nThis is a test article for reading and media controls. Select a passage to save a quote or prepare a question."},
+            {type:"audio",id:"a",url:"https://example.org/interview.mp3",title:"Interview — synthetic test"},
+            {type:"video",id:"v",url:"https://example.org/clip.mp4",title:"Video — synthetic test"},
+            {type:"embed",id:"e",url:"https://www.youtube.com/embed/test",title:"Embedded source — synthetic test"},
+            {type:"text",text:"## More context\n\nThe original source remains available. This is synthetic content for layout verification."}
+          ] : [] },
           prepared_summary: {
             model: "gemma4:e2b-it-qat",
             cached: true,
@@ -532,6 +559,11 @@ mockIPC(
       case "providers.catalog":
         return {
           providers: [
+            {id:"openai-chatgpt",name:"ChatGPT",status:"ready",credential:"oauth"},
+            {id:"google",name:"Gemini",status:"ready",credential:"api_key",credential_fields:["api_key"],fields:[]},
+            {id:"google-oauth",name:"Gemini",status:"ready",credential:"oauth"},
+            {id:"anthropic",name:"Claude",status:"ready",credential:"api_key",credential_fields:["api_key"],fields:[]},
+
             {
               id: "openai",
               name: "OpenAI",

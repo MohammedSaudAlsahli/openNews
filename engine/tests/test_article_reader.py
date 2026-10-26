@@ -333,3 +333,17 @@ def test_newsletter_list_paragraphs_stay_with_markers():
     assert text.count('اليوم') == 1
     assert '- تحليلات السوق' in text
     assert '---' in text
+
+
+def test_reader_preserves_media_positions_without_active_embeds():
+    reader = extract_reader('<article><p>Before</p><video src="/clip.mp4" title="Recorded interview"></video><p>Between</p><audio><source src="/voice.mp3"></audio><iframe src="https://www.youtube.com/embed/abc"></iframe><iframe src="https://ads.example/widget"></iframe><p>After</p></article>', BASE, fragment=True)
+    assert [b['type'] for b in reader['blocks']] == ['text','video','text','audio','embed','text']
+    assert reader['blocks'][1]['url'] == 'https://publisher.example/clip.mp4'
+    assert 'ads.example' not in json.dumps(reader)
+    assert '<iframe' not in json.dumps(reader)
+
+
+def test_feed_keeps_audio_enclosure_and_image_cover():
+    feed = b'<rss><channel><item><title>Interview</title><link>https://publisher.example/episode</link><description>Episode description</description><enclosure url="https://publisher.example/episode.mp3" type="audio/mpeg"/></item></channel></rss>'
+    article = news.parse_feed(feed, BASE)[1][0]
+    assert any(b['type']=='audio' and b['url'].endswith('.mp3') for b in article['reader']['blocks'])

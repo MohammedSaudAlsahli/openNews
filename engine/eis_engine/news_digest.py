@@ -14,6 +14,7 @@ class NewsDigest:
         self.current_id = ''
         self.active_request = None
         self.manual_pending = False
+        self.current_archive = False
         from .background_budget import BackgroundBudget
         self.budget = BackgroundBudget(self.store)
         self.last_worker = ""
@@ -68,7 +69,10 @@ class NewsDigest:
         if total == prepared: return 'ready' if total else 'waiting_articles'
         if not assignment: return 'needs_model'
         if self.current_title: return 'summarizing'
-        if setting['engine']=='local' and self.budget.phase(): return self.budget.phase()
+        if setting['engine']=='local':
+            candidate = self.cache.candidate_metadata(setting['language'],assignment,time.time())
+            phase = self.budget.summary_phase(archive=self.is_archive(candidate)) if candidate else self.budget.phase()
+            if phase: return phase
         try:
             if setting['engine']=='local':
                 if assignment['model_id'] not in self.local.installed: return 'needs_download'
@@ -106,6 +110,9 @@ class NewsDigest:
         if result['phase'] not in {'ready','resting'}:
             if self.settings()['engine']=='local': self.interrupt_for_user()
             self.service.news.knowledge.interrupt()
+        elif self.active_request and not self.manual_pending and self.settings()['engine']=='local':
+            phase = self.budget.summary_phase(archive=self.current_archive)
+            if phase not in {'','resting'}: self.active_request.cancel()
         return result
 
     def processing_policy(self, payload=None):
@@ -127,7 +134,9 @@ class NewsDigest:
     def has_pending(self):
         setting,assignment = self.settings(),self.assignment()
         if setting['engine']!='local' or not assignment or assignment['model_id'] not in self.local.installed: return False
-        return bool(setting['enabled'] and self.cache.has_pending(setting['language'],assignment,time.time()))
+        if not setting['enabled']: return False
+        candidate = self.cache.candidate_metadata(setting['language'],assignment,time.time())
+        return bool(candidate and not self.budget.summary_phase(archive=self.is_archive(candidate)))
 
     def worker_allowed(self, worker, other_pending):
         if not self.last_worker or not other_pending: return True
@@ -180,18 +189,41 @@ class NewsDigest:
         if knowledge: knowledge.interrupt()
         if self.active_request and not self.active_request.done(): self.active_request.cancel()
 
+    @staticmethod
+    def is_archive(row):
+        from datetime import datetime, timezone
+        if not row: return True
+        try:
+            stamp = datetime.fromisoformat((row.get('published_at') or row.get('discovered_at') or '').replace('Z','+00:00'))
+            if stamp.tzinfo is None: stamp = stamp.replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc)-stamp).total_seconds() > 86400
+        except (ValueError, TypeError): return True
+
+    async def release_waiting_model(self):
+        if self.service.model_lock.locked(): return
+        async with self.service.model_lock:
+            await self.local.release_generation()
+
     async def prepare_next(self):
         setting = self.settings()
         if not setting['enabled'] or self.service.model_lock.locked() or self.active_request or self.manual_pending: return False
         if self.store.one("SELECT id FROM jobs WHERE workspace_id=? AND type IN ('chat.send','analysis.run','draft.generate') AND state IN ('queued','running') LIMIT 1", (self.ws,)): return False
-        if setting['engine']=='local' and self.budget.phase(): return False
+        if setting['engine']=='local' and self.budget.phase():
+            await self.release_waiting_model()
+            return False
         assignment = self.assignment()
         if not assignment: return False
         knowledge = self.service.news.knowledge
         if setting['engine']=='local' and not self.worker_allowed('summary',knowledge.has_pending()): return False
         current = time.time()
+        metadata = self.cache.candidate_metadata(setting['language'],assignment,current)
+        if setting['engine']=='local' and self.budget.summary_phase(archive=self.is_archive(metadata)):
+            await self.release_waiting_model()
+            return False
         row = self.cache.candidate(setting['language'],assignment,current)
-        if not row: return False
+        if not row:
+            if setting['engine']=='local': await self.release_waiting_model()
+            return False
         try:
             if setting['engine']=='local':
                 await self.local.start_runtime()
@@ -214,6 +246,7 @@ class NewsDigest:
             # The summary represents a bounded excerpt for very long articles, not invented coverage.
             if setting['engine']!='local': self.cache.record()
             self.current_title, self.current_id = row['title'], row['id']
+            self.current_archive = self.is_archive(row)
             started = time.monotonic()
             if setting['engine']=='local': self.begin_worker('summary')
             try:
@@ -235,7 +268,8 @@ class NewsDigest:
                 self.active_request, self.current_title, self.current_id = None, '', ''
                 if setting['engine']=='local':
                     self.finish_worker('summary',1)
-                    self.budget.finished(time.monotonic()-started)
+                    self.budget.summary_finished(time.monotonic()-started)
+                    await self.release_waiting_model()
             return True
         return False
 

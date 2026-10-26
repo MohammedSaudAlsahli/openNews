@@ -1,4 +1,12 @@
-import { useState, useEffect, memo, useId, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  memo,
+  useId,
+  useMemo,
+  createContext,
+  useContext,
+} from "react";
 import {
   LoaderCircle,
   ChevronDown,
@@ -20,6 +28,12 @@ import { language, type RecordData } from "./engine";
 import { CodeBlock } from "./code-block";
 import { t, useLocale } from "./locale";
 import { PreviewLink } from "./link-preview";
+import { CitationReference } from "./citation-reference";
+import {
+  citationFragment,
+  remarkChatCitations,
+  type ChatCitation,
+} from "./chat-citations";
 // Publisher HTML is untrusted. Keep semantic formatting, never scripts, styles,
 // event handlers, remote embeds or arbitrary DOM attributes.
 const proseSchema = {
@@ -35,7 +49,15 @@ const proseSchema = {
     "caption",
   ],
 };
-export const Markdown = memo(function Markdown({ text }: { text: string }) {
+const CitationContext = createContext<ChatCitation[] | undefined>(undefined);
+
+export const Markdown = memo(function Markdown({
+  text,
+  citations,
+}: {
+  text: string;
+  citations?: ChatCitation[];
+}) {
   useLocale();
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   // Stable component identities keep completed code mounted while a response
@@ -55,53 +77,75 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
           <table dir="auto">{children}</table>
         </div>
       ),
-      a: ({ href, children, node: _node, ...attributes }) => (
-        <PreviewLink
-          {...attributes}
-          href={href}
-          onClick={(e) => {
-            e.preventDefault();
-            if (href?.startsWith("#")) {
-              const localId = href.slice(1);
-              const target =
-                document.getElementById(`${id}-${localId}`) ||
-                document.getElementById(localId);
-              if (
-                target?.closest(".prose") === e.currentTarget.closest(".prose")
-              ) {
-                target.scrollIntoView?.({ block: "center" });
-                if (!target.hasAttribute("tabindex")) target.tabIndex = -1;
-                target.focus({ preventScroll: true });
+      a: function MarkdownLink({ href, children, node: _node, ...attributes }) {
+        const citations = useContext(CitationContext);
+        if (citations && href?.startsWith(citationFragment)) {
+          const identifier = href.slice(citationFragment.length);
+          const index = citations.findIndex(
+            (source) => source.article_id?.toLowerCase() === identifier,
+          );
+          return (
+            <CitationReference
+              source={citations[index]}
+              number={index >= 0 ? index + 1 : undefined}
+            />
+          );
+        }
+        return (
+          <PreviewLink
+            {...attributes}
+            href={href}
+            onClick={(e) => {
+              e.preventDefault();
+              if (href?.startsWith("#")) {
+                const localId = href.slice(1);
+                const target =
+                  document.getElementById(`${id}-${localId}`) ||
+                  document.getElementById(localId);
+                if (
+                  target?.closest(".prose") ===
+                  e.currentTarget.closest(".prose")
+                ) {
+                  target.scrollIntoView?.({ block: "center" });
+                  if (!target.hasAttribute("tabindex")) target.tabIndex = -1;
+                  target.focus({ preventScroll: true });
+                }
+                return;
               }
-              return;
-            }
-            if (href)
-              void invoke("open_external", { address: href }).catch(() => {});
-          }}
-        >
-          {children}
-        </PreviewLink>
-      ),
+              if (href)
+                void invoke("open_external", { address: href }).catch(() => {});
+            }}
+          >
+            {children}
+          </PreviewLink>
+        );
+      },
     }),
     [id],
   );
   return (
     <div className="prose" dir={language(text) === "ar" ? "rtl" : "ltr"}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[
-          rehypeRaw,
-          [rehypeSanitize, { ...proseSchema, clobberPrefix: `${id}-` }],
-        ]}
-        remarkRehypeOptions={{
-          clobberPrefix: "",
-          footnoteLabel: t("Footnotes"),
-          footnoteBackLabel: t("Back to reference"),
-        }}
-        components={components}
-      >
-        {text}
-      </ReactMarkdown>
+      <CitationContext.Provider value={citations}>
+        <ReactMarkdown
+          remarkPlugins={
+            citations
+              ? [remarkGfm, remarkChatCitations(citations)]
+              : [remarkGfm]
+          }
+          rehypePlugins={[
+            rehypeRaw,
+            [rehypeSanitize, { ...proseSchema, clobberPrefix: `${id}-` }],
+          ]}
+          remarkRehypeOptions={{
+            clobberPrefix: "",
+            footnoteLabel: t("Footnotes"),
+            footnoteBackLabel: t("Back to reference"),
+          }}
+          components={components}
+        >
+          {text}
+        </ReactMarkdown>
+      </CitationContext.Provider>
     </div>
   );
 });
@@ -118,10 +162,27 @@ export function Trace({
   useEffect(() => setOpen(false), [running]);
   if (!data) return null;
   const execution = data.execution || data;
-  const summary =
+  const translated = execution.reasoning_summaries?.[locale];
+  const stored =
     typeof execution.reasoning_summary === "string"
       ? execution.reasoning_summary
       : "";
+  // UI language is independent of the answer and search queries. Older records
+  // without a declared language can safely use their detected text language.
+  const summary =
+    typeof translated === "string" && translated.trim()
+      ? translated
+      : (execution.summary_language || language(stored)) === locale
+        ? stored
+        : "";
+  const missingTranslation =
+    !summary &&
+    Boolean(
+      stored ||
+      execution.summary_translation_state ||
+      Object.keys(execution.reasoning_summaries || {}).length,
+    );
+
   const labels: Record<string, string> = {
     library: "Searching saved articles",
     search: "Searching saved articles",
@@ -182,7 +243,7 @@ export function Trace({
       : working
         ? t(labels[latest?.kind] || "Preparing the response…")
         : t("Work completed");
-  const hasDetails = Boolean(summary || steps.length);
+  const hasDetails = Boolean(summary || missingTranslation || steps.length);
   const StatusIcon = failed
     ? CircleAlert
     : stopped
@@ -234,6 +295,18 @@ export function Trace({
               <Markdown text={summary} />
             </div>
           )}
+          {missingTranslation && (
+            <p className="trace-translation-status">
+              {t(
+                working &&
+                  ["pending", "translating"].includes(
+                    execution.summary_translation_state,
+                  )
+                  ? "Preparing activity in your interface language…"
+                  : "Activity summary is unavailable in this language.",
+              )}
+            </p>
+          )}
           {!!steps.length && (
             <ol className="trace-steps" aria-label={t("Work steps")}>
               {steps.map((step, i) => {
@@ -250,9 +323,7 @@ export function Trace({
                     <StepIcon size={14} aria-hidden="true" />
                     <div className="trace-step-copy">
                       <span dir="auto">
-                        {step.label ||
-                          step.title ||
-                          t(labels[step.kind] || "Working…")}
+                        {t(labels[step.kind] || "Working…")}
                       </span>
                       {typeof step.detail === "string" && step.detail && (
                         <p dir="auto">{step.detail}</p>

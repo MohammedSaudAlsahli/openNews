@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { App } from "./main";
 import { call } from "./engine";
+import { setLocale } from "./locale";
 
 vi.mock("react-dom/client", () => ({
   createRoot: () => ({ render: vi.fn() }),
@@ -55,6 +56,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  setLocale("en");
   vi.resetAllMocks();
   vi.unstubAllGlobals();
 });
@@ -220,5 +222,22 @@ it("requires explicit model consent without losing the message", async () => {
     expect(
       vi.mocked(call).mock.calls.filter(([command]) => command === "chat.send"),
     ).toHaveLength(1),
+  );
+});
+
+it("sends the selected interface language independently of an Arabic message", async () => {
+  engine(async (payload) => {
+    expect(payload.ui_language).toBe("en");
+    expect(payload.message).toBe("ما آخر الأخبار؟");
+    return { job_id: "job-language" };
+  });
+  setLocale("en");
+  render(<App />);
+  await write("ما آخر الأخبار؟");
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  await waitFor(() =>
+    expect(
+      vi.mocked(call).mock.calls.some(([command]) => command === "chat.send"),
+    ).toBe(true),
   );
 });

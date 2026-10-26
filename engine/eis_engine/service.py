@@ -65,6 +65,8 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         self.custom_agents = CustomAgents(self)
         from .chatgpt_auth import ChatGPTAuth
         self.chatgpt_auth = ChatGPTAuth(self)
+        from .google_auth import GoogleAuth
+        self.google_auth = GoogleAuth(self)
         from .connection_health import ConnectionHealth
         self.connections = ConnectionHealth(self)
         from .personalization import Personalization
@@ -190,6 +192,7 @@ class Service(ServiceJobsMixin, ServiceCommandsMixin, ServiceModelsMixin):
         await self.daily_reports.close()
         self.news.knowledge.interrupt()
         await self.chatgpt_auth.close()
+        await self.google_auth.close()
         if self.knowledge_task:
             self.knowledge_task.cancel()
             await asyncio.gather(self.knowledge_task,return_exceptions=True)

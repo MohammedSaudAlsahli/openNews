@@ -58,6 +58,9 @@ class ServiceCommandsMixin:
             return self.news.archive.history(p.get("article_id"))
         if command == "news.revision":
             return self.news.archive.compare(p.get("article_id"),p.get("revision_id"))
+        if command == "reading.workspace":
+            from .reading_workspace import dispatch
+            return dispatch(self, p)
         if command == "news.list":
             return self.news.list_articles(p)
         if command == "news.bookmark":
@@ -142,6 +145,9 @@ class ServiceCommandsMixin:
             return self.news.next_public_capture()
         if command == "news.reader":
             return await self.news.reader(p["article_id"], force=p.get("refresh") is True)
+        if command == "news.media":
+            from .source_media import load
+            return await load(self, p)
         if command == "news.image":
             return await self.news.image(p["article_id"], p["image_id"])
         if command == "news.preview":
@@ -180,11 +186,14 @@ class ServiceCommandsMixin:
         if command == "sources.add":
             return self.import_text(ImportText.model_validate(p))
         if command == "providers.auth.start":
-            return await self.chatgpt_auth.start(p)
+            manager = self.google_auth if p.get('provider_key') == 'google-oauth' else self.chatgpt_auth
+            return await manager.start(p)
         if command == "providers.auth.status":
-            return self.chatgpt_auth.status(p["auth_id"])
+            manager = self.google_auth if p['auth_id'] in self.google_auth.attempts else self.chatgpt_auth
+            return manager.status(p['auth_id'])
         if command == "providers.auth.cancel":
-            return self.chatgpt_auth.cancel(p["auth_id"])
+            manager = self.google_auth if p['auth_id'] in self.google_auth.attempts else self.chatgpt_auth
+            return manager.cancel(p['auth_id'])
         if command == "providers.check":
             return await self.connections.check(p["profile_id"])
         if command == "providers.delete":
@@ -197,8 +206,8 @@ class ServiceCommandsMixin:
             return catalog()
         if command == "providers.save":
             profile = Profile.model_validate(p)
-            if profile.provider_key == "openai-chatgpt":
-                raise Failure("AUTH_REQUIRED", "استخدم تسجيل الدخول عبر المتصفح لاتصال ChatGPT.")
+            if profile.provider_key in {"openai-chatgpt", "google-oauth"}:
+                raise Failure("AUTH_REQUIRED", "استخدم تسجيل الدخول عبر المتصفح لهذا الحساب.")
             entry = next((x for x in catalog()["providers"] if x["id"] == profile.provider_key),None)
             if not entry or entry["status"] != "ready" or set(profile.config)-set(entry["fields"]):
                 raise Failure("MODEL_UNSUPPORTED", "راجع جاهزية المزود وحقول إعداداته.")

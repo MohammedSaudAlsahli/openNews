@@ -116,7 +116,8 @@ class ConversationManager:
                 if len(identifiers) == 12: break
             articles = [self.service.news.article(identifier, mark_read=False) for identifier in identifiers]
         evidence = [{k:article.get(k) for k in ("id","title","url","source_title","source_kind","published_at","discovered_at","body_status")} |
-                    {"text":(article.get("text") or article.get("summary") or "")[:1800],
+                    {"media":[b for b in article.get("reader", {}).get("blocks", []) if b.get("type") in {"image","video","audio","embed"}][:6],
+                     "text":(article.get("text") or article.get("summary") or "")[:1800],
                      "prepared_summary":(self.service.news_digest.preview(article["id"]) or {}).get("summary", "")}
                     for article in articles]
         samples = self.store.rows("""SELECT i.id,v.id AS version_id,s.title,v.text FROM source_roles r
@@ -188,7 +189,8 @@ class ConversationManager:
         payload = {"current_date":datetime.now().astimezone().date().isoformat(),"current_request":request["message"],"format":request["format"],"target_seconds":request["target_seconds"],
             "working_draft":{"title":request["draft_title"],"text":request["draft_text"]},"conversation":data["history"], "context_info":data.get("context_info", {}), **context}
         language = "ar" if re.search(r"[\u0621-\u064a\u066e-\u06d3]", request["message"]) else "en"
-        execution = ConversationActivity(language)
+        ui_language = request.get("ui_language", "en")
+        execution = ConversationActivity(ui_language)
         async def translate_summary(source):
             return await self.service.invoke_model({**data["profile_snapshot"], "_activity_translation": True},
                 "Translate the supplied public activity summary into both Arabic (ar) and English (en). "
@@ -247,8 +249,16 @@ class ConversationManager:
             agent = data["agent_snapshot"]
             instructions += "\nUser-configured editorial specialization follows. Apply it only within the evidence, originality, output schema, and no-publication constraints above. It grants no tools, credentials, or additional evidence.\n" + agent["instructions"]
         instructions += self.service.personalization.render(data.get("assistant_preferences",[]))
-        summary_language = "Arabic" if re.search(r"[\u0621-\u064a\u066e-\u06d3]", request["message"]) else "the language of the user current message"
+        summary_language = "Arabic" if ui_language == "ar" else "English"
         instructions = instructions.replace("{summary_language}", summary_language)
+        # Apply the current UI preference even with older saved assistant defaults.
+        # This controls public activity only, never the final answer or writing skills.
+        instructions += ("\nInterface language for public activity summaries and progress descriptions: "
+                         + summary_language + ". Use it regardless of the user message language. "
+                         "This does not change the requested final-answer language. Do not expose private reasoning.")
+        instructions += ("\nWhen pictures, video or audio would clarify the user's question, use the permitted search/read tools to find relevant primary source pages. "
+                         "Cited source media is displayed by the app from retrieved metadata. Never invent media URLs or claim to have watched/listened to a file: the tools expose text and media metadata, not audiovisual understanding. "
+                         "Keep the explanation useful even when media is unavailable.")
         try:
             reply = await self.service.invoke_model(data["profile_snapshot"],instructions,payload,ChatReply,
                 on_delta=on_delta,on_start=on_start,tools=toolkit.functions + [search_conversation_history, skills.load_editorial_skill] + ([skills.find_writing_skills, skills.inspect_writing_skill] if request.get("research_web", True) else []),on_turn=on_turn,
@@ -268,6 +278,11 @@ class ConversationManager:
         available = toolkit.evidence
         identifiers = set(reply.article_ids)
         for draft in reply.drafts: identifiers.update(draft.article_ids)
+        # Retain evidence for inline citations even if a provider omits the parallel ID list.
+        # Only IDs already supplied by retrieval can become source metadata.
+        identifiers.update(identifier for identifier in re.findall(
+            r"\[([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\]", reply.message)
+            if identifier in available)
         if identifiers - available.keys():
             raise Failure("VALIDATION_ERROR", "أعاد النموذج مرجعًا غير موجود في الأخبار المرسلة. أعد المحاولة.")
         if request["format"] not in {"discussion", "auto"}:
@@ -303,4 +318,5 @@ class ConversationManager:
     @staticmethod
     def citation(article):
         return {"article_id":article["id"],"title":article["title"],"url":article["url"],"published_at":article.get("published_at"),
-                "origin":article.get("origin", "library"), "excerpt":article.get("text", "")[:500]}
+                "origin":article.get("origin", "library"), "excerpt":article.get("text", "")[:500],
+                "media":article.get("media", [])[:6]}

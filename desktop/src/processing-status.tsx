@@ -4,6 +4,7 @@ import type { RecordData } from "./engine";
 const labels: Record<string, string> = {
   paused: "Background processing is paused",
   stopping: "Stopping background processing…",
+  waiting_idle: "Waiting until you are away",
   memory_pressure: "Waiting for more available memory",
   waiting_charger: "Waiting for a charger",
   disabled: "Paused",

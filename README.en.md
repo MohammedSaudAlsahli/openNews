@@ -87,3 +87,5 @@ Review generated content yourself; a citation does not prove a claim is correct.
 [Report a bug or request a feature](https://github.com/MohammedSaudAlsahli/openNews/issues/new/choose) · [Private security reporting](SECURITY.md) · [Changelog](CHANGELOG.md)
 
 Project code is [MIT-licensed](LICENSE). Dependencies, models and external content retain their separate terms; see [third-party notices](THIRD_PARTY_NOTICES.md). MIT permits commercial use, redistribution and sale with the required notices retained.
+
+See [AI account connections and Google Cloud setup](docs/accounts.en.md).

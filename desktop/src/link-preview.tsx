@@ -13,6 +13,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { call, type RecordData } from "./engine";
 import { t, useLocale } from "./locale";
 
+const ReaderNavigation = createContext<((url: string) => void) | undefined>(
+  undefined,
+);
 const ArticleContext = createContext<string | undefined>(undefined);
 // Only opened previews consume IPC. Bound session memory and reuse in-flight work.
 const previews = new Map<
@@ -35,13 +38,17 @@ function loadPreview(article: string, url: string) {
 export function ReaderLinkPreviews({
   articleId,
   children,
+  onOpen,
 }: {
   articleId: string;
   children: ReactNode;
+  onOpen?: (url: string) => void;
 }) {
   return (
     <ArticleContext.Provider value={articleId}>
-      {children}
+      <ReaderNavigation.Provider value={onOpen}>
+        {children}
+      </ReaderNavigation.Provider>
     </ArticleContext.Provider>
   );
 }
@@ -80,6 +87,7 @@ function ReaderLink({
   article: string;
   href: string;
 }) {
+  const navigate = useContext(ReaderNavigation);
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const trigger = useRef<HTMLAnchorElement>(null);
@@ -140,7 +148,9 @@ function ReaderLink({
             props.onClick?.(event);
             if (!event.defaultPrevented) {
               event.preventDefault();
-              void invoke("open_external", { address: href }).catch(() => {});
+              if (navigate) navigate(href);
+              else
+                void invoke("open_external", { address: href }).catch(() => {});
             }
             setOpen(false);
           }}
@@ -183,6 +193,7 @@ function PreviewContent({
   href: string;
   label: ReactNode;
 }) {
+  const navigate = useContext(ReaderNavigation);
   const locale = useLocale();
   const [result, setResult] = useState<RecordData | null>(null);
   useEffect(() => {
@@ -233,7 +244,9 @@ function PreviewContent({
           href={href}
           onClick={(event) => {
             event.preventDefault();
-            void invoke("open_external", { address: href }).catch(() => {});
+            if (navigate) navigate(href);
+            else
+              void invoke("open_external", { address: href }).catch(() => {});
           }}
         >
           {t("Open original")}

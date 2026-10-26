@@ -1,3 +1,4 @@
+import { SourceMedia } from "./source-media";
 import { memo, useState, useEffect, useRef } from "react";
 import {
   Copy,
@@ -10,7 +11,12 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { Markdown, Trace } from "./components";
 import type { RecordData } from "./engine";
-import { t } from "./locale";
+import { t, useLocale } from "./locale";
+import {
+  copyWithCitations,
+  sourceAddress,
+  type ChatCitation,
+} from "./chat-citations";
 
 export const ChatMessage = memo(function ChatMessage({
   message,
@@ -21,6 +27,7 @@ export const ChatMessage = memo(function ChatMessage({
   onError: (s: string) => void;
   onDraft: () => void;
 }) {
+  useLocale();
   const [copied, setCopied] = useState("");
   const copyRequest = useRef(0);
   const copyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -46,7 +53,33 @@ export const ChatMessage = memo(function ChatMessage({
   return (
     <article className={`message ${message.role}`}>
       {message.activity && <Trace data={message.activity} />}
-      <Markdown text={message.content} />
+      <Markdown
+        text={message.content}
+        citations={
+          message.role === "assistant" ? message.citations || [] : undefined
+        }
+      />
+      {message.role === "assistant" &&
+        (message.citations || [])
+          .flatMap((c: RecordData) =>
+            (c.media || []).map((media: RecordData) => ({
+              ...media,
+              source_url: c.url,
+            })),
+          )
+          .filter(
+            (m: RecordData, i: number, all: RecordData[]) =>
+              all.findIndex((x) => x.url === m.url) === i,
+          )
+          .slice(0, 4)
+          .map((media: RecordData) => (
+            <SourceMedia
+              key={media.url}
+              media={media}
+              messageId={message.id}
+              sourceUrl={media.source_url}
+            />
+          ))}
       {!!message.citations?.length && (
         <details className="citations">
           <summary>
@@ -57,9 +90,10 @@ export const ChatMessage = memo(function ChatMessage({
             <ChevronDown size={13} aria-hidden="true" />
           </summary>
           <div className="citation-list">
-            {message.citations.map((c: RecordData, i: number) => (
+            {message.citations.map((c: ChatCitation, i: number) => (
               <button
-                key={c.id || c.url || i}
+                key={c.article_id || c.url || i}
+                disabled={!sourceAddress(c)}
                 onClick={() =>
                   void invoke("open_external", { address: c.url }).catch((e) =>
                     onError(String(e)),
@@ -107,7 +141,17 @@ export const ChatMessage = memo(function ChatMessage({
             className="icon-button"
             aria-label={t(copied === "response" ? "Copied" : "Copy response")}
             title={t(copied === "response" ? "Copied" : "Copy response")}
-            onClick={() => void copy(message.content, "response")}
+            onClick={() =>
+              void copy(
+                copyWithCitations(
+                  message.content,
+                  message.citations || [],
+                  t("Sources"),
+                  t("Source unavailable"),
+                ),
+                "response",
+              )
+            }
           >
             {copied === "response" ? <Check size={16} /> : <Copy size={16} />}
           </button>

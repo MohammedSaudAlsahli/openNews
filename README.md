@@ -96,3 +96,5 @@ cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
 شفرة المشروع تحت [MIT](LICENSE). تراخيص الاعتمادات والنماذج والمحتوى الخارجي مستقلة؛ راجع [إشعارات الأطراف الثالثة](THIRD_PARTY_NOTICES.md). تسمح MIT بالاستخدام التجاري والتوزيع والبيع مع الاحتفاظ بالإشعارات المطلوبة.
 
 </div>
+
+دليل [ربط حسابات الذكاء الاصطناعي وتهيئة Google Cloud](docs/accounts.md).

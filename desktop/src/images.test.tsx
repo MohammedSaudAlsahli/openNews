@@ -39,12 +39,7 @@ it("requests an image only when it approaches the viewport", async () => {
     imageId: "image-1",
   });
   expect(container.querySelector("img")?.src).toContain("data:image/png");
-  const imageButton = screen.getByRole("button", { name: "Enlarge image" });
-  expect(imageButton.getAttribute("aria-expanded")).toBe("false");
-  fireEvent.click(imageButton);
-  expect(imageButton.getAttribute("aria-expanded")).toBe("true");
-  fireEvent.click(imageButton);
-  expect(imageButton.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByRole("button", { name: "Enlarge image" })).toBeNull();
   unmount();
   expect(disconnect).toHaveBeenCalled();
 });

@@ -2,7 +2,7 @@
 def callback_page(success, language='en'):
     arabic = language == 'ar'
     title = ('تم تسجيل الدخول بنجاح' if success else 'لم يكتمل تسجيل الدخول') if arabic else ('Authorization successful' if success else 'Sign-in was not completed')
-    detail = ('تم ربط openNews بحساب ChatGPT.' if success else 'ارجع إلى openNews وحاول تسجيل الدخول مجددًا.') if arabic else ('openNews is now connected to ChatGPT.' if success else 'Return to openNews and try signing in again.')
+    detail = ('تم ربط openNews بحسابك.' if success else 'ارجع إلى openNews وحاول تسجيل الدخول مجددًا.') if arabic else ('openNews is now connected to your account.' if success else 'Return to openNews and try signing in again.')
     footer = 'يمكنك إغلاق هذه النافذة والعودة إلى التطبيق.' if arabic else 'You can close this window and return to the app.'
     return f'''<!doctype html><html lang="{'ar' if arabic else 'en'}" dir="{'rtl' if arabic else 'ltr'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title><style>
 :root {{ color-scheme:light dark; font-family:system-ui,-apple-system,sans-serif; }}
