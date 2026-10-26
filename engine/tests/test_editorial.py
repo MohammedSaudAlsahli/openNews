@@ -217,7 +217,7 @@ def test_video_requires_duration():
 
 def test_catalog_matches_every_pinned_agno_key():
     from agno.models.utils import MODEL_PROVIDER_CLASSES
-    assert {p['id'] for p in catalog()['providers']}==set(MODEL_PROVIDER_CLASSES) | {'openai-chatgpt'}
+    assert {p['id'] for p in catalog()['providers']}==set(MODEL_PROVIDER_CLASSES) | {'openai-chatgpt','google-oauth'}
 
 
 @pytest.mark.parametrize('provider',['openai','openai-chat','anthropic'])

@@ -559,6 +559,11 @@ mockIPC(
       case "providers.catalog":
         return {
           providers: [
+            {id:"openai-chatgpt",name:"ChatGPT",status:"ready",credential:"oauth"},
+            {id:"google",name:"Gemini",status:"ready",credential:"api_key",credential_fields:["api_key"],fields:[]},
+            {id:"google-oauth",name:"Gemini",status:"ready",credential:"oauth"},
+            {id:"anthropic",name:"Claude",status:"ready",credential:"api_key",credential_fields:["api_key"],fields:[]},
+
             {
               id: "openai",
               name: "OpenAI",

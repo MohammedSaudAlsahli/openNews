@@ -1,3 +1,4 @@
+import { ProviderPicker, providerName, providerMethods, connectionMethod } from "./provider-picker";
 import { settingsMessage } from "./settings-message";
 import { t, getLocale } from "./locale";
 import { useEffect, useRef, useState } from "react";
@@ -68,7 +69,7 @@ export function Connections({
     {},
   );
   const [catalog, setCatalog] = useState<RecordData[]>([]),
-    [provider, setProvider] = useState("ollama"),
+    [provider, setProvider] = useState("openai-chatgpt"),
     [label, setLabel] = useState(""),
     [model, setModel] = useState(""),
     [config, setConfig] = useState<Record<string, string>>({}),
@@ -76,13 +77,14 @@ export function Connections({
     [busy, setBusy] = useState(false),
     [auth, setAuth] = useState(""),
     [models, setModels] = useState<Record<string, RecordData[]>>({});
+  const [googleRegistration, setGoogleRegistration] = useState({client_id:"",client_secret:""});
   const entry = catalog.find((p) => p.id === provider);
   const dirty =
     (adding || !(snapshot.profiles || []).length) &&
     (credentialProfile
       ? Object.values(secrets).some(Boolean)
       : Boolean(
-          label.trim() ||
+          label.trim() || googleRegistration.client_id || googleRegistration.client_secret ||
           model.trim() ||
           Object.values(config).some(Boolean) ||
           Object.values(secrets).some(Boolean),
@@ -94,7 +96,11 @@ export function Connections({
     setCatalogFailed(false);
     call("providers.catalog")
       .then((r) => {
-        if (live) setCatalog(r.providers || []);
+        if (live) {
+          const entries = r.providers || [];
+          setCatalog(entries);
+          setProvider(current=>entries.some((p:RecordData)=>p.id===current && p.status==="ready") ? current : entries.find((p:RecordData)=>p.status==="ready")?.id || "");
+        }
       })
       .catch(() => {
         if (live) setCatalogFailed(true);
@@ -125,6 +131,10 @@ export function Connections({
         if (r.status === "complete") {
           setAuth("");
           setNotice(t("Signed in"));
+          setAdding(false);
+          setGoogleRegistration({client_id:"",client_secret:""});
+          setConfig({});
+          setLabel("");
           await refreshSaved();
           return;
         }
@@ -148,7 +158,7 @@ export function Connections({
       clearTimeout(timer);
     };
   }, [auth, authAttempt]);
-  async function signIn(profile_id?: string) {
+  async function signIn(profile_id?: string, providerKey = provider) {
     if (operation.current || checkLock.current || auth) return;
     operation.current = true;
     setBusy(true);
@@ -156,8 +166,9 @@ export function Connections({
     setNotice("");
     try {
       const r = await call("providers.auth.start", {
-        provider_key: "openai-chatgpt",
+        provider_key: providerKey,
         profile_id,
+        ...(providerKey === "google-oauth" && !profile_id ? {registration:googleRegistration,config:{project_id:config.project_id || "",location:config.location || "us-central1"}} : {}),
         language: getLocale(),
       });
       setAuth(r.auth_id);
@@ -336,7 +347,7 @@ export function Connections({
             {t("Choose the account your assistant uses.")}
           </p>
         </div>
-        <button
+        {!adding && <button
           className="primary"
           disabled={busy || Boolean(auth)}
           onClick={() => {
@@ -345,7 +356,7 @@ export function Connections({
           }}
         >
           {t("Add account")}
-        </button>
+        </button>}
       </div>
       {error && (
         <div className="settings-feedback" role="alert">
@@ -397,7 +408,7 @@ export function Connections({
           </button>
         </div>
       )}
-      <div className="connection-list">
+      <div className="connection-list" hidden={adding}>
         {(snapshot.profiles || []).map((profile: RecordData) => {
           const p = { ...profile, ...profileUpdates[profile.id] };
           return (
@@ -405,7 +416,7 @@ export function Connections({
               <div className="connection-heading">
                 <div>
                   <h3>
-                    <bdi>{p.label || p.provider_key}</bdi>
+                    <bdi>{p.label || providerName(p.provider_key)}</bdi>
                   </h3>
                   <small>
                     <bdi>{p.model_id || t("Choose a model")}</bdi>
@@ -450,15 +461,15 @@ export function Connections({
                   >
                     {t("Refresh models")}
                   </button>
-                  {p.provider_key === "openai-chatgpt" && (
+                  {["openai-chatgpt","google-oauth"].includes(p.provider_key) && (
                     <button
                       disabled={busy || Boolean(auth)}
-                      onClick={() => void signIn(p.id)}
+                      onClick={() => void signIn(p.id, p.provider_key)}
                     >
                       {t("Sign in again")}
                     </button>
                   )}
-                  {p.provider_key !== "openai-chatgpt" &&
+                  {!["openai-chatgpt","google-oauth"].includes(p.provider_key) &&
                     p.provider_key !== "ollama" && (
                       <button
                         disabled={busy || Boolean(checking)}
@@ -574,6 +585,7 @@ export function Connections({
                 onClick={() =>
                   guard.confirm(() => {
                     setAdding(false);
+                    setGoogleRegistration({client_id:"",client_secret:""});
                     setSecrets({});
                     setLabel("");
                     setModel("");
@@ -606,43 +618,40 @@ export function Connections({
               )}
             </p>
           )}
-          <label className="field">
-            {t("Provider")}
-            <select
-              disabled={
-                busy ||
-                Boolean(auth) ||
-                Boolean(credentialProfile) ||
-                catalogLoading ||
-                catalogFailed
-              }
-              value={provider}
-              onChange={(e) => {
-                const nextProvider = e.target.value;
-                guard.confirm(() => {
-                  setProvider(nextProvider);
-                  setSecrets({});
-                  setConfig({});
-                  setModel("");
-                });
-              }}
-            >
-              {catalog
-                .filter((p) => p.status === "ready")
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name || p.id}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <div className="provider-browser">
+            <ProviderPicker catalog={catalog} selected={provider} profiles={snapshot.profiles || []}
+              disabled={busy || Boolean(auth) || Boolean(credentialProfile)}
+              onSelect={next=>guard.confirm(()=>{setProvider(next);setSecrets({});setConfig({});setModel("");setGoogleRegistration({client_id:"",client_secret:""});})}/>
+            <div className="provider-detail">
+              <h3><bdi>{providerName(provider,entry?.name)}</bdi></h3>
+              <label className="field">
+                {t("Connection method")}
+                <select aria-label={t("Connection method")} disabled={busy || Boolean(auth) || Boolean(credentialProfile) || catalogLoading || catalogFailed}
+                  value={provider} onChange={e=>{const next=e.target.value;guard.confirm(()=>{setProvider(next);setSecrets({});setConfig({});setModel("");setGoogleRegistration({client_id:"",client_secret:""});});}}>
+                  {providerMethods(catalog,provider).map(p=><option key={p.id} value={p.id}>{connectionMethod(p)}{providerMethods(catalog,provider).filter(x=>connectionMethod(x)===connectionMethod(p)).length>1?` — ${p.id.includes("responses") || p.id === "openai" ? "Responses API" : p.id.includes("interactions") ? "Interactions API" : p.id.includes("chat") ? "Chat API" : p.name}`:""}</option>)}
+                </select>
+              </label>
+              {provider==="openai-chatgpt" && <p className="muted">{t("Use an eligible ChatGPT plan. Your browser opens to connect your account; no API key is needed.")}</p>}
+              {provider==="anthropic" && <p className="muted">{t("Connect through Claude Console. Claude Pro and Max subscriptions are not an API key.")}</p>}
+              {provider==="google-oauth" && <div className="google-oauth-setup">
+                <p className="muted">{t("Connect Gemini through Google Cloud and Vertex AI. Cloud billing applies; this does not use your personal Gemini subscription.")}</p>
+                <details><summary>{t("Google setup requirements")}</summary><ol>
+                  <li>{t("Enable Vertex AI and billing in your Google Cloud project.")}</li>
+                  <li>{t("Configure the OAuth consent screen and create a Desktop app client. Add test users while the app is in testing.")}</li>
+                  <li>{t("Give your Google account permission to use Vertex AI in that project.")}</li>
+                </ol></details>
+                <label className="field">{t("Google Cloud project ID")}<input value={config.project_id || ""} disabled={busy || Boolean(auth)} onChange={e=>setConfig({...config,project_id:e.target.value})} autoComplete="off" spellCheck={false}/></label>
+                <label className="field">{t("OAuth client ID")}<input value={googleRegistration.client_id} disabled={busy || Boolean(auth)} onChange={e=>setGoogleRegistration({...googleRegistration,client_id:e.target.value})} autoComplete="off" spellCheck={false}/></label>
+                <label className="field">{t("OAuth client secret")}<input type="password" value={googleRegistration.client_secret} disabled={busy || Boolean(auth)} onChange={e=>setGoogleRegistration({...googleRegistration,client_secret:e.target.value})} autoComplete="off"/></label>
+                <label className="field">{t("Google Cloud region")}<input value={config.location || "us-central1"} disabled={busy || Boolean(auth)} onChange={e=>setConfig({...config,location:e.target.value})} spellCheck={false}/></label>
+              </div>}
           {entry?.credential === "oauth" ? (
             <button
               className="primary"
-              disabled={busy || Boolean(auth)}
+              disabled={busy || Boolean(auth) || (provider === "google-oauth" && !(config.project_id && googleRegistration.client_id && googleRegistration.client_secret))}
               onClick={() => void signIn()}
             >
-              {t("Sign in with ChatGPT")}
+              {t(provider === "google-oauth" ? "Sign in with Google" : "Sign in with ChatGPT")}
             </button>
           ) : (
             <>
@@ -744,6 +753,8 @@ export function Connections({
               </button>
             </>
           )}
+            </div>
+          </div>
         </section>
       )}
     </>

@@ -106,6 +106,8 @@ def build_catalog():
         entries.append(row)
     from .chatgpt_auth import ENTRY
     entries.append(dict(ENTRY))
+    from .google_auth import ENTRY as GOOGLE_ENTRY
+    entries.append(dict(GOOGLE_ENTRY))
     return {"agno_version": importlib.metadata.version("agno"), "providers": entries}
 
 
@@ -191,6 +193,14 @@ class ModelFactory:
         if profile["provider_key"] == "openai-chatgpt":
             from .chatgpt_auth import ChatGPTResponses, access_token
             model = ChatGPTResponses(id=profile["model_id"], api_key=await access_token(profile), base_url="https://api.openai.com/v1", store=False, retries=0, max_retries=0, timeout=90)
+        elif profile["provider_key"] == "google-oauth":
+            from .google_auth import access_token as google_token
+            from google.oauth2.credentials import Credentials
+            from agno.models.google import Gemini
+            config = json.loads(profile["config_json"])
+            model = Gemini(id=profile["model_id"], vertexai=True, project_id=config["project_id"],
+                location=config.get("location","us-central1"), credentials=Credentials(await google_token(profile)),
+                retries=0, timeout=90, max_output_tokens=8192)
         else:
             model = self.create(profile)
         if profile.get("_activity_translation") and profile["provider_key"] in {"openai", "openai-chatgpt"}:

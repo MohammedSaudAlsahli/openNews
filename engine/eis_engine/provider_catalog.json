@@ -1265,6 +1265,22 @@
       "note": "تسجيل الدخول باشتراك ChatGPT عبر المتصفح.",
       "live_validated": false,
       "default_base_url": "https://api.openai.com/v1"
+    },
+    {
+      "id": "google-oauth",
+      "name": "Gemini — Google Cloud",
+      "module": "agno.models.google",
+      "class_name": "Gemini",
+      "status": "ready",
+      "fields": [
+        "project_id",
+        "location"
+      ],
+      "default_model": "",
+      "credential": "oauth",
+      "credential_fields": [],
+      "note": "Google Cloud OAuth; Vertex AI billing applies.",
+      "live_validated": false
     }
   ]
 }

@@ -52,7 +52,7 @@ def test_credentials_reject_unknown_secret_fields_without_echo(tmp_path):
 
 def test_all_pinned_adapters_have_a_discovery_strategy():
     entries = catalog()["providers"]
-    assert len(entries) == 69
+    assert len(entries) == 70
     assert all(discovery.strategy(x["id"]) for x in entries)
     assert all(x["status"] == "ready" for x in entries)
 

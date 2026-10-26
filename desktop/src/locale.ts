@@ -4,6 +4,28 @@ let locale: Locale =
   window.localStorage?.getItem("interface-language") === "ar" ? "ar" : "en";
 const listeners = new Set<() => void>();
 const ar: Record<string, string> = {
+  "Providers": "المزوّدون",
+  "Search providers": "ابحث عن مزوّد",
+  "ChatGPT account": "حساب ChatGPT",
+  "Google Cloud account": "حساب Google Cloud",
+  "Local server": "خادم محلي",
+  "Cloud credentials": "بيانات حساب سحابي",
+  "Account saved": "حساب محفوظ",
+  "No matching providers. Try another name.": "لا يوجد مزوّد بهذا الاسم. جرّب اسمًا آخر.",
+  "Connection method": "طريقة الربط",
+  "Use an eligible ChatGPT plan. Your browser opens to connect your account; no API key is needed.": "استخدم خطة ChatGPT المؤهلة. يفتح المتصفح لربط حسابك دون الحاجة إلى مفتاح API.",
+  "Connect through Claude Console. Claude Pro and Max subscriptions are not an API key.": "اربط حسابك بمفتاح من Claude Console. اشتراك Claude Pro أو Max لا يُعدّ مفتاح API.",
+  "Connect Gemini through Google Cloud and Vertex AI. Cloud billing applies; this does not use your personal Gemini subscription.": "اربط Gemini عبر Google Cloud وVertex AI. تُحتسب التكلفة على المشروع السحابي، ولا يُستخدم اشتراك Gemini الشخصي.",
+  "Google setup requirements": "متطلبات إعداد Google",
+  "Enable Vertex AI and billing in your Google Cloud project.": "فعّل Vertex AI والفوترة في مشروع Google Cloud.",
+  "Configure the OAuth consent screen and create a Desktop app client. Add test users while the app is in testing.": "جهّز شاشة موافقة OAuth وأنشئ عميلًا من نوع تطبيق سطح المكتب. أضف مستخدمين تجريبيين أثناء وضع الاختبار.",
+  "Give your Google account permission to use Vertex AI in that project.": "امنح حساب Google صلاحية استخدام Vertex AI في المشروع.",
+  "Google Cloud project ID": "معرّف مشروع Google Cloud",
+  "OAuth client ID": "معرّف عميل OAuth",
+  "OAuth client secret": "سر عميل OAuth",
+  "Google Cloud region": "منطقة Google Cloud",
+  "Sign in with Google": "تسجيل الدخول باستخدام Google",
+
   "Source preview": "معاينة المصدر",
   "Could not open the source. Try again.": "تعذّر فتح المصدر. حاول مرة أخرى.",
   "Source unavailable": "المصدر غير متاح",

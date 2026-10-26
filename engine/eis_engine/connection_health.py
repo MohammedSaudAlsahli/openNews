@@ -37,7 +37,7 @@ class ConnectionHealth:
         state = (row or {}).get('state', 'configured')
         if state != 'disconnected':
             try:
-                if profile['provider_key'] == 'openai-chatgpt':
+                if profile['provider_key'] in {'openai-chatgpt','google-oauth'}:
                     from .chatgpt_auth import read_record, credential_path
                     record = read_record(credential_path(profile))
                     if not record.get('refresh_token') or not record.get('access_token'): state = 'needs_login'
@@ -72,8 +72,8 @@ class ConnectionHealth:
 
     def reconnect(self, pid):
         profile = self.s.profile(pid)
-        if profile['provider_key'] == 'openai-chatgpt':
-            raise Failure('AUTH_REQUIRED', 'استخدم تسجيل الدخول عبر المتصفح لاتصال ChatGPT.')
+        if profile['provider_key'] in {'openai-chatgpt','google-oauth'}:
+            raise Failure('AUTH_REQUIRED', 'استخدم تسجيل الدخول عبر المتصفح لهذا الحساب.')
         read_credentials(profile)
         self.generations[pid] = self.generation(pid) + 1
         self.set(pid, 'configured', reset=True)
@@ -84,17 +84,18 @@ class ConnectionHealth:
         profile = self.s.profile(pid)
         self.generations[pid] = self.generation(pid) + 1
         self.set(pid, 'disconnected', reset=True)
-        for attempt in list(self.s.chatgpt_auth.attempts.values()):
-            if attempt['status'] == 'waiting' and (attempt.get('existing') or {}).get('profile_id') == pid:
-                self.s.chatgpt_auth.cancel(attempt['id'])
+        for manager in (self.s.chatgpt_auth,self.s.google_auth):
+            for attempt in list(manager.attempts.values()):
+                if attempt['status'] == 'waiting' and (attempt.get('existing') or {}).get('profile_id') == pid:
+                    manager.cancel(attempt['id'])
         path = credential_path(profile)
         async with _locks.setdefault(str(path), asyncio.Lock()):
             # Retain only registration metadata for same-account reauthorization.
             # No access/refresh/ID tokens survive an intentional local disconnect.
-            if profile['provider_key'] == 'openai-chatgpt':
+            if profile['provider_key'] in {'openai-chatgpt','google-oauth'}:
                 try: record = read_record(path)
                 except FileNotFoundError: record = {}
-                write_record(path, {k:record[k] for k in ('issuer','subject','client_id','ext_agent_host_id') if k in record})
+                write_record(path, {k:record[k] for k in ('issuer','subject','client_id','client_secret','ext_agent_host_id') if k in record})
             else:
                 write_record(path, {})
         with self.s.db:
